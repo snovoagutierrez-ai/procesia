@@ -71,6 +71,14 @@ def delete_process(id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Process not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+@router.get("/processes/{id}/metrics", response_model=schemas.ProcessMetricsResponse)
+def get_process_metrics(id: int, db: Session = Depends(get_db)):
+    from app.metrics import calculate_process_metrics
+    try:
+        return calculate_process_metrics(db, id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 # ==========================================
 # 3. Activities Endpoints
 # ==========================================

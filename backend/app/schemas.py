@@ -448,3 +448,39 @@ class OptimizationRunResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# ==========================================
+# 9. Metrics Engine (Phase 1)
+# ==========================================
+
+class MetricBottleneck(BaseModel):
+    task_id: int
+    bpmn_id: str
+    name: str
+    metric_type: Literal["cycle_time", "wait_time"]
+    value_sec: float
+    deviation_factor: float
+
+class MetricCost(BaseModel):
+    total_cost: float
+    nva_cost: float
+
+class StructuralMetrics(BaseModel):
+    va_count: int
+    nnva_count: int
+    nva_count: int
+    total_tasks: int
+    rework_rate_percentage: float
+    unique_systems_count: int
+    system_jumps: int
+    handoffs_count: int
+
+class ProcessMetricsResponse(BaseModel):
+    process_id: int
+    total_cycle_time_sec: float
+    total_wait_time_sec: float
+    lead_time_sec: float
+    pce_percentage: float
+    structural: StructuralMetrics
+    bottlenecks: List[MetricBottleneck]
+    cost: MetricCost
