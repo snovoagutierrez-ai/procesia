@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from app import crud, schemas, models, gemini, bpmn
+from app import crud, schemas, models, gemini, bpmn, mermaid_export
 from app.database import get_db
 
 router = APIRouter()
@@ -273,6 +273,21 @@ def get_process_bpmn(id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Unexpected error generating BPMN XML: {str(e)}")
 
     return Response(content=xml_bytes, media_type="application/bpmn+xml")
+
+# ==========================================
+# 10b. Mermaid Flowchart Generation Endpoint
+# ==========================================
+
+@router.get("/processes/{id}/mermaid")
+def get_process_mermaid(id: int, db: Session = Depends(get_db)):
+    try:
+        mermaid_text = mermaid_export.generate_mermaid(db, id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error generating Mermaid syntax: {str(e)}")
+
+    return Response(content=mermaid_text, media_type="text/plain")
 
 # ==========================================
 # 11. Process Tasks Direct Endpoints (Transparent Activity mapping)

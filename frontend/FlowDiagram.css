@@ -1,0 +1,285 @@
+/* ============================================================
+   FlowDiagram — ReactFlow premium theme (Mermaid-inspired)
+   ============================================================ */
+
+/* Container */
+.flow-diagram-container {
+  width: 100%;
+  height: 420px;
+  background:
+    radial-gradient(circle at 1px 1px, #E7ECE8 1px, transparent 0) 0 0/22px 22px;
+}
+
+/* ---- React Flow overrides ---- */
+.flow-diagram-container .react-flow__pane {
+  cursor: grab;
+}
+.flow-diagram-container .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.flow-diagram-container .react-flow__edge-path {
+  stroke: #9AA8A8;
+  stroke-width: 1.8;
+}
+.flow-diagram-container .react-flow__edge .react-flow__edge-path {
+  transition: stroke 0.2s, stroke-width 0.2s;
+}
+.flow-diagram-container .react-flow__edge:hover .react-flow__edge-path {
+  stroke: #0E9F9F;
+  stroke-width: 2.4;
+}
+
+.flow-diagram-container .react-flow__minimap {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #E2E7E3;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+}
+
+.flow-diagram-container .react-flow__controls {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #E2E7E3;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+}
+.flow-diagram-container .react-flow__controls-button {
+  background: #fff;
+  border: none;
+  border-bottom: 1px solid #EEF3F0;
+  width: 30px;
+  height: 30px;
+}
+.flow-diagram-container .react-flow__controls-button:hover {
+  background: #F0FAFA;
+}
+.flow-diagram-container .react-flow__controls-button svg {
+  fill: #5C6B6B;
+}
+
+/* ---- Custom nodes ---- */
+
+/* START / END event nodes */
+.flow-node-event {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+}
+.flow-node-event__circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.flow-node-event__circle::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  opacity: 0.12;
+}
+.flow-node-event:hover .flow-node-event__circle {
+  transform: scale(1.08);
+}
+
+/* Start variant */
+.flow-node-event--start .flow-node-event__circle {
+  background: #fff;
+  border: 2.6px solid #0E9F9F;
+  box-shadow: 0 0 0 4px rgba(14, 159, 159, 0.1), 0 2px 8px rgba(14, 159, 159, 0.15);
+}
+.flow-node-event--start .flow-node-event__circle::after {
+  background: #0E9F9F;
+}
+
+/* End variant */
+.flow-node-event--end .flow-node-event__circle {
+  background: #fff;
+  border: 3px solid #15232E;
+  box-shadow: 0 0 0 4px rgba(21, 35, 46, 0.08), 0 2px 8px rgba(21, 35, 46, 0.12);
+}
+.flow-node-event--end .flow-node-event__circle::after {
+  background: #15232E;
+}
+
+.flow-node-event__label {
+  font-family: var(--mono, 'IBM Plex Mono', monospace);
+  font-size: 10.5px;
+  color: #5C6B6B;
+  text-align: center;
+  max-width: 110px;
+  line-height: 1.3;
+  word-wrap: break-word;
+}
+
+/* TASK node */
+.flow-node-task {
+  position: relative;
+  background: #fff;
+  border: 1.4px solid #E2E7E3;
+  border-radius: 12px;
+  padding: 12px 14px 12px 20px;
+  min-width: 170px;
+  max-width: 220px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  overflow: hidden;
+}
+.flow-node-task::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  border-radius: 12px 0 0 12px;
+  transition: width 0.2s;
+}
+
+.flow-node-task:hover {
+  border-color: #BFE6E6;
+  box-shadow: 0 4px 16px rgba(14, 159, 159, 0.1);
+  transform: translateY(-1px);
+}
+
+.flow-node-task--selected {
+  border-color: #0E9F9F;
+  background: #F1FBFB;
+  box-shadow: 0 0 0 3px rgba(14, 159, 159, 0.15), 0 4px 16px rgba(14, 159, 159, 0.08);
+}
+
+/* Value-class left bar colors */
+.flow-node-task--va::before { background: #1FA463; }
+.flow-node-task--nnva::before { background: #C98A12; }
+.flow-node-task--nva::before { background: #D9503C; }
+
+.flow-node-task__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.flow-node-task__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #EEF3F0;
+  color: #5C6B6B;
+  flex-shrink: 0;
+}
+.flow-node-task--selected .flow-node-task__icon {
+  background: #D7F0F0;
+  color: #0B7E7E;
+}
+
+.flow-node-task__name {
+  font-family: var(--body, 'IBM Plex Sans', sans-serif);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #15232E;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.flow-node-task__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.flow-node-task__type {
+  font-family: var(--body, 'IBM Plex Sans', sans-serif);
+  font-size: 10px;
+  color: #5C6B6B;
+}
+.flow-node-task__value {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.flow-node-task__times {
+  font-family: var(--mono, 'IBM Plex Mono', monospace);
+  font-size: 10px;
+  color: #5C6B6B;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.flow-node-task__times span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Waste badge on NVA tasks */
+.flow-node-task__waste {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: #D9503C;
+  color: #fff;
+  font-size: 8.5px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 2px 5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ---- Handle styling ---- */
+.flow-diagram-container .react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: #9AA8A8;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.flow-node-task:hover .react-flow__handle,
+.flow-node-event:hover .react-flow__handle {
+  opacity: 1;
+}
+
+/* ---- Edge label ---- */
+.flow-diagram-container .react-flow__edge-text {
+  font-family: var(--mono, 'IBM Plex Mono', monospace);
+  font-size: 10px;
+  fill: #5C6B6B;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 880px) {
+  .flow-diagram-container {
+    height: 320px;
+  }
+}
+@media (max-width: 520px) {
+  .flow-diagram-container {
+    height: 260px;
+  }
+}
+
+/* Animation: fade-in for nodes */
+@keyframes flowNodeFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.flow-node-task,
+.flow-node-event {
+  animation: flowNodeFadeIn 0.35s ease-out both;
+}
