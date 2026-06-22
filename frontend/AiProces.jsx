@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
-  ReactFlow, Background, Controls, MiniMap,
+  ReactFlow, Background, Controls,
   useNodesState, useEdgesState, MarkerType,
   Handle, Position,
 } from "@xyflow/react";
@@ -286,16 +286,6 @@ function FlowDiagram({ proc, tasks, selectedId, onSelect }) {
       >
         <Background color="#E7ECE8" gap={22} size={1} />
         <Controls showInteractive={false} />
-        <MiniMap
-          nodeColor={(node) => {
-            if (node.type === "startNode") return "#0E9F9F";
-            if (node.type === "endNode") return "#15232E";
-            const vc = node.data?.valueClass;
-            return VALUE[vc]?.color || "#ccc";
-          }}
-          maskColor="rgba(245,247,245,0.7)"
-          style={{ background: "#fff", border: "1px solid #E2E7E3", borderRadius: 8 }}
-        />
       </ReactFlow>
     </div>
   );
@@ -517,43 +507,71 @@ function Logo({ size = 34 }) {
    Dashboard (multi-process selector)
    ============================================================================ */
 
-function Dashboard({ processes, onSelect, onCreate, onDelete }) {
+function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCreateMacro, onDeleteProcess, onDeleteMacro }) {
   return (
     <div className="pa-dashboard">
       <div className="pa-dash-header">
         <div>
           <h2>Mis procesos</h2>
-          <p>Selecciona un proceso para editarlo o crea uno nuevo.</p>
+          <p>Organiza tus procesos en grandes macroprocesos.</p>
         </div>
-        <button className="pa-btn pa-btn-primary" onClick={onCreate}>
-          <Plus size={16} /> Nuevo proceso
+        <button className="pa-btn pa-btn-primary" onClick={onCreateMacro}>
+          <Plus size={16} /> Nuevo macroproceso
         </button>
       </div>
-      {processes.length === 0 ? (
+      {macroprocesses.length === 0 ? (
         <div className="pa-empty" style={{ textAlign: "center", padding: 40 }}>
           <FolderOpen size={40} style={{ color: "#9AA8A8", marginBottom: 12 }} />
-          <div>No hay procesos aún. Pulsa <b>Nuevo proceso</b> para comenzar.</div>
+          <div>No hay macroprocesos aún. Pulsa <b>Nuevo macroproceso</b> para comenzar.</div>
         </div>
       ) : (
-        <div className="pa-dash-grid">
-          {processes.map((p) => (
-            <div key={p.id} className="pa-dash-card" onClick={() => onSelect(p)}>
-              <div className="pa-dash-card-head">
-                <FileText size={18} style={{ color: "#0E9F9F" }} />
-                <span className="pa-dash-code">{p.code}</span>
-                <button className="pa-icon danger small" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} title="Eliminar proceso">
-                  <Trash2 size={14} />
-                </button>
+        <div className="pa-dash-macros">
+          {macroprocesses.map((m) => {
+            const mProcs = processes.filter(p => p.macroprocess_id === m.id);
+            return (
+              <div key={m.id} className="pa-dash-macro-sec">
+                <div className="pa-dash-macro-head">
+                  <div className="pa-dash-macro-title">
+                    <FolderOpen size={20} style={{ color: "#0E9F9F" }} />
+                    <h3>{m.name}</h3>
+                    <span className="pa-dash-code">{m.code}</span>
+                  </div>
+                  <div className="pa-dash-macro-actions">
+                    <button className="pa-btn pa-btn-ghost" onClick={() => onCreateProcess(m.id)}>
+                      <Plus size={14} /> Añadir proceso
+                    </button>
+                    <button className="pa-icon danger" style={{position:"static", width:34, height:34}} onClick={() => onDeleteMacro(m.id)} title="Eliminar macroproceso">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                {mProcs.length === 0 ? (
+                  <div className="pa-empty" style={{ padding: 20 }}>No hay procesos en este macroproceso.</div>
+                ) : (
+                  <div className="pa-dash-grid">
+                    {mProcs.map((p) => (
+                      <div key={p.id} className="pa-dash-card" onClick={() => onSelect(p)}>
+                        <div className="pa-dash-card-head">
+                          <FileText size={18} style={{ color: "#0E9F9F" }} />
+                          <span className="pa-dash-code">{p.code}</span>
+                          <button className="pa-icon danger small" onClick={(e) => { e.stopPropagation(); onDeleteProcess(p.id); }} title="Eliminar proceso">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        <div className="pa-dash-card-name">{p.name}</div>
+                        {p.objective && <div className="pa-dash-card-obj">{p.objective}</div>}
+                        <div className="pa-dash-card-foot">
+                          <span>{p.trigger_event || p.trigger || "—"}</span>
+                          <ArrowRight size={12} />
+                          <span>{p.output_result || p.output || "—"}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="pa-dash-card-name">{p.name}</div>
-              {p.objective && <div className="pa-dash-card-obj">{p.objective}</div>}
-              <div className="pa-dash-card-foot">
-                <span>{p.trigger_event || p.trigger || "—"}</span>
-                <ArrowRight size={12} />
-                <span>{p.output_result || p.output || "—"}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -568,6 +586,7 @@ export default function App() {
   // Views: "dashboard" | "editor"
   const [view, setView] = useState("dashboard");
   const [allProcesses, setAllProcesses] = useState([]);
+  const [macroprocesses, setMacroprocesses] = useState([]);
   const [proc, setProc] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -595,10 +614,15 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/processes`);
-      if (!res.ok) throw new Error("No se pudo conectar al backend.");
-      const data = await res.json();
-      setAllProcesses(data.map(mapBackendProcessToFrontend));
+      const [resProc, resMac] = await Promise.all([
+        fetch(`${API}/processes`),
+        fetch(`${API}/macroprocesses`)
+      ]);
+      if (!resProc.ok || !resMac.ok) throw new Error("No se pudo conectar al backend.");
+      const dataProc = await resProc.json();
+      const dataMac = await resMac.json();
+      setAllProcesses(dataProc.map(mapBackendProcessToFrontend));
+      setMacroprocesses(dataMac);
     } catch (e) {
       setError("No se pudo conectar al backend. Verifica que el servidor esté activo.");
     } finally {
@@ -629,28 +653,13 @@ export default function App() {
     loadProcessTasks(p);
   };
 
-  const createNewProcess = async () => {
+  const createNewProcess = async (macroprocessId) => {
     try {
-      // Ensure a macroprocess exists
-      let macroRes = await fetch(`${API}/macroprocesses`);
-      let macros = await macroRes.json();
-      let macroId;
-      if (macros.length > 0) {
-        macroId = macros[0].id;
-      } else {
-        const newMacro = await fetch(`${API}/macroprocesses`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: "MAC-01", name: "Macroproceso General", owner_area: "Operaciones" }),
-        });
-        const m = await newMacro.json();
-        macroId = m.id;
-      }
-
       const code = "PROC-" + Math.random().toString(36).slice(2, 6).toUpperCase();
       const resProc = await fetch(`${API}/processes`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          macroprocess_id: macroId, code, name: "Nuevo proceso",
+          macroprocess_id: macroprocessId, code, name: "Nuevo proceso",
           objective: "", trigger_event: "Inicio", output_result: "Fin",
         }),
       });
@@ -660,6 +669,33 @@ export default function App() {
       selectProcess(mapped);
     } catch (e) {
       setError("Error al crear el proceso.");
+    }
+  };
+
+  const createNewMacroprocess = async () => {
+    const name = prompt("Nombre del nuevo macroproceso:");
+    if (!name) return;
+    try {
+      const code = "MAC-" + Math.random().toString(36).slice(2, 5).toUpperCase();
+      const res = await fetch(`${API}/macroprocesses`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, name, owner_area: "General" }),
+      });
+      const m = await res.json();
+      setMacroprocesses((prev) => [...prev, m]);
+    } catch (e) {
+      setError("Error al crear el macroproceso.");
+    }
+  };
+
+  const deleteMacroprocess = async (id) => {
+    if (!confirm("¿Eliminar este macroproceso y TODOS los procesos dentro de él?")) return;
+    try {
+      await fetch(`${API}/macroprocesses/${id}`, { method: "DELETE" });
+      setMacroprocesses((prev) => prev.filter((m) => m.id !== id));
+      setAllProcesses((prev) => prev.filter((p) => p.macroprocess_id !== id));
+    } catch (e) {
+      setError("Error al eliminar el macroproceso.");
     }
   };
 
@@ -975,10 +1011,13 @@ export default function App() {
 
       {view === "dashboard" ? (
         <Dashboard
+          macroprocesses={macroprocesses}
           processes={allProcesses}
           onSelect={selectProcess}
-          onCreate={createNewProcess}
-          onDelete={deleteProcess}
+          onCreateProcess={createNewProcess}
+          onCreateMacro={createNewMacroprocess}
+          onDeleteProcess={deleteProcess}
+          onDeleteMacro={deleteMacroprocess}
         />
       ) : proc ? (
         <div className="pa-shell">
@@ -1116,6 +1155,12 @@ button{font-family:inherit}
   overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .pa-dash-card-foot{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--teal-deep);font-weight:500}
 .pa-icon.danger.small{width:26px;height:26px;border-radius:6px;position:absolute;top:12px;right:12px}
+.pa-dash-macros{display:flex;flex-direction:column;gap:32px}
+.pa-dash-macro-sec{display:flex;flex-direction:column;gap:16px}
+.pa-dash-macro-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:12px;flex-wrap:wrap;gap:12px}
+.pa-dash-macro-title{display:flex;align-items:center;gap:12px}
+.pa-dash-macro-title h3{margin:0;font-family:var(--disp);font-size:18px;font-weight:700}
+.pa-dash-macro-actions{display:flex;align-items:center;gap:8px}
 
 /* ---- shell ---- */
 .pa-shell{display:grid;grid-template-columns:296px 1fr;gap:18px;padding:18px;max-width:1320px;margin:0 auto}
