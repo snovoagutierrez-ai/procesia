@@ -10,7 +10,7 @@ NS = {
     "dc":     "http://www.omg.org/spec/DD/20100524/DC",
     "di":     "http://www.omg.org/spec/DD/20100524/DI",
     "xsi":    "http://www.w3.org/2001/XMLSchema-instance",
-    "lean":   "http://procesia.app/schema/lean",
+    "lean":   "http://aiproces.app/schema/lean",
 }
 
 for prefix, uri in NS.items():
@@ -28,7 +28,7 @@ def build_bpmn_xml(process: dict[str, Any]) -> bytes:
     definitions = ET.Element(
         q("bpmn", "definitions"),
         attrib={"id": f"Definitions_{process['id']}",
-                "targetNamespace": "http://procesia.app/bpmn"},
+                "targetNamespace": "http://aiproces.app/bpmn"},
     )
     process_bpmn_id = f"Process_{process['id']}"
     proc = ET.SubElement(definitions, q("bpmn", "process"),

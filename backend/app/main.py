@@ -11,7 +11,7 @@ app = FastAPI(
 # Configurar middleware de CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://procesia-navy.vercel.app"],  # Habilita el acceso desde cualquier origen
+    allow_origins=["https://procesia-navy.vercel.app", "https://aiproces-navy.vercel.app"],  # Habilita el acceso desde ambos orígenes
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
