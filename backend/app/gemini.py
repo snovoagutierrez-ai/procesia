@@ -188,7 +188,7 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
     db_run = models.OptimizationRun(
         process_id=process_id,
         status=models.OptStatus.pending,
-        model_used="gemini-2.0-flash",
+        model_used="gemini-2.5-flash",
         input_snapshot=snapshot
     )
     db.add(db_run)
@@ -218,7 +218,7 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
         print("[GEMINI] Sending optimization request (attempt 1)...")
         print("="*60)
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             contents=f"Aquí tienes el snapshot del proceso para optimizar:\n\n{contents_json}",
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
@@ -237,10 +237,10 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
         
         # Pydantic v2 validation
         validated_result = schemas.OptimizationResult.model_validate(parsed_json)
-        print("[GEMINI] ✓ Pydantic validation PASSED on attempt 1")
+        print("[GEMINI] OK: Pydantic validation PASSED on attempt 1")
         
     except (json.JSONDecodeError, ValidationError, Exception) as first_err:
-        print(f"\n[GEMINI] ✗ Attempt 1 FAILED: {type(first_err).__name__}: {first_err}\n")
+        print(f"\n[GEMINI] ERROR: Attempt 1 FAILED: {type(first_err).__name__}: {first_err}\n")
         # Attempt retry exactly once
         try:
             retry_prompt = (
@@ -251,7 +251,7 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
             )
             print("[GEMINI] Sending retry request (attempt 2)...")
             response_retry = client.models.generate_content(
-                model='gemini-2.0-flash',
+                model='gemini-2.5-flash',
                 contents=retry_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_PROMPT,
@@ -269,9 +269,9 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
             parsed_json_retry = json.loads(cleaned_text_retry)
             
             validated_result = schemas.OptimizationResult.model_validate(parsed_json_retry)
-            print("[GEMINI] ✓ Pydantic validation PASSED on attempt 2")
+            print("[GEMINI] OK: Pydantic validation PASSED on attempt 2")
         except Exception as retry_err:
-            print(f"\n[GEMINI] ✗ Attempt 2 FAILED: {type(retry_err).__name__}: {retry_err}\n")
+            print(f"\n[GEMINI] ERROR: Attempt 2 FAILED: {type(retry_err).__name__}: {retry_err}\n")
             # Second validation failure - mark status as failed
             db_run.status = models.OptStatus.failed
             db_run.result = {"error": f"First attempt failed: {str(first_err)}. Retry attempt failed: {str(retry_err)}"}
