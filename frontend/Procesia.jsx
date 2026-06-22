@@ -5,8 +5,8 @@ import {
 } from "lucide-react";
 
 /* ----------------------------------------------------------------------------
-   PROCESIA — levantamiento, optimización con IA y exportación BPMN 2.0
-   Frontend integrado con FastAPI + PostgreSQL en http://localhost:8000
+   PROCESIA â€” levantamiento, optimizaciÃ³n con IA y exportaciÃ³n BPMN 2.0
+   Frontend integrado con FastAPI + PostgreSQL en ${import.meta.env.VITE_API_URL}
    Persistencia real de datos.
 ---------------------------------------------------------------------------- */
 
@@ -18,7 +18,7 @@ const VALUE = {
 
 const WASTE = {
   defects: "Defectos / reproceso",
-  overproduction: "Sobreproducción",
+  overproduction: "SobreproducciÃ³n",
   waiting: "Espera",
   non_utilized_talent: "Talento desaprovechado",
   transportation: "Transporte",
@@ -47,7 +47,7 @@ const SEVERITY = {
   low:      { label: "Baja",     color: "#5C6B6B" },
   medium:   { label: "Media",    color: "#C98A12" },
   high:     { label: "Alta",     color: "#D9503C" },
-  critical: { label: "Crítica",  color: "#A4271A" },
+  critical: { label: "CrÃ­tica",  color: "#A4271A" },
 };
 
 const SAMPLE = {
@@ -59,12 +59,12 @@ const SAMPLE = {
     output: "Cuenta activada",
   },
   tasks: [
-    { bpmnId: "Task_01", name: "Recepción de solicitud", type: "user", cycleTime: 300, waitTime: 0, valueClass: "VA", wasteType: "", responsible: "Atención al cliente", accountable: "Líder de atención", consulted: "", informed: "", systems: "CRM" },
-    { bpmnId: "Task_02", name: "Espera de validación de crédito", type: "user", cycleTime: 120, waitTime: 7200, valueClass: "NVA", wasteType: "waiting", responsible: "Analista de riesgo", accountable: "Jefe de riesgo", consulted: "", informed: "", systems: "Core bancario" },
+    { bpmnId: "Task_01", name: "RecepciÃ³n de solicitud", type: "user", cycleTime: 300, waitTime: 0, valueClass: "VA", wasteType: "", responsible: "AtenciÃ³n al cliente", accountable: "LÃ­der de atenciÃ³n", consulted: "", informed: "", systems: "CRM" },
+    { bpmnId: "Task_02", name: "Espera de validaciÃ³n de crÃ©dito", type: "user", cycleTime: 120, waitTime: 7200, valueClass: "NVA", wasteType: "waiting", responsible: "Analista de riesgo", accountable: "Jefe de riesgo", consulted: "", informed: "", systems: "Core bancario" },
     { bpmnId: "Task_03", name: "Captura manual de datos en ERP", type: "manual", cycleTime: 900, waitTime: 0, valueClass: "NNVA", wasteType: "", responsible: "Back office", accountable: "Back office", consulted: "", informed: "", systems: "ERP" },
-    { bpmnId: "Task_04", name: "Revisión documental", type: "user", cycleTime: 600, waitTime: 1800, valueClass: "NNVA", wasteType: "", responsible: "Cumplimiento", accountable: "Cumplimiento", consulted: "Legal", informed: "", systems: "Gestor documental" },
+    { bpmnId: "Task_04", name: "RevisiÃ³n documental", type: "user", cycleTime: 600, waitTime: 1800, valueClass: "NNVA", wasteType: "", responsible: "Cumplimiento", accountable: "Cumplimiento", consulted: "Legal", informed: "", systems: "Gestor documental" },
     { bpmnId: "Task_05", name: "Reproceso por datos incompletos", type: "manual", cycleTime: 700, waitTime: 0, valueClass: "NVA", wasteType: "defects", responsible: "Back office", accountable: "Back office", consulted: "", informed: "", systems: "ERP, CRM" },
-    { bpmnId: "Task_06", name: "Activación de cuenta", type: "service", cycleTime: 60, waitTime: 0, valueClass: "VA", wasteType: "", responsible: "Sistema", accountable: "TI", consulted: "", informed: "Atención al cliente", systems: "Core bancario" },
+    { bpmnId: "Task_06", name: "ActivaciÃ³n de cuenta", type: "service", cycleTime: 60, waitTime: 0, valueClass: "VA", wasteType: "", responsible: "Sistema", accountable: "TI", consulted: "", informed: "AtenciÃ³n al cliente", systems: "Core bancario" },
   ],
 };
 
@@ -160,13 +160,13 @@ function Diagram({ proc, tasks, selectedId, onSelect }) {
             <rect x={n.x} y={Y - TH / 2} width={TW} height={TH} rx="11" fill={sel ? "#F1FBFB" : "#fff"} stroke={sel ? "#0E9F9F" : "#E0E5E2"} strokeWidth={sel ? 2.2 : 1.2} />
             <rect x={n.x} y={Y - TH / 2} width="5" height={TH} rx="2.5" fill={v.color} />
             <text x={n.x + 16} y={Y - 16} fontSize="12.5" fontWeight="600" fill="#15232E" fontFamily="var(--body)">
-              {t.name.length > 18 ? t.name.slice(0, 17) + "…" : t.name}
+              {t.name.length > 18 ? t.name.slice(0, 17) + "â€¦" : t.name}
             </text>
             <text x={n.x + 16} y={Y + 2} fontSize="10" fill="#5C6B6B" fontFamily="var(--body)">
-              {TypeLabel} · <tspan fill={v.color} fontWeight="600">{v.short}</tspan>
+              {TypeLabel} Â· <tspan fill={v.color} fontWeight="600">{v.short}</tspan>
             </text>
             <text x={n.x + 16} y={Y + 22} fontSize="10" fill="#15232E" fontFamily="var(--mono)">
-              ciclo {fmtShort(t.cycleTime)} · espera {fmtShort(t.waitTime)}
+              ciclo {fmtShort(t.cycleTime)} Â· espera {fmtShort(t.waitTime)}
             </text>
           </g>
         );
@@ -226,7 +226,7 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast }) {
         </Field>
       </div>
 
-      <Field label="Clasificación de valor">
+      <Field label="ClasificaciÃ³n de valor">
         <Seg value={task.valueClass} onChange={(v) => set({ valueClass: v, wasteType: v === "NVA" ? task.wasteType || "waiting" : "" })}
           options={Object.entries(VALUE).map(([k, m]) => ({ value: k, label: m.short, color: m.color }))} />
       </Field>
@@ -250,7 +250,7 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast }) {
       </div>
 
       <Field label="Sistemas involucrados">
-        <input className="pa-input" value={task.systems} onChange={(e) => set({ systems: e.target.value })} placeholder="ERP, CRM…" />
+        <input className="pa-input" value={task.systems} onChange={(e) => set({ systems: e.target.value })} placeholder="ERP, CRMâ€¦" />
       </Field>
     </div>
   );
@@ -263,12 +263,12 @@ function Optimization({ state, onRun, onApply }) {
     <div className="pa-opt">
       <div className="pa-opt-head">
         <div>
-          <h3>Optimización con IA</h3>
+          <h3>OptimizaciÃ³n con IA</h3>
           <p>El motor analiza tiempos, RACI, sistemas y valor para detectar cuellos de botella y desperdicios.</p>
         </div>
         <button className="pa-btn pa-btn-primary" onClick={onRun} disabled={state.status === "loading"}>
           {state.status === "loading" ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
-          {state.status === "loading" ? "Analizando…" : "Optimizar proceso"}
+          {state.status === "loading" ? "Analizandoâ€¦" : "Optimizar proceso"}
         </button>
       </div>
 
@@ -276,7 +276,7 @@ function Optimization({ state, onRun, onApply }) {
         <div className="pa-alert">
           <AlertTriangle size={16} />
           <div>
-            <strong>No se pudo completar el análisis.</strong> {state.error}
+            <strong>No se pudo completar el anÃ¡lisis.</strong> {state.error}
             <div className="pa-alert-sub">En tu despliegue, este paso llama a la API de Gemini (key de AI Studio) desde el backend.</div>
           </div>
         </div>
@@ -291,7 +291,7 @@ function Optimization({ state, onRun, onApply }) {
           {d.summary && (
             <div className="pa-opt-summary">
               <div><span>Eficiencia (VA)</span><b>{Math.round((d.summary.value_added_ratio || 0) * 100)}%</b></div>
-              <div><span>Pasos NVA</span><b>{d.summary.nva_task_count ?? "—"}</b></div>
+              <div><span>Pasos NVA</span><b>{d.summary.nva_task_count ?? "â€”"}</b></div>
               <div><span>Confianza</span><b>{Math.round((d.analysis_confidence || 0) * 100)}%</b></div>
             </div>
           )}
@@ -310,7 +310,7 @@ function Optimization({ state, onRun, onApply }) {
                     <p>{b.impact_description || b.impact}</p>
                     <div className="pa-meta">
                       {b.metric === "wait_time" ? "Espera" : "Ciclo"}: <b>{fmtLong(b.value_sec)}</b>
-                      {b.deviation_factor ? <> · <b>{Number(b.deviation_factor).toFixed(1)}×</b> sobre la media</> : null}
+                      {b.deviation_factor ? <> Â· <b>{Number(b.deviation_factor).toFixed(1)}Ã—</b> sobre la media</> : null}
                     </div>
                   </div>
                 );
@@ -328,7 +328,7 @@ function Optimization({ state, onRun, onApply }) {
                     <span className="pa-badge" style={{ background: VALUE.NVA.color }}>NVA</span>
                   </div>
                   <p>{it.description}</p>
-                  {it.root_cause && <div className="pa-meta">Causa raíz: {it.root_cause}</div>}
+                  {it.root_cause && <div className="pa-meta">Causa raÃ­z: {it.root_cause}</div>}
                 </div>
               ))}
             </section>
@@ -343,10 +343,10 @@ function Optimization({ state, onRun, onApply }) {
                   <div key={i} className="pa-card">
                     <div className="pa-card-top">
                       <span className="pa-chip" style={{ borderColor: ac.color, color: ac.color }}>{ac.label}</span>
-                      {r.estimated_time_saving_pct ? <span className="pa-save">−{Math.round(r.estimated_time_saving_pct)}% tiempo</span> : null}
+                      {r.estimated_time_saving_pct ? <span className="pa-save">âˆ’{Math.round(r.estimated_time_saving_pct)}% tiempo</span> : null}
                     </div>
                     <p>{r.description}</p>
-                    <div className="pa-meta">Complejidad: {r.implementation_complexity || "—"}</div>
+                    <div className="pa-meta">Complejidad: {r.implementation_complexity || "â€”"}</div>
                   </div>
                 );
               })}
@@ -367,21 +367,10 @@ function Optimization({ state, onRun, onApply }) {
 /* ---------- Logo mark (inline, mismo que el .svg) ---------- */
 function Logo({ size = 34 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 256 256" fill="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="lt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#162A39" /><stop offset="1" stopColor="#0B5A5A" /></linearGradient>
-        <linearGradient id="lf" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#1FBFBF" /><stop offset="1" stopColor="#67ECEC" /></linearGradient>
-        <radialGradient id="lc" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stopColor="#6BF0F0" /><stop offset="1" stopColor="#0FA8A8" /></radialGradient>
-      </defs>
-      <rect x="0" y="0" width="256" height="256" rx="60" fill="url(#lt)" />
-      <g stroke="#79E6E6" strokeOpacity="0.32" strokeWidth="4" strokeLinecap="round" fill="none">
-        <path d="M40 116 C60 128 70 152 86 170" /><path d="M40 150 C58 158 70 162 86 170" /><path d="M40 184 C58 180 72 176 86 170" />
-      </g>
-      <path d="M86 170 C112 150 122 148 146 126 C168 106 184 92 206 70" stroke="url(#lf)" strokeWidth="11" strokeLinecap="round" fill="none" />
-      <circle cx="86" cy="170" r="8" fill="#162A39" stroke="#C6F2F2" strokeWidth="4" />
-      <circle cx="146" cy="126" r="8" fill="#C6F2F2" />
-      <circle cx="206" cy="70" r="16" fill="url(#lc)" /><circle cx="206" cy="70" r="5" fill="#EAFFFF" />
-      <path d="M226 48 l2.6 6.4 6.4 2.6 -6.4 2.6 -2.6 6.4 -2.6 -6.4 -6.4 -2.6 6.4 -2.6 z" fill="#EAFFFF" />
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width="32" height="32" rx="8" fill="#1E293B" />
+      <path d="M11 22V10H17C19.2091 10 21 11.7909 21 14C21 16.2091 19.2091 18 17 18H11" stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="16" cy="14" r="2.5" fill="#38BDF8" />
     </svg>
   );
 }
@@ -417,7 +406,7 @@ export default function App() {
   const loadOrSeedData = async () => {
     setLoading(true);
     try {
-      const resProcs = await fetch("http://localhost:8000/processes");
+      const resProcs = await fetch(`${import.meta.env.VITE_API_URL}/processes`);
       const procs = await resProcs.json();
       
       if (procs && procs.length > 0) {
@@ -425,7 +414,7 @@ export default function App() {
         setProc(activeProc);
         
         // Fetch tasks
-        const resTasks = await fetch(`http://localhost:8000/processes/${activeProc.id}/tasks`);
+        const resTasks = await fetch(`${import.meta.env.VITE_API_URL}/processes/${activeProc.id}/tasks`);
         const dbTasks = await resTasks.json();
         const mapped = dbTasks.map(mapBackendTaskToFrontend);
         setTasks(mapped);
@@ -435,7 +424,7 @@ export default function App() {
       } else {
         // Seeding database with Sample Process
         // 1. Create Macroprocess
-        const resMacro = await fetch("http://localhost:8000/macroprocesses", {
+        const resMacro = await fetch(`${import.meta.env.VITE_API_URL}/macroprocesses`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -447,7 +436,7 @@ export default function App() {
         const macro = await resMacro.json();
         
         // 2. Create Process (which creates the 'General' Activity automatically)
-        const resProc = await fetch("http://localhost:8000/processes", {
+        const resProc = await fetch(`${import.meta.env.VITE_API_URL}/processes`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -483,7 +472,7 @@ export default function App() {
             systems: st.systems
           };
           
-          const resTask = await fetch(`http://localhost:8000/processes/${newProc.id}/tasks`, {
+          const resTask = await fetch(`${import.meta.env.VITE_API_URL}/processes/${newProc.id}/tasks`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(newTask)
@@ -509,7 +498,7 @@ export default function App() {
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
     debounceTimeoutRef.current = setTimeout(async () => {
       try {
-        await fetch(`http://localhost:8000/processes/${updatedProc.id}`, {
+        await fetch(`${import.meta.env.VITE_API_URL}/processes/${updatedProc.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -567,7 +556,7 @@ export default function App() {
             systems: t.systems
           };
           
-          await fetch(`http://localhost:8000/processes/${proc.id}/tasks/${id}`, {
+          await fetch(`${import.meta.env.VITE_API_URL}/processes/${proc.id}/tasks/${id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body)
@@ -601,7 +590,7 @@ export default function App() {
         systems: ""
       };
       
-      const res = await fetch(`http://localhost:8000/processes/${proc.id}/tasks`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/processes/${proc.id}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newTask)
@@ -613,14 +602,14 @@ export default function App() {
       setSelectedId(mapped.id);
       setTab("detalle");
     } catch (e) {
-      console.error("Error al añadir tarea:", e);
+      console.error("Error al aÃ±adir tarea:", e);
     }
   };
 
   const deleteTask = async (id) => {
     if (!proc) return;
     try {
-      await fetch(`http://localhost:8000/processes/${proc.id}/tasks/${id}`, {
+      await fetch(`${import.meta.env.VITE_API_URL}/processes/${proc.id}/tasks/${id}`, {
         method: "DELETE"
       });
       setTasks((ts) => {
@@ -665,7 +654,7 @@ export default function App() {
         informed: task.informed,
         systems: task.systems
       };
-      await fetch(`http://localhost:8000/processes/${proc.id}/tasks/${task.id}`, {
+      await fetch(`${import.meta.env.VITE_API_URL}/processes/${proc.id}/tasks/${task.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
@@ -689,7 +678,7 @@ export default function App() {
     try {
       // 1. Delete all current tasks
       await Promise.all(tasks.map(t => 
-        fetch(`http://localhost:8000/processes/${proc.id}/tasks/${t.id}`, { method: "DELETE" })
+        fetch(`${import.meta.env.VITE_API_URL}/processes/${proc.id}/tasks/${t.id}`, { method: "DELETE" })
       ));
       
       // 2. Insert new steps
@@ -716,7 +705,7 @@ export default function App() {
           systems: ""
         };
         
-        const res = await fetch(`http://localhost:8000/processes/${proc.id}/tasks`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/processes/${proc.id}/tasks`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(newTask)
@@ -749,26 +738,26 @@ export default function App() {
     setOpt({ status: "loading" });
     setTab("optim");
     try {
-      const res = await fetch(`http://localhost:8000/processes/${proc.id}/optimize`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/processes/${proc.id}/optimize`, {
         method: "POST"
       });
       
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.detail?.message || errorData.detail || "Error en el motor de optimización.");
+        throw new Error(errorData.detail?.message || errorData.detail || "Error en el motor de optimizaciÃ³n.");
       }
       
       const data = await res.json();
       setOpt({ status: "done", data });
     } catch (e) {
-      setOpt({ status: "error", error: e.message || "Error de conexión." });
+      setOpt({ status: "error", error: e.message || "Error de conexiÃ³n." });
     }
   }
 
   async function exportBpmn() {
     if (!proc) return;
     try {
-      const res = await fetch(`http://localhost:8000/processes/${proc.id}/bpmn`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/processes/${proc.id}/bpmn`);
       if (!res.ok) {
         throw new Error("No se pudo compilar el archivo BPMN en el servidor.");
       }
@@ -808,7 +797,7 @@ export default function App() {
           <Logo size={36} />
           <div>
             <div className="pa-brand-name">Procesia</div>
-            <div className="pa-brand-tag">Levanta · Optimiza · Exporta</div>
+            <div className="pa-brand-tag">Levanta Â· Optimiza Â· Exporta</div>
           </div>
         </div>
         <div className="pa-topbar-actions">
@@ -824,7 +813,7 @@ export default function App() {
           <div className="pa-side-sec">
             <div className="pa-side-title">Proceso</div>
             <input className="pa-input ink" value={proc.name || ""} onChange={(e) => setProcField("name", e.target.value)} placeholder="Nombre del proceso" />
-            <input className="pa-input ink mono" value={proc.code || ""} onChange={(e) => setProcField("code", e.target.value)} placeholder="Código" />
+            <input className="pa-input ink mono" value={proc.code || ""} onChange={(e) => setProcField("code", e.target.value)} placeholder="CÃ³digo" />
             <textarea className="pa-input ink" rows={2} value={proc.objective || ""} onChange={(e) => setProcField("objective", e.target.value)} placeholder="Objetivo" />
           </div>
 
@@ -840,7 +829,7 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <button className="pa-btn pa-btn-ghost full" onClick={addTask}><Plus size={16} /> Añadir tarea</button>
+            <button className="pa-btn pa-btn-ghost full" onClick={addTask}><Plus size={16} /> AÃ±adir tarea</button>
           </div>
         </aside>
 
@@ -873,7 +862,7 @@ export default function App() {
           <div className="pa-panel">
             <div className="pa-tabs">
               <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
-              <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> Optimización IA</button>
+              <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> OptimizaciÃ³n IA</button>
             </div>
             <div className="pa-panel-body">
               {tab === "detalle" ? (
