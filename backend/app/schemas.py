@@ -129,8 +129,8 @@ class TaskBase(BaseModel):
     task_type: TaskType = TaskType.user
     value_classification: ValueClass
     waste_type: Optional[WasteType] = None
-    std_cycle_time_sec: Decimal = Decimal('0.00')
-    std_wait_time_sec: Decimal = Decimal('0.00')
+    std_cycle_time_sec: Decimal = Field(default=Decimal('0.00'), ge=0)
+    std_wait_time_sec: Decimal = Field(default=Decimal('0.00'), ge=0)
 
 class TaskCreate(TaskBase):
     raci: Optional[List[TaskRaciCreateNested]] = None
@@ -144,13 +144,19 @@ class TaskCreateDirect(BaseModel):
     task_type: TaskType = TaskType.user
     value_classification: ValueClass
     waste_type: Optional[WasteType] = None
-    std_cycle_time_sec: Decimal = Decimal('0.00')
-    std_wait_time_sec: Decimal = Decimal('0.00')
+    std_cycle_time_sec: Decimal = Field(default=Decimal('0.00'), ge=0)
+    std_wait_time_sec: Decimal = Field(default=Decimal('0.00'), ge=0)
     responsible: Optional[str] = None
     accountable: Optional[str] = None
     consulted: Optional[str] = None
     informed: Optional[str] = None
     systems: Optional[str] = None
+
+    @model_validator(mode='after')
+    def validate_waste(self):
+        if self.value_classification == ValueClass.NVA and not self.waste_type:
+            raise ValueError("waste_type is required when value_classification is NVA")
+        return self
 
 class TaskUpdate(BaseModel):
     activity_id: Optional[int] = None
@@ -161,8 +167,8 @@ class TaskUpdate(BaseModel):
     task_type: Optional[TaskType] = None
     value_classification: Optional[ValueClass] = None
     waste_type: Optional[WasteType] = None
-    std_cycle_time_sec: Optional[Decimal] = None
-    std_wait_time_sec: Optional[Decimal] = None
+    std_cycle_time_sec: Optional[Decimal] = Field(None, ge=0)
+    std_wait_time_sec: Optional[Decimal] = Field(None, ge=0)
     raci: Optional[List[TaskRaciCreateNested]] = None
     systems: Optional[List[TaskSystemCreateNested]] = None
 
@@ -174,13 +180,19 @@ class TaskUpdateDirect(BaseModel):
     task_type: Optional[TaskType] = None
     value_classification: Optional[ValueClass] = None
     waste_type: Optional[WasteType] = None
-    std_cycle_time_sec: Optional[Decimal] = None
-    std_wait_time_sec: Optional[Decimal] = None
+    std_cycle_time_sec: Optional[Decimal] = Field(None, ge=0)
+    std_wait_time_sec: Optional[Decimal] = Field(None, ge=0)
     responsible: Optional[str] = None
     accountable: Optional[str] = None
     consulted: Optional[str] = None
     informed: Optional[str] = None
     systems: Optional[str] = None
+
+    @model_validator(mode='after')
+    def validate_waste(self):
+        if self.value_classification == ValueClass.NVA and not self.waste_type:
+            raise ValueError("waste_type is required when value_classification is NVA")
+        return self
 
 class TaskResponse(TaskBase):
     id: int
@@ -233,9 +245,11 @@ class TaskResponse(TaskBase):
 
 # We add a model validator to enforce the check constraint in TaskCreate and TaskUpdate
 class TaskCreateValidated(TaskCreate):
-    @field_validator('waste_type')
-    def validate_waste(cls, v, info):
-        return v
+    @model_validator(mode='after')
+    def validate_waste(self):
+        if self.value_classification == ValueClass.NVA and not self.waste_type:
+            raise ValueError("waste_type is required when value_classification is NVA")
+        return self
 
     model_config = {
         "json_schema_extra": {

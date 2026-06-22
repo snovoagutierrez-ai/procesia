@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 
 /* ----------------------------------------------------------------------------
-   PROCESIA â€” levantamiento, optimizaciÃ³n con IA y exportaciÃ³n BPMN 2.0
+   AiProces ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â levantamiento, optimizaciÃƒÆ’Ã‚Â³n con IA y exportaciÃƒÆ’Ã‚Â³n BPMN 2.0
    Frontend integrado con FastAPI + PostgreSQL en ${import.meta.env.VITE_API_URL}
    Persistencia real de datos.
 ---------------------------------------------------------------------------- */
@@ -18,7 +18,7 @@ const VALUE = {
 
 const WASTE = {
   defects: "Defectos / reproceso",
-  overproduction: "SobreproducciÃ³n",
+  overproduction: "SobreproducciÃƒÆ’Ã‚Â³n",
   waiting: "Espera",
   non_utilized_talent: "Talento desaprovechado",
   transportation: "Transporte",
@@ -47,7 +47,7 @@ const SEVERITY = {
   low:      { label: "Baja",     color: "#5C6B6B" },
   medium:   { label: "Media",    color: "#C98A12" },
   high:     { label: "Alta",     color: "#D9503C" },
-  critical: { label: "CrÃ­tica",  color: "#A4271A" },
+  critical: { label: "CrÃƒÆ’Ã‚Â­tica",  color: "#A4271A" },
 };
 
 const SAMPLE = {
@@ -59,12 +59,12 @@ const SAMPLE = {
     output: "Cuenta activada",
   },
   tasks: [
-    { bpmnId: "Task_01", name: "RecepciÃ³n de solicitud", type: "user", cycleTime: 300, waitTime: 0, valueClass: "VA", wasteType: "", responsible: "AtenciÃ³n al cliente", accountable: "LÃ­der de atenciÃ³n", consulted: "", informed: "", systems: "CRM" },
-    { bpmnId: "Task_02", name: "Espera de validaciÃ³n de crÃ©dito", type: "user", cycleTime: 120, waitTime: 7200, valueClass: "NVA", wasteType: "waiting", responsible: "Analista de riesgo", accountable: "Jefe de riesgo", consulted: "", informed: "", systems: "Core bancario" },
+    { bpmnId: "Task_01", name: "RecepciÃƒÆ’Ã‚Â³n de solicitud", type: "user", cycleTime: 300, waitTime: 0, valueClass: "VA", wasteType: "", responsible: "AtenciÃƒÆ’Ã‚Â³n al cliente", accountable: "LÃƒÆ’Ã‚Â­der de atenciÃƒÆ’Ã‚Â³n", consulted: "", informed: "", systems: "CRM" },
+    { bpmnId: "Task_02", name: "Espera de validaciÃƒÆ’Ã‚Â³n de crÃƒÆ’Ã‚Â©dito", type: "user", cycleTime: 120, waitTime: 7200, valueClass: "NVA", wasteType: "waiting", responsible: "Analista de riesgo", accountable: "Jefe de riesgo", consulted: "", informed: "", systems: "Core bancario" },
     { bpmnId: "Task_03", name: "Captura manual de datos en ERP", type: "manual", cycleTime: 900, waitTime: 0, valueClass: "NNVA", wasteType: "", responsible: "Back office", accountable: "Back office", consulted: "", informed: "", systems: "ERP" },
-    { bpmnId: "Task_04", name: "RevisiÃ³n documental", type: "user", cycleTime: 600, waitTime: 1800, valueClass: "NNVA", wasteType: "", responsible: "Cumplimiento", accountable: "Cumplimiento", consulted: "Legal", informed: "", systems: "Gestor documental" },
+    { bpmnId: "Task_04", name: "RevisiÃƒÆ’Ã‚Â³n documental", type: "user", cycleTime: 600, waitTime: 1800, valueClass: "NNVA", wasteType: "", responsible: "Cumplimiento", accountable: "Cumplimiento", consulted: "Legal", informed: "", systems: "Gestor documental" },
     { bpmnId: "Task_05", name: "Reproceso por datos incompletos", type: "manual", cycleTime: 700, waitTime: 0, valueClass: "NVA", wasteType: "defects", responsible: "Back office", accountable: "Back office", consulted: "", informed: "", systems: "ERP, CRM" },
-    { bpmnId: "Task_06", name: "ActivaciÃ³n de cuenta", type: "service", cycleTime: 60, waitTime: 0, valueClass: "VA", wasteType: "", responsible: "Sistema", accountable: "TI", consulted: "", informed: "AtenciÃ³n al cliente", systems: "Core bancario" },
+    { bpmnId: "Task_06", name: "ActivaciÃƒÆ’Ã‚Â³n de cuenta", type: "service", cycleTime: 60, waitTime: 0, valueClass: "VA", wasteType: "", responsible: "Sistema", accountable: "TI", consulted: "", informed: "AtenciÃƒÆ’Ã‚Â³n al cliente", systems: "Core bancario" },
   ],
 };
 
@@ -160,13 +160,13 @@ function Diagram({ proc, tasks, selectedId, onSelect }) {
             <rect x={n.x} y={Y - TH / 2} width={TW} height={TH} rx="11" fill={sel ? "#F1FBFB" : "#fff"} stroke={sel ? "#0E9F9F" : "#E0E5E2"} strokeWidth={sel ? 2.2 : 1.2} />
             <rect x={n.x} y={Y - TH / 2} width="5" height={TH} rx="2.5" fill={v.color} />
             <text x={n.x + 16} y={Y - 16} fontSize="12.5" fontWeight="600" fill="#15232E" fontFamily="var(--body)">
-              {t.name.length > 18 ? t.name.slice(0, 17) + "â€¦" : t.name}
+              {t.name.length > 18 ? t.name.slice(0, 17) + "ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦" : t.name}
             </text>
             <text x={n.x + 16} y={Y + 2} fontSize="10" fill="#5C6B6B" fontFamily="var(--body)">
-              {TypeLabel} Â· <tspan fill={v.color} fontWeight="600">{v.short}</tspan>
+              {TypeLabel} Ãƒâ€šÃ‚Â· <tspan fill={v.color} fontWeight="600">{v.short}</tspan>
             </text>
             <text x={n.x + 16} y={Y + 22} fontSize="10" fill="#15232E" fontFamily="var(--mono)">
-              ciclo {fmtShort(t.cycleTime)} Â· espera {fmtShort(t.waitTime)}
+              ciclo {fmtShort(t.cycleTime)} Ãƒâ€šÃ‚Â· espera {fmtShort(t.waitTime)}
             </text>
           </g>
         );
@@ -226,7 +226,7 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast }) {
         </Field>
       </div>
 
-      <Field label="ClasificaciÃ³n de valor">
+      <Field label="ClasificaciÃƒÆ’Ã‚Â³n de valor">
         <Seg value={task.valueClass} onChange={(v) => set({ valueClass: v, wasteType: v === "NVA" ? task.wasteType || "waiting" : "" })}
           options={Object.entries(VALUE).map(([k, m]) => ({ value: k, label: m.short, color: m.color }))} />
       </Field>
@@ -250,7 +250,7 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast }) {
       </div>
 
       <Field label="Sistemas involucrados">
-        <input className="pa-input" value={task.systems} onChange={(e) => set({ systems: e.target.value })} placeholder="ERP, CRMâ€¦" />
+        <input className="pa-input" value={task.systems} onChange={(e) => set({ systems: e.target.value })} placeholder="ERP, CRMÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦" />
       </Field>
     </div>
   );
@@ -263,12 +263,12 @@ function Optimization({ state, onRun, onApply }) {
     <div className="pa-opt">
       <div className="pa-opt-head">
         <div>
-          <h3>OptimizaciÃ³n con IA</h3>
+          <h3>OptimizaciÃƒÆ’Ã‚Â³n con IA</h3>
           <p>El motor analiza tiempos, RACI, sistemas y valor para detectar cuellos de botella y desperdicios.</p>
         </div>
         <button className="pa-btn pa-btn-primary" onClick={onRun} disabled={state.status === "loading"}>
           {state.status === "loading" ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
-          {state.status === "loading" ? "Analizandoâ€¦" : "Optimizar proceso"}
+          {state.status === "loading" ? "AnalizandoÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦" : "Optimizar proceso"}
         </button>
       </div>
 
@@ -276,7 +276,7 @@ function Optimization({ state, onRun, onApply }) {
         <div className="pa-alert">
           <AlertTriangle size={16} />
           <div>
-            <strong>No se pudo completar el anÃ¡lisis.</strong> {state.error}
+            <strong>No se pudo completar el anÃƒÆ’Ã‚Â¡lisis.</strong> {state.error}
             <div className="pa-alert-sub">En tu despliegue, este paso llama a la API de Gemini (key de AI Studio) desde el backend.</div>
           </div>
         </div>
@@ -291,7 +291,7 @@ function Optimization({ state, onRun, onApply }) {
           {d.summary && (
             <div className="pa-opt-summary">
               <div><span>Eficiencia (VA)</span><b>{Math.round((d.summary.value_added_ratio || 0) * 100)}%</b></div>
-              <div><span>Pasos NVA</span><b>{d.summary.nva_task_count ?? "â€”"}</b></div>
+              <div><span>Pasos NVA</span><b>{d.summary.nva_task_count ?? "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}</b></div>
               <div><span>Confianza</span><b>{Math.round((d.analysis_confidence || 0) * 100)}%</b></div>
             </div>
           )}
@@ -310,7 +310,7 @@ function Optimization({ state, onRun, onApply }) {
                     <p>{b.impact_description || b.impact}</p>
                     <div className="pa-meta">
                       {b.metric === "wait_time" ? "Espera" : "Ciclo"}: <b>{fmtLong(b.value_sec)}</b>
-                      {b.deviation_factor ? <> Â· <b>{Number(b.deviation_factor).toFixed(1)}Ã—</b> sobre la media</> : null}
+                      {b.deviation_factor ? <> Ãƒâ€šÃ‚Â· <b>{Number(b.deviation_factor).toFixed(1)}ÃƒÆ’Ã¢â‚¬â€</b> sobre la media</> : null}
                     </div>
                   </div>
                 );
@@ -328,7 +328,7 @@ function Optimization({ state, onRun, onApply }) {
                     <span className="pa-badge" style={{ background: VALUE.NVA.color }}>NVA</span>
                   </div>
                   <p>{it.description}</p>
-                  {it.root_cause && <div className="pa-meta">Causa raÃ­z: {it.root_cause}</div>}
+                  {it.root_cause && <div className="pa-meta">Causa raÃƒÆ’Ã‚Â­z: {it.root_cause}</div>}
                 </div>
               ))}
             </section>
@@ -343,10 +343,10 @@ function Optimization({ state, onRun, onApply }) {
                   <div key={i} className="pa-card">
                     <div className="pa-card-top">
                       <span className="pa-chip" style={{ borderColor: ac.color, color: ac.color }}>{ac.label}</span>
-                      {r.estimated_time_saving_pct ? <span className="pa-save">âˆ’{Math.round(r.estimated_time_saving_pct)}% tiempo</span> : null}
+                      {r.estimated_time_saving_pct ? <span className="pa-save">ÃƒÂ¢Ã‹â€ Ã¢â‚¬â„¢{Math.round(r.estimated_time_saving_pct)}% tiempo</span> : null}
                     </div>
                     <p>{r.description}</p>
-                    <div className="pa-meta">Complejidad: {r.implementation_complexity || "â€”"}</div>
+                    <div className="pa-meta">Complejidad: {r.implementation_complexity || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}</div>
                   </div>
                 );
               })}
@@ -486,7 +486,7 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.error("Error al inicializar los datos:", e);
+      console.info("Error al inicializar los datos:", e);
     } finally {
       setLoading(false);
     }
@@ -511,7 +511,7 @@ export default function App() {
           })
         });
       } catch (e) {
-        console.error("Error al actualizar proceso:", e);
+        console.info("Error al actualizar proceso:", e);
       }
     }, 800);
   };
@@ -562,7 +562,7 @@ export default function App() {
             body: JSON.stringify(body)
           });
         } catch (e) {
-          console.error("Error al actualizar tarea:", e);
+          console.info("Error al actualizar tarea:", e);
         }
       }, 500);
       
@@ -602,7 +602,7 @@ export default function App() {
       setSelectedId(mapped.id);
       setTab("detalle");
     } catch (e) {
-      console.error("Error al aÃ±adir tarea:", e);
+      console.info("Error al aÃƒÆ’Ã‚Â±adir tarea:", e);
     }
   };
 
@@ -618,7 +618,7 @@ export default function App() {
         return r;
       });
     } catch (e) {
-      console.error("Error al eliminar tarea:", e);
+      console.info("Error al eliminar tarea:", e);
     }
   };
 
@@ -668,7 +668,7 @@ export default function App() {
         saveTaskOrder(updatedTasks[j])
       ]);
     } catch (e) {
-      console.error("Error al reordenar tareas:", e);
+      console.info("Error al reordenar tareas:", e);
     }
   };
 
@@ -718,7 +718,7 @@ export default function App() {
       setSelectedId(mapped[0]?.id || null);
       setTab("detalle");
     } catch (e) {
-      console.error("Error al aplicar flujo optimizado:", e);
+      console.info("Error al aplicar flujo optimizado:", e);
       alert("No se pudo aplicar el flujo optimizado por completo.");
     } finally {
       setLoading(false);
@@ -744,13 +744,13 @@ export default function App() {
       
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.detail?.message || errorData.detail || "Error en el motor de optimizaciÃ³n.");
+        throw new Error(errorData.detail?.message || errorData.detail || "Error en el motor de optimizaciÃƒÆ’Ã‚Â³n.");
       }
       
       const data = await res.json();
       setOpt({ status: "done", data });
     } catch (e) {
-      setOpt({ status: "error", error: e.message || "Error de conexiÃ³n." });
+      setOpt({ status: "error", error: e.message || "Error de conexiÃƒÆ’Ã‚Â³n." });
     }
   }
 
@@ -796,8 +796,8 @@ export default function App() {
         <div className="pa-brand">
           <Logo size={36} />
           <div>
-            <div className="pa-brand-name">Procesia</div>
-            <div className="pa-brand-tag">Levanta Â· Optimiza Â· Exporta</div>
+            <div className="pa-brand-name">AiProces</div>
+            <div className="pa-brand-tag">Levanta Ãƒâ€šÃ‚Â· Optimiza Ãƒâ€šÃ‚Â· Exporta</div>
           </div>
         </div>
         <div className="pa-topbar-actions">
@@ -813,7 +813,7 @@ export default function App() {
           <div className="pa-side-sec">
             <div className="pa-side-title">Proceso</div>
             <input className="pa-input ink" value={proc.name || ""} onChange={(e) => setProcField("name", e.target.value)} placeholder="Nombre del proceso" />
-            <input className="pa-input ink mono" value={proc.code || ""} onChange={(e) => setProcField("code", e.target.value)} placeholder="CÃ³digo" />
+            <input className="pa-input ink mono" value={proc.code || ""} onChange={(e) => setProcField("code", e.target.value)} placeholder="CÃƒÆ’Ã‚Â³digo" />
             <textarea className="pa-input ink" rows={2} value={proc.objective || ""} onChange={(e) => setProcField("objective", e.target.value)} placeholder="Objetivo" />
           </div>
 
@@ -829,7 +829,7 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <button className="pa-btn pa-btn-ghost full" onClick={addTask}><Plus size={16} /> AÃ±adir tarea</button>
+            <button className="pa-btn pa-btn-ghost full" onClick={addTask}><Plus size={16} /> AÃƒÆ’Ã‚Â±adir tarea</button>
           </div>
         </aside>
 
@@ -862,7 +862,7 @@ export default function App() {
           <div className="pa-panel">
             <div className="pa-tabs">
               <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
-              <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> OptimizaciÃ³n IA</button>
+              <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> OptimizaciÃƒÆ’Ã‚Â³n IA</button>
             </div>
             <div className="pa-panel-body">
               {tab === "detalle" ? (
@@ -1027,4 +1027,10 @@ textarea.pa-input{resize:vertical;line-height:1.45}
 .pa-steplist::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:8px}
 .pa-diagram-wrap::-webkit-scrollbar{height:9px}
 .pa-diagram-wrap::-webkit-scrollbar-thumb{background:#D2DAD4;border-radius:8px}
-`;
+`
+button:hover, .pa-icon:hover { filter: brightness(1.05); }
+button:active, .pa-icon:active { filter: brightness(0.95); transform: scale(0.98); }
+button:disabled, .pa-icon:disabled { opacity: 0.6; cursor: not-allowed; filter: none; transform: none; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.pa-input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(14,159,159,.2); }
+;

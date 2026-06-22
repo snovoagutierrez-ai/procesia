@@ -2,12 +2,25 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/procesia-logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Procesia — Levanta · Optimiza · Exporta</title>
+    <meta name="theme-color" content="#13202B" />
+    <link rel="icon" type="image/svg+xml" href="/aiproces-logo.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>AiProces — Levanta · Optimiza · Exporta</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/main.jsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then((registration) => {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          }).catch((err) => {
+            console.log('ServiceWorker registration failed: ', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>

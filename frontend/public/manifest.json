@@ -1,0 +1,17 @@
+{
+  "name": "AiProces",
+  "short_name": "AiProces",
+  "description": "Levanta, optimiza y exporta tus procesos con IA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#13202B",
+  "theme_color": "#13202B",
+  "icons": [
+    {
+      "src": "/aiproces-logo.svg",
+      "sizes": "192x192 512x512 any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

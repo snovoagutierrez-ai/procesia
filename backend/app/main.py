@@ -3,15 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import router as api_router
 
 app = FastAPI(
-    title="Procesia Backend API",
-    description="Backend para optimización de procesos Lean/BPMN con integración a Gemini API",
+    title="AiProces Backend API",
+    description="Backend para optimizaciÃƒÂ³n de procesos Lean/BPMN con integraciÃƒÂ³n a Gemini API",
     version="1.0.0"
 )
 
 # Configurar middleware de CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Habilita el acceso desde cualquier origen
+    allow_origins=["https://procesia-navy.vercel.app"],  # Habilita el acceso desde cualquier origen
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,6 +24,6 @@ app.include_router(api_router, prefix="")
 def health_check():
     return {
         "status": "healthy",
-        "app": "Procesia Backend",
+        "app": "AiProces Backend",
         "version": "1.0.0"
     }
