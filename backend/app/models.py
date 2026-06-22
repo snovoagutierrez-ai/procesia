@@ -115,7 +115,7 @@ class Task(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "value_classification = 'VA' OR waste_type IS NOT NULL", 
+            "value_classification <> 'NVA' OR waste_type IS NOT NULL", 
             name="chk_task_value_waste"
         ),
     )

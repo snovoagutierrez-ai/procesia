@@ -11,36 +11,36 @@ from sqlalchemy import func
 from app import models, schemas
 from app.config import settings
 
-SYSTEM_PROMPT = """Eres un motor experto en optimizaciÃ³n de procesos bajo metodologÃ­as Lean, Six Sigma y
-BPMN 2.0. RecibirÃ¡s un objeto JSON que representa el levantamiento transaccional de un
-proceso, incluyendo jerarquÃ­a, tiempos de ciclo y espera, asignaciÃ³n RACI, sistemas
-involucrados y clasificaciÃ³n de valor agregado por tarea (VA=valor agregado,
+SYSTEM_PROMPT = """Eres un motor experto en optimización de procesos bajo metodologías Lean, Six Sigma y
+BPMN 2.0. Recibirás un objeto JSON que representa el levantamiento transaccional de un
+proceso, incluyendo jerarquía, tiempos de ciclo y espera, asignación RACI, sistemas
+involucrados y clasificación de valor agregado por tarea (VA=valor agregado,
 NNVA=necesario sin valor, NVA=desperdicio).
 
-Tu ÃšNICA funciÃ³n es analizar estos datos y devolver EXCLUSIVAMENTE un objeto JSON vÃ¡lido
-conforme al esquema de salida definido mÃ¡s abajo. No incluyas texto, explicaciones,
-markdown ni bloques de cÃ³digo fuera del JSON. No inventes mÃ©tricas: toda conclusiÃ³n debe
+Tu ÚNICA función es analizar estos datos y devolver EXCLUSIVAMENTE un objeto JSON válido
+conforme al esquema de salida definido más abajo. No incluyas texto, explicaciones,
+markdown ni bloques de código fuera del JSON. No inventes métricas: toda conclusión debe
 derivarse de los datos provistos.
 
-REGLAS DE ANÃLISIS
+REGLAS DE ANÁLISIS
 1. Cuellos de botella: identifica nodos cuyo cycle_time o wait_time supere 1.5x la media
    del proceso, o que concentren reprocesos. Reporta el deviation_factor y cuantifica el
    impacto.
-2. Desperdicios: clasifica cada tarea NVA segÃºn los 8 desperdicios Lean (DOWNTIME:
+2. Desperdicios: clasifica cada tarea NVA según los 8 desperdicios Lean (DOWNTIME:
    defects, overproduction, waiting, non_utilized_talent, transportation, inventory,
-   motion, excess_processing) e indica su causa raÃ­z.
-3. RACI: detecta anomalÃ­as â€” mÃ¡s de un 'A' (Accountable) en una tarea, ausencia de 'A',
+   motion, excess_processing) e indica su causa raíz.
+3. RACI: detecta anomalías — más de un 'A' (Accountable) en una tarea, ausencia de 'A',
    o exceso de handoffs entre roles distintos en tareas consecutivas.
 4. Sistemas: detecta saltos innecesarios entre sistemas (context switching) y
-   oportunidades de automatizaciÃ³n o integraciÃ³n.
-5. Recomendaciones: por cada hallazgo propÃ³n una acciÃ³n concreta usando UNO de estos
+   oportunidades de automatización o integración.
+5. Recomendaciones: por cada hallazgo propón una acción concreta usando UNO de estos
    action_type: ELIMINATE, AUTOMATE, SIMPLIFY, MERGE, PARALLELIZE, REASSIGN, STANDARDIZE.
    Estima estimated_time_saving_pct (0-100) e implementation_complexity.
-6. optimized_flow: cuando aporte valor, propÃ³n un grafo reestructurado que paralelice
-   tareas independientes y elimine esperas, manteniendo identificadores BPMN vÃ¡lidos.
+6. optimized_flow: cuando aporte valor, propón un grafo reestructurado que paralelice
+   tareas independientes y elimine esperas, manteniendo identificadores BPMN válidos.
 
-Si faltan datos para algÃºn anÃ¡lisis, reflÃ©jalo reduciendo analysis_confidence (0.0-1.0).
-La respuesta DEBE ser Ãºnicamente el siguiente objeto JSON:
+Si faltan datos para algún análisis, refléjalo reduciendo analysis_confidence (0.0-1.0).
+La respuesta DEBE ser únicamente el siguiente objeto JSON:
 
 {
   "process_id": "string",
@@ -219,10 +219,11 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
 
         response = client.models.generate_content(
             model='gemini-2.5-flash',
-            contents=f"AquÃ­ tienes el snapshot del proceso para optimizar:\n\n{contents_json}",
+            contents=f"Aquí tienes el snapshot del proceso para optimizar:\n\n{contents_json}",
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
-                response_mime_type="application/json"
+                response_mime_type="application/json",
+                temperature=0.2
             )
         )
         raw_response_text = response.text
@@ -244,9 +245,9 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
         # Attempt retry exactly once
         try:
             retry_prompt = (
-                f"El JSON anterior fallÃ³ la validaciÃ³n.\n"
-                f"Error de validaciÃ³n:\n{str(first_err)}\n\n"
-                f"Por favor, corrige el JSON y devuÃ©lvelo estrictamente de acuerdo con el esquema especificado en el system prompt.\n"
+                f"El JSON anterior falló la validación.\n"
+                f"Error de validación:\n{str(first_err)}\n\n"
+                f"Por favor, corrige el JSON y devuélvelo estrictamente de acuerdo con el esquema especificado en el system prompt.\n"
                 f"Datos del proceso original:\n{json.dumps(snapshot, indent=2)}"
             )
 
@@ -255,7 +256,8 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
                 contents=retry_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_PROMPT,
-                    response_mime_type="application/json"
+                    response_mime_type="application/json",
+                    temperature=0.2
                 )
             )
             raw_response_text_retry = response_retry.text
@@ -288,6 +290,8 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
         
         # Extract value_added_ratio from summary if available
         va_ratio = result_dict.get('summary', {}).get('value_added_ratio', 0.0)
+        # Cap to [0.0, 1.0] to prevent DB overflow on Numeric(5,4)
+        va_ratio = max(0.0, min(1.0, float(va_ratio)))
         db_run.value_added_ratio = Decimal(str(va_ratio))
         db_run.completed_at = func.now()
         db.commit()

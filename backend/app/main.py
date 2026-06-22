@@ -4,7 +4,7 @@ from app.api import router as api_router
 
 app = FastAPI(
     title="AiProces Backend API",
-    description="Backend para optimizaciÃƒÂ³n de procesos Lean/BPMN con integraciÃƒÂ³n a Gemini API",
+    description="Backend para optimización de procesos Lean/BPMN con integración a Gemini API",
     version="1.0.0"
 )
 
