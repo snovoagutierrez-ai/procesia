@@ -66,16 +66,16 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
         value=f"Bearer {access_token}",
         httponly=True,
         secure=is_production,
-        samesite="none" if is_production else "lax",
+        samesite="lax",
         max_age=auth.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )
-    return {"message": "Logged in successfully", "role": user.role.value}
+    return {"message": "Logged in successfully", "role": user.role.value, "access_token": access_token}
 
 
 @router.post("/auth/logout")
 def logout(response: Response):
     is_production = os.environ.get("ENV", "development").lower() == "production" or os.environ.get("RENDER") == "true"
-    response.delete_cookie(key="access_token", httponly=True, secure=is_production, samesite="none" if is_production else "lax")
+    response.delete_cookie(key="access_token", httponly=True, secure=is_production, samesite="lax")
     return {"message": "Logged out successfully"}
 
 @router.get("/auth/me", response_model=schemas.UserResponse)
