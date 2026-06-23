@@ -50,6 +50,13 @@ function VSMLadder({ metrics }) {
         <div style={{ position: 'relative', height: 16, fontSize: 10, color: '#9AA8A8', marginTop: 4 }}>
           <span style={{ position: 'absolute', left: '25%', transform: 'translateX(-50%)' }}>25%</span>
         </div>
+        <div style={{ marginTop: 12, padding: 12, background: isPceGood ? '#E8F5E9' : '#FFF8E1', borderRadius: 8, fontSize: 12, color: isPceGood ? '#1FA463' : '#C98A12', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          <Info size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+          <span>{isPceGood 
+            ? "Tu Eficiencia de Ciclo (PCE) es saludable. Estás por encima del umbral Lean del 25%, lo que indica un buen flujo de valor sin excesivas esperas." 
+            : "Tu Eficiencia de Ciclo (PCE) está por debajo del umbral recomendado (25%). Hay demasiados tiempos de espera o tareas que no agregan valor en relación al tiempo de trabajo productivo."}
+          </span>
+        </div>
       </div>
       
       <div>
@@ -736,14 +743,23 @@ const Seg = ({ value, options, onChange }) => (
    Step Editor
    ============================================================================ */
 
-function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState = { status: 'idle' }, expertMode, setExpertMode }) {
+function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone }) {
+  const [showSaved, setShowSaved] = useState(false);
+  const handleSave = () => {
+    setShowSaved(true);
+    setTimeout(() => {
+      setShowSaved(false);
+      if (onDone) onDone();
+    }, 800);
+  };
+
   if (!task)
     return <div className="pa-empty">Selecciona un paso en el diagrama o en la lista para ver y editar sus datos.</div>;
   const set = (patch) => onChange(task.id, patch);
   return (
     <div className="pa-editor">
       <div className="pa-editor-head">
-        <span className="pa-tag" style={{ fontFamily: "var(--mono)" }}>{task.bpmnId}</span>
+        <span className="pa-tag" style={{ fontFamily: "var(--body)", background: "#E8F5E9", color: "#1FA463", padding: "4px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600 }}>Tarea</span>
         <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', marginRight: '16px', fontSize: '12px', color: saveState.status === 'error' ? 'var(--danger)' : 'var(--teal)', gap: '4px' }}>
           {saveState.status === 'saving' && <><Loader2 size={12} className="spin" /> Guardando...</>}
           {saveState.status === 'saved' && <><Check size={12} /> Guardado</>}
@@ -807,6 +823,60 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
         <button className="pa-btn pa-btn-ghost" style={{ color: '#D9503C', borderColor: '#D9503C' }} onClick={() => onDelete(task.id)}>
           <Trash2 size={16} style={{ marginRight: 4 }} /> Borrar tarea
         </button>
+        <button className="pa-btn pa-btn-primary" onClick={handleSave} style={{ minWidth: 100 }}>
+          {showSaved ? <><Check size={16} /> Guardado</> : "Guardar"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idle' }, onDone }) {
+  const [showSaved, setShowSaved] = useState(false);
+  const handleSave = () => {
+    setShowSaved(true);
+    setTimeout(() => {
+      setShowSaved(false);
+      if (onDone) onDone();
+    }, 800);
+  };
+  return (
+    <div className="pa-editor">
+      <div className="pa-editor-head">
+        <span className="pa-tag" style={{ fontFamily: "var(--body)", background: "#EBF0EC", color: "#0E9F9F", padding: "4px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600 }}>Compuerta</span>
+        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', marginRight: '16px', fontSize: '12px', color: saveState.status === 'error' ? 'var(--danger)' : 'var(--teal)', gap: '4px' }}>
+          {saveState.status === 'saving' && <><Loader2 size={12} className="spin" /> Guardando...</>}
+          {saveState.status === 'saved' && <><Check size={12} /> Guardado</>}
+          {saveState.status === 'error' && <><AlertTriangle size={12} /> Error al guardar</>}
+          {saveState.status === 'idle' && 'Guardado automático activado'}
+        </div>
+        <div className="pa-editor-actions">
+          <button className="pa-btn pa-btn-ghost" onClick={() => onDelete(gateway.bpmn_id)}>Eliminar</button>
+        </div>
+      </div>
+      <div className="pa-form">
+        <Field label="Nombre de la decisión" tooltip="Nombre o pregunta que se evalúa (Ej: '¿Aprobado?').">
+          <input className="pa-input" value={gateway.name || ""} onChange={(e) => onChange(gateway.bpmn_id, { name: e.target.value })} />
+        </Field>
+        <Field label="Tipo de compuerta" tooltip="Exclusiva: Solo se toma un camino. Paralela: Se toman todos los caminos al mismo tiempo.">
+          <select className="pa-input" value={gateway.node_type} onChange={(e) => onChange(gateway.bpmn_id, { node_type: e.target.value })}>
+            <option value="exclusiveGateway">Exclusiva (X)</option>
+            <option value="parallelGateway">Paralela (+)</option>
+          </select>
+        </Field>
+        <div style={{ padding: '12px', background: '#F0F9F9', borderLeft: '3px solid #0E9F9F', borderRadius: '4px', fontSize: 13, color: '#3A4B4B', marginTop: 16 }}>
+          <strong><Info size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }}/> ¿Cómo conectar?</strong><br/>
+          Arrastra desde los puntos conectores de los nodos en el diagrama hacia esta compuerta para conectarla. Usa la tecla Retroceso (Backspace) para eliminar flechas erróneas.
+        </div>
+        <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '12px', color: '#0E9F9F', flex: 1, minWidth: '150px' }}>Guardado automático activado</span>
+          <button className="pa-btn pa-btn-ghost" style={{ color: '#D9503C', borderColor: '#D9503C' }} onClick={() => onDelete(gateway.bpmn_id)}>
+            <Trash2 size={16} style={{ marginRight: 4 }} /> Borrar compuerta
+          </button>
+          <button className="pa-btn pa-btn-primary" onClick={handleSave} style={{ minWidth: 100 }}>
+            {showSaved ? <><Check size={16} /> Guardado</> : "Guardar"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2029,45 +2099,12 @@ export default function App() {
                       <Editor task={selectedTask} onChange={updateTask} onMove={moveTask} onDelete={deleteTask}
                         isFirst={selectedTask ? tasks[0]?.id === selectedTask.id : true}
                         isLast={selectedTask ? tasks[tasks.length - 1]?.id === selectedTask.id : true} 
-                        saveState={saveState} expertMode={expertMode} setExpertMode={setExpertMode} />
+                        saveState={saveState} expertMode={expertMode} setExpertMode={setExpertMode}
+                        onDone={() => { if (isMobile) setMobileStep(1); else setSelectedId(null); }} />
                     ) : selectedGateway ? (
-                      <div className="pa-editor">
-                        <div className="pa-editor-head">
-                          <span className="pa-editor-id mono">{selectedGateway.bpmn_id}</span>
-                          <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', marginRight: '16px', fontSize: '12px', color: saveState.status === 'error' ? 'var(--danger)' : 'var(--teal)', gap: '4px' }}>
-                            {saveState.status === 'saving' && <><Loader2 size={12} className="spin" /> Guardando...</>}
-                            {saveState.status === 'saved' && <><Check size={12} /> Guardado</>}
-                            {saveState.status === 'error' && <><AlertTriangle size={12} /> Error al guardar</>}
-                            {saveState.status === 'idle' && 'Guardado automático activado'}
-                          </div>
-                          <div className="pa-editor-actions">
-                            <button className="pa-btn pa-btn-ghost" onClick={() => deleteGateway(selectedGateway.bpmn_id)}>Eliminar</button>
-                          </div>
-                        </div>
-                        <div className="pa-form">
-                          <Field label="Nombre de la decisión" tooltip="Nombre o pregunta que se evalúa (Ej: '¿Aprobado?').">
-                            <input className="pa-input" value={selectedGateway.name || ""} onChange={(e) => updateGateway(selectedGateway.bpmn_id, { name: e.target.value })} />
-                          </Field>
-                        <Field label="Tipo de compuerta" tooltip="Exclusiva: Solo se toma un camino. Paralela: Se toman todos los caminos al mismo tiempo.">
-                          <select className="pa-input" value={selectedGateway.node_type} onChange={(e) => updateGateway(selectedGateway.bpmn_id, { node_type: e.target.value })}>
-                            <option value="exclusiveGateway">Exclusiva (X)</option>
-                            <option value="parallelGateway">Paralela (+)</option>
-                          </select>
-                        </Field>
-                        <div style={{ padding: '12px', background: '#F0F9F9', borderLeft: '3px solid #0E9F9F', borderRadius: '4px', fontSize: 13, color: '#3A4B4B', marginTop: 16 }}>
-                          <strong><Info size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }}/> ¿Cómo conectar?</strong><br/>
-                          Arrastra desde los puntos conectores de los nodos en el diagrama hacia esta compuerta para conectarla. Usa la tecla Retroceso (Backspace) para eliminar flechas erróneas.
-                        </div>
-                        
-                        <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '12px', color: '#0E9F9F', flex: 1, minWidth: '150px' }}>Guardado automático activado</span>
-                          <button className="pa-btn pa-btn-ghost" style={{ color: '#D9503C', borderColor: '#D9503C' }} onClick={() => deleteGateway(selectedGateway.bpmn_id)}>
-                            <Trash2 size={16} style={{ marginRight: 4 }} /> Borrar compuerta
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
+                      <GatewayEditor gateway={selectedGateway} onChange={updateGateway} onDelete={deleteGateway}
+                        saveState={saveState} onDone={() => { if (isMobile) setMobileStep(1); else setSelectedId(null); }} />
+                    ) : (
                     <div style={{ padding: '24px', textAlign: 'center', color: '#5C6B6B' }}>
                       Selecciona un nodo para ver sus detalles.
                     </div>
