@@ -704,7 +704,7 @@ const TimeField = ({ label, tooltip, valueSec, onChangeSec }) => {
   return (
     <Field label={label} tooltip={tooltip}>
       <div style={{display: 'flex', gap: 4}}>
-        <input className="pa-input" type="number" min="0" step="any" value={displayVal} onChange={e => onChangeSec((Number(e.target.value)||0) * unit)} style={{flex: 1}}/>
+        <input className="pa-input" type="number" min="0" step="any" placeholder="0" value={valueSec === 0 ? "" : displayVal} onChange={e => onChangeSec(e.target.value === "" ? 0 : (Number(e.target.value) || 0) * unit)} style={{flex: 1}}/>
         <select className="pa-input" value={unit} onChange={e => {
           const newU = Number(e.target.value);
           setUnit(newU);
@@ -790,7 +790,7 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
       <div className="pa-divider"><span>RACI</span></div>
       <div className="pa-row two">
         <Field label="Responsable (R)" tooltip="Quien ejecuta la tarea."><input className="pa-input" value={task.responsible} onChange={(e) => set({ responsible: e.target.value })} /></Field>
-        <Field label="Accountable (A)" tooltip="Quien aprueba o responde por el éxito de la tarea."><input className="pa-input" value={task.accountable} onChange={(e) => set({ accountable: e.target.value })} /></Field>
+        <Field label="Aprobador (A)" tooltip="Quien aprueba o responde por el éxito de la tarea."><input className="pa-input" value={task.accountable} onChange={(e) => set({ accountable: e.target.value })} /></Field>
       </div>
       <div className="pa-row two">
         <Field label="Consultado (C)" tooltip="Quien aporta información necesaria."><input className="pa-input" value={task.consulted} onChange={(e) => set({ consulted: e.target.value })} /></Field>
@@ -802,13 +802,10 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
         <input className="pa-input" value={task.systems} onChange={(e) => set({ systems: e.target.value })} placeholder="Ej: SAP, Excel, Jira..." />
       </Field>
 
-      <div style={{ marginTop: '24px', display: 'flex', gap: '12px', justifyContent: 'flex-end', alignItems: 'center' }}>
-        <span style={{ fontSize: '12px', color: '#0E9F9F', marginRight: 'auto' }}>Guardado automático activado</span>
+      <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '12px', color: '#0E9F9F', flex: 1, minWidth: '150px' }}>Guardado automático activado</span>
         <button className="pa-btn pa-btn-ghost" style={{ color: '#D9503C', borderColor: '#D9503C' }} onClick={() => onDelete(task.id)}>
           <Trash2 size={16} style={{ marginRight: 4 }} /> Borrar tarea
-        </button>
-        <button className="pa-btn" onClick={() => alert("Los cambios de la tarea se han guardado exitosamente.")}>
-          Guardar
         </button>
       </div>
     </div>
@@ -1292,7 +1289,7 @@ export default function App() {
   const [openOpts, setOpenOpts] = useState({});
   const [optLongLoading, setOptLongLoading] = useState(false);
   const [macroLongLoading, setMacroLongLoading] = useState({});
-  const [expertMode, setExpertMode] = useState(false);
+  const [expertMode, setExpertMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [mobileStep, setMobileStep] = useState(1);
 
@@ -2062,13 +2059,10 @@ export default function App() {
                           Arrastra desde los puntos conectores de los nodos en el diagrama hacia esta compuerta para conectarla. Usa la tecla Retroceso (Backspace) para eliminar flechas erróneas.
                         </div>
                         
-                        <div style={{ marginTop: '24px', display: 'flex', gap: '12px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                          <span style={{ fontSize: '12px', color: '#0E9F9F', marginRight: 'auto' }}>Guardado automático activado</span>
+                        <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '12px', color: '#0E9F9F', flex: 1, minWidth: '150px' }}>Guardado automático activado</span>
                           <button className="pa-btn pa-btn-ghost" style={{ color: '#D9503C', borderColor: '#D9503C' }} onClick={() => deleteGateway(selectedGateway.bpmn_id)}>
                             <Trash2 size={16} style={{ marginRight: 4 }} /> Borrar compuerta
-                          </button>
-                          <button className="pa-btn" onClick={() => alert("Los cambios de la compuerta se han guardado exitosamente.")}>
-                            Guardar
                           </button>
                         </div>
                       </div>
