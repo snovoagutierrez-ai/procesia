@@ -59,7 +59,7 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
         data={"sub": user.email}, expires_delta=access_token_expires
     )
 
-    is_production = os.environ.get("ENV", "development").lower() == "production"
+    is_production = os.environ.get("ENV", "development").lower() == "production" or os.environ.get("RENDER") == "true"
     
     response.set_cookie(
         key="access_token",
@@ -74,7 +74,7 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
 
 @router.post("/auth/logout")
 def logout(response: Response):
-    is_production = os.environ.get("ENV", "development").lower() == "production"
+    is_production = os.environ.get("ENV", "development").lower() == "production" or os.environ.get("RENDER") == "true"
     response.delete_cookie(key="access_token", httponly=True, secure=is_production, samesite="none" if is_production else "lax")
     return {"message": "Logged out successfully"}
 
