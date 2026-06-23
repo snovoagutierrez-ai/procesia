@@ -1,0 +1,248 @@
+import React, { useMemo, useCallback, useEffect, useState } from "react";
+import {
+  ReactFlow,
+  Controls,
+  MiniMap,
+  Background,
+  useNodesState,
+  useEdgesState,
+  MarkerType,
+  Handle,
+  Position,
+  addEdge
+} from "@xyflow/react";
+import dagre from "dagre";
+import { apiFetch } from "./api.js";
+import "@xyflow/react/dist/style.css";
+
+/* ---------- Custom Node: Process ---------- */
+function ProcessNode({ data }) {
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid #E2E7E3',
+      borderRadius: '8px',
+      padding: '12px 16px',
+      minWidth: '220px',
+      boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+      cursor: 'pointer',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ background: '#0E9F9F' }} />
+      
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ background: '#0E9F9F', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+          {data.process.code}
+        </div>
+        <div style={{ fontSize: '14px', fontWeight: 600, color: '#13202B', flex: 1 }}>
+          {data.process.name}
+        </div>
+      </div>
+      
+      <div style={{ fontSize: '11px', color: '#5C6B6B', display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontWeight: 600 }}>Entrada:</span>
+          <span style={{ textAlign: 'right' }}>{data.process.trigger_event || data.process.trigger || "-"}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontWeight: 600 }}>Salida:</span>
+          <span style={{ textAlign: 'right' }}>{data.process.output_result || data.process.output || "-"}</span>
+        </div>
+      </div>
+      
+      <Handle type="source" position={Position.Right} style={{ background: '#0E9F9F' }} />
+    </div>
+  );
+}
+
+const nodeTypes = {
+  processNode: ProcessNode,
+};
+
+/* ---------- Dagre layout ---------- */
+const dagreGraph = new dagre.graphlib.Graph();
+dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+const getLayoutedElements = (nodes, edges) => {
+  dagreGraph.setGraph({ rankdir: "LR", ranksep: 100, nodesep: 60 });
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: 240, height: 100 });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  nodes.forEach((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    node.targetPosition = Position.Left;
+    node.sourcePosition = Position.Right;
+    node.position = {
+      x: nodeWithPosition.x - 240 / 2,
+      y: nodeWithPosition.y - 100 / 2,
+    };
+    return node;
+  });
+
+  return { nodes, edges };
+};
+
+/* ---------- Build nodes & edges ---------- */
+function buildGraph(processes, sequenceFlows = []) {
+  const nodes = [];
+  const edges = [];
+
+  // Create nodes
+  processes.forEach((p) => {
+    nodes.push({
+      id: String(p.id),
+      type: "processNode",
+      data: { process: p },
+      position: { x: 0, y: 0 }
+    });
+  });
+
+  // Create edges from sequenceFlows
+  sequenceFlows.forEach(sf => {
+    edges.push({
+      id: sf.id || `e-${sf.source_ref}-${sf.target_ref}`,
+      source: sf.source_ref,
+      target: sf.target_ref,
+      type: "smoothstep",
+      style: { stroke: "#0E9F9F", strokeWidth: 2 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 15,
+        height: 15,
+        color: "#0E9F9F",
+      },
+      animated: true,
+    });
+  });
+
+  return getLayoutedElements(nodes, edges);
+}
+
+/* ---------- Main Component ---------- */
+export default function MacroprocessDiagram({ macroprocessId, processes, onProcessDoubleClick }) {
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [sequenceFlows, setSequenceFlows] = useState([]);
+
+  // Fetch macro graph
+  const fetchGraph = useCallback(async () => {
+    if (!macroprocessId) return;
+    try {
+      const res = await apiFetch(`/macroprocesses/${macroprocessId}/graph`);
+      if (res.ok) {
+        const data = await res.json();
+        setSequenceFlows(data.sequence_flows || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch macro graph", err);
+    }
+  }, [macroprocessId]);
+
+  useEffect(() => {
+    fetchGraph();
+  }, [fetchGraph]);
+
+  // Update layout when processes or sequenceFlows change
+  useEffect(() => {
+    const { nodes: newNodes, edges: newEdges } = buildGraph(processes, sequenceFlows);
+    setNodes(newNodes);
+    setEdges(newEdges);
+  }, [processes, sequenceFlows, setNodes, setEdges]);
+
+  // Save changes to backend
+  const saveGraph = async (updatedEdges) => {
+    if (!macroprocessId) return;
+    
+    const payload = {
+      sequence_flows: updatedEdges.map(e => ({
+        id: String(e.id),
+        source_ref: e.source,
+        target_ref: e.target,
+        condition: null
+      }))
+    };
+    
+    try {
+      await apiFetch(`/macroprocesses/${macroprocessId}/graph`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      // Optionally fetchGraph() again to ensure consistency, but local state is already updated.
+    } catch (err) {
+      console.error("Failed to save macro graph", err);
+    }
+  };
+
+  const onConnect = useCallback((params) => {
+    setEdges((eds) => {
+      const newEdge = {
+        ...params,
+        type: "smoothstep",
+        style: { stroke: "#0E9F9F", strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: "#0E9F9F" },
+        animated: true
+      };
+      const updatedEdges = addEdge(newEdge, eds);
+      saveGraph(updatedEdges);
+      return updatedEdges;
+    });
+  }, [setEdges, macroprocessId]);
+
+  const handleEdgesChange = useCallback((changes) => {
+    onEdgesChange(changes);
+    const hasDeletes = changes.some(c => c.type === 'remove');
+    if (hasDeletes) {
+      setTimeout(() => {
+        setEdges((currentEdges) => {
+          saveGraph(currentEdges);
+          return currentEdges;
+        });
+      }, 0);
+    }
+  }, [onEdgesChange, setEdges, macroprocessId]);
+
+  const onNodeDoubleClick = useCallback(
+    (_event, node) => {
+      if (onProcessDoubleClick && node.data?.process) {
+        onProcessDoubleClick(node.data.process);
+      }
+    },
+    [onProcessDoubleClick]
+  );
+
+  return (
+    <div style={{ width: "100%", height: "100%", background: "#F6F8FA", borderRadius: "8px", overflow: "hidden", border: "1px solid #E2E7E3" }}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        onNodesChange={onNodesChange}
+        onEdgesChange={handleEdgesChange}
+        onConnect={onConnect}
+        onNodeDoubleClick={onNodeDoubleClick}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.2}
+        maxZoom={2}
+        nodesDraggable={true}
+        nodesConnectable={true}
+        elementsSelectable={true}
+      >
+        <Background color="#ccc" gap={16} />
+        <Controls />
+        <MiniMap zoomable pannable nodeColor="#0E9F9F" maskColor="rgba(246, 248, 250, 0.7)" />
+      </ReactFlow>
+    </div>
+  );
+}

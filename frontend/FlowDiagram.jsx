@@ -9,6 +9,7 @@ import {
   MarkerType,
   Handle,
   Position,
+  addEdge,
 } from "@xyflow/react";
 import dagre from "dagre";
 import "@xyflow/react/dist/style.css";
@@ -132,11 +133,30 @@ function TaskNode({ data }) {
   );
 }
 
+/* ---------- Custom Node: Gateway ---------- */
+function GatewayNode({ data }) {
+  const isSelected = data.isSelected;
+  return (
+    <div 
+      className={`flow-node-gateway ${isSelected ? 'flow-node-gateway--selected' : ''}`}
+      onClick={() => data.onSelect?.(data.gateway.bpmn_id)}
+    >
+      <Handle type="target" position={Position.Left} />
+      <div className="flow-node-gateway__diamond">
+        {data.gateway.node_type === "exclusiveGateway" ? "X" : "+"}
+      </div>
+      <div className="flow-node-gateway__label">{data.gateway.name}</div>
+      <Handle type="source" position={Position.Right} />
+    </div>
+  );
+}
+
 /* ---------- Node types registry ---------- */
 const nodeTypes = {
   startEvent: StartNode,
   endEvent: EndNode,
   taskNode: TaskNode,
+  gatewayNode: GatewayNode,
 };
 
 /* ---------- Dagre layout ---------- */
@@ -189,7 +209,7 @@ function getLayoutedElements(nodes, edges, direction = "LR") {
 }
 
 /* ---------- Build nodes & edges from process data ---------- */
-function buildFlowElements(proc, tasks, selectedId, onSelect) {
+function buildFlowElements(proc, tasks, gateways, sequenceFlows, selectedId, onSelect) {
   const flowNodes = [];
   const flowEdges = [];
 
@@ -202,13 +222,27 @@ function buildFlowElements(proc, tasks, selectedId, onSelect) {
   });
 
   // Task nodes
-  tasks.forEach((t, index) => {
+  tasks.forEach((t) => {
     flowNodes.push({
       id: String(t.id),
       type: "taskNode",
       data: {
         task: t,
         isSelected: t.id === selectedId,
+        onSelect: onSelect,
+      },
+      position: { x: 0, y: 0 },
+    });
+  });
+
+  // Gateway nodes
+  (gateways || []).forEach((g) => {
+    flowNodes.push({
+      id: g.bpmn_id,
+      type: "gatewayNode",
+      data: {
+        gateway: g,
+        isSelected: g.bpmn_id === selectedId,
         onSelect: onSelect,
       },
       position: { x: 0, y: 0 },
@@ -223,33 +257,52 @@ function buildFlowElements(proc, tasks, selectedId, onSelect) {
     position: { x: 0, y: 0 },
   });
 
-  // Edges: start → task1 → task2 → ... → end
-  const orderedIds = ["start", ...tasks.map((t) => String(t.id)), "end"];
-  for (let i = 0; i < orderedIds.length - 1; i++) {
-    flowEdges.push({
-      id: `e-${orderedIds[i]}-${orderedIds[i + 1]}`,
-      source: orderedIds[i],
-      target: orderedIds[i + 1],
-      type: "smoothstep",
-      animated: false,
-      style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        width: 18,
-        height: 18,
-        color: "#9AA8A8",
-      },
+  // Edges
+  if (sequenceFlows && sequenceFlows.length > 0) {
+    sequenceFlows.forEach((sf) => {
+      flowEdges.push({
+        id: sf.bpmn_id,
+        source: sf.source_ref,
+        target: sf.target_ref,
+        label: sf.condition_expression || "",
+        type: "smoothstep",
+        style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 18,
+          height: 18,
+          color: "#9AA8A8",
+        },
+      });
     });
+  } else {
+    // Fallback: linear sequence
+    const orderedIds = ["start", ...tasks.map((t) => String(t.id)), "end"];
+    for (let i = 0; i < orderedIds.length - 1; i++) {
+      flowEdges.push({
+        id: `e-${orderedIds[i]}-${orderedIds[i + 1]}`,
+        source: orderedIds[i],
+        target: orderedIds[i + 1],
+        type: "smoothstep",
+        style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 18,
+          height: 18,
+          color: "#9AA8A8",
+        },
+      });
+    }
   }
 
   return getLayoutedElements(flowNodes, flowEdges);
 }
 
 /* ---------- Main Component ---------- */
-export default function FlowDiagram({ proc, tasks, selectedId, onSelect }) {
+export default function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange }) {
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
-    () => buildFlowElements(proc, tasks, selectedId, onSelect),
-    [proc, tasks, selectedId, onSelect]
+    () => buildFlowElements(proc, tasks, gateways, sequenceFlows, selectedId, onSelect),
+    [proc, tasks, gateways, sequenceFlows, selectedId, onSelect]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutedNodes);
@@ -265,9 +318,60 @@ export default function FlowDiagram({ proc, tasks, selectedId, onSelect }) {
     (_event, node) => {
       if (node.type === "taskNode" && node.data?.onSelect) {
         node.data.onSelect(node.data.task.id);
+      } else if (node.type === "gatewayNode" && node.data?.onSelect) {
+        node.data.onSelect(node.data.gateway.bpmn_id);
       }
     },
     []
+  );
+
+  const handleConnect = useCallback(
+    (params) => {
+      const newEdge = {
+        ...params,
+        id: `Flow_${Math.random().toString(36).slice(2, 8)}`,
+        type: "smoothstep",
+        style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18, color: "#9AA8A8" },
+      };
+      
+      const newEdges = addEdge(newEdge, edges);
+      setEdges(newEdges);
+      
+      if (onGraphChange) {
+        const mappedFlows = newEdges.map(e => ({
+          bpmn_id: e.id,
+          source_ref: e.source,
+          target_ref: e.target,
+          name: e.label || "",
+          condition_expression: e.label || ""
+        }));
+        onGraphChange(gateways, mappedFlows);
+      }
+    },
+    [edges, gateways, onGraphChange, setEdges]
+  );
+  
+  const handleEdgesChange = useCallback(
+    (changes) => {
+      onEdgesChange(changes);
+      
+      // If edges were removed, we need to notify parent
+      const removed = changes.filter(c => c.type === 'remove');
+      if (removed.length > 0 && onGraphChange) {
+        // Find remaining edges
+        const remainingEdges = edges.filter(e => !removed.find(r => r.id === e.id));
+        const mappedFlows = remainingEdges.map(e => ({
+          bpmn_id: e.id,
+          source_ref: e.source,
+          target_ref: e.target,
+          name: e.label || "",
+          condition_expression: e.label || ""
+        }));
+        onGraphChange(gateways, mappedFlows);
+      }
+    },
+    [edges, gateways, onEdgesChange, onGraphChange]
   );
 
   // MiniMap node color
@@ -278,25 +382,22 @@ export default function FlowDiagram({ proc, tasks, selectedId, onSelect }) {
     if (vc === "VA") return "#1FA463";
     if (vc === "NNVA") return "#C98A12";
     if (vc === "NVA") return "#D9503C";
-    return "#E2E7E3";
+    if (node.type === "gatewayNode") return "#8C8C8C";
+    return "#3A4651";
   }, []);
 
   return (
-    <div className="flow-diagram-container">
+    <div style={{ width: "100%", height: "100%", background: "#F6F8FA" }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
+        onNodesChange={onNodesChange}
+        onEdgesChange={handleEdgesChange}
+        onConnect={handleConnect}
+        onNodeClick={onNodeClick}
         fitView
-        fitViewOptions={{ padding: 0.2, maxZoom: 1.2 }}
-        proOptions={{ hideAttribution: true }}
-        minZoom={0.3}
-        maxZoom={2}
-        nodesDraggable={true}
-        nodesConnectable={false}
+        nodesConnectable={true}
         elementsSelectable={true}
         panOnDrag={true}
         zoomOnScroll={true}

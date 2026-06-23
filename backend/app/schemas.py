@@ -2,10 +2,38 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Optional, Literal, Any, Dict
 from datetime import datetime
 from decimal import Decimal
-from app.models import ValueClass, WasteType, TaskType, RaciType, BpmnNodeType, OptStatus, ArtifactSource
+from app.models import ValueClass, WasteType, TaskType, RaciType, BpmnNodeType, OptStatus, ArtifactSource, UserRole
 
 # ==========================================
-# 1. RACI and Systems Nested Schemas
+# 0. Auth & Users Schemas
+# ==========================================
+
+class UserCreate(BaseModel):
+    email: str = Field(..., max_length=255)
+    password: str = Field(..., min_length=8)
+
+    @field_validator('password')
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        if not any(char.isdigit() for char in v):
+            raise ValueError('La contraseña debe contener al menos un número.')
+        if not any(char.isalpha() for char in v):
+            raise ValueError('La contraseña debe contener al menos una letra.')
+        return v
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    role: UserRole
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 # ==========================================
 
 class TaskRaciBase(BaseModel):
@@ -365,6 +393,35 @@ class SequenceFlowResponse(SequenceFlowBase):
 
     class Config:
         from_attributes = True
+
+class FlowNodeSync(BaseModel):
+    bpmn_id: str = Field(..., max_length=60)
+    node_type: BpmnNodeType
+    name: Optional[str] = Field(None, max_length=200)
+
+class SequenceFlowSync(BaseModel):
+    bpmn_id: str = Field(..., max_length=60)
+    source_ref: str = Field(..., max_length=60)
+    target_ref: str = Field(..., max_length=60)
+    name: Optional[str] = Field(None, max_length=200)
+    condition_expression: Optional[str] = None
+
+class GraphSync(BaseModel):
+    gateways: List[FlowNodeSync]
+    sequence_flows: List[SequenceFlowSync]
+
+class MacroSequenceFlowSync(BaseModel):
+    id: Optional[str] = None # Allows frontend IDs like sf-1234
+    source_ref: str = Field(..., max_length=60)
+    target_ref: str = Field(..., max_length=60)
+    condition: Optional[str] = Field(None, max_length=200)
+
+class MacroGraphSync(BaseModel):
+    sequence_flows: List[MacroSequenceFlowSync]
+
+class GraphResponse(BaseModel):
+    gateways: List[FlowNodeResponse]
+    sequence_flows: List[SequenceFlowResponse]
 
 # ==========================================
 # 8. Optimization & Gemini Response Schemas

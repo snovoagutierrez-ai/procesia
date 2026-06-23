@@ -265,12 +265,14 @@
 /* ---- Responsive ---- */
 @media (max-width: 880px) {
   .flow-diagram-container {
-    height: 320px;
+    min-height: 400px;
+    height: 60vh;
   }
 }
 @media (max-width: 520px) {
   .flow-diagram-container {
-    height: 260px;
+    min-height: 400px;
+    height: 70vh;
   }
 }
 
@@ -282,4 +284,53 @@
 .flow-node-task,
 .flow-node-event {
   animation: flowNodeFadeIn 0.35s ease-out both;
+}
+
+.flow-node-gateway {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 140px;
+  height: 60px;
+  cursor: pointer;
+}
+
+.flow-node-gateway__diamond {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  background: #fff;
+  border: 2px solid #8C8C8C;
+  transform: rotate(45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8C8C8C;
+  font-weight: bold;
+  font-size: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  transition: all 0.2s;
+  z-index: 2;
+}
+
+.flow-node-gateway__diamond > * {
+  transform: rotate(-45deg); /* Counter rotate the X or + text */
+}
+
+.flow-node-gateway--selected .flow-node-gateway__diamond {
+  border-color: #0E9F9F;
+  box-shadow: 0 0 0 3px rgba(14, 159, 159, 0.2);
+}
+
+.flow-node-gateway__label {
+  position: absolute;
+  bottom: -24px;
+  left: -20px;
+  right: -20px;
+  text-align: center;
+  font-size: 11px;
+  color: #5C6B6B;
+  font-family: var(--body);
+  pointer-events: none;
 }

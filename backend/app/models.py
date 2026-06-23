@@ -8,6 +8,10 @@ from sqlalchemy.dialects.postgresql import ENUM, JSONB
 from app.database import Base
 
 # ========= ENUMS =========
+class UserRole(str, enum.Enum):
+    user = 'user'
+    admin = 'admin'
+
 class ValueClass(str, enum.Enum):
     VA = 'VA'
     NNVA = 'NNVA'
@@ -55,22 +59,41 @@ class ArtifactSource(str, enum.Enum):
 
 # ========= TABLES =========
 
+class User(Base):
+    __tablename__ = 'users'
+
+    id = Column(BigInteger, primary_key=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(ENUM(UserRole, name='user_role'), nullable=False, server_default='user')
+    is_active = Column(Integer, server_default='1')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    macroprocesses = relationship("Macroprocess", back_populates="owner")
+    processes = relationship("Process", back_populates="owner")
+
+
 class Macroprocess(Base):
     __tablename__ = 'macroprocesses'
 
     id = Column(BigInteger, primary_key=True)
+    owner_id = Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     code = Column(String(40), unique=True, nullable=False)
     name = Column(String(200), nullable=False)
     owner_area = Column(String(120))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    owner = relationship("User", back_populates="macroprocesses")
     processes = relationship("Process", back_populates="macroprocess", cascade="all, delete-orphan", passive_deletes=True)
+    optimization_runs = relationship("MacroOptimizationRun", back_populates="macroprocess", cascade="all, delete-orphan", passive_deletes=True)
+    macro_sequence_flows = relationship("MacroSequenceFlow", back_populates="macroprocess", cascade="all, delete-orphan", passive_deletes=True)
 
 
 class Process(Base):
     __tablename__ = 'processes'
 
     id = Column(BigInteger, primary_key=True)
+    owner_id = Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     macroprocess_id = Column(BigInteger, ForeignKey('macroprocesses.id', ondelete='CASCADE'), nullable=False)
     code = Column(String(40), unique=True, nullable=False)
     name = Column(String(200), nullable=False)
@@ -78,6 +101,7 @@ class Process(Base):
     trigger_event = Column(String(200))
     output_result = Column(String(200))
 
+    owner = relationship("User", back_populates="processes")
     macroprocess = relationship("Macroprocess", back_populates="processes")
     activities = relationship("Activity", back_populates="process", cascade="all, delete-orphan", passive_deletes=True)
     flow_nodes = relationship("FlowNode", back_populates="process", cascade="all, delete-orphan", passive_deletes=True)
@@ -208,6 +232,17 @@ class SequenceFlow(Base):
 
     process = relationship("Process", back_populates="sequence_flows")
 
+class MacroSequenceFlow(Base):
+    __tablename__ = 'macro_sequence_flows'
+
+    id = Column(BigInteger, primary_key=True)
+    macroprocess_id = Column(BigInteger, ForeignKey('macroprocesses.id', ondelete='CASCADE'), nullable=False)
+    source_ref = Column(String(60), nullable=False)
+    target_ref = Column(String(60), nullable=False)
+    condition = Column(String(200))
+
+    macroprocess = relationship("Macroprocess", back_populates="macro_sequence_flows")
+
 
 class OptimizationRun(Base):
     __tablename__ = 'optimization_runs'
@@ -223,6 +258,21 @@ class OptimizationRun(Base):
     completed_at = Column(DateTime(timezone=True))
 
     process = relationship("Process", back_populates="optimization_runs")
+
+
+class MacroOptimizationRun(Base):
+    __tablename__ = 'macro_optimization_runs'
+
+    id = Column(BigInteger, primary_key=True)
+    macroprocess_id = Column(BigInteger, ForeignKey('macroprocesses.id', ondelete='CASCADE'), nullable=False)
+    status = Column(ENUM(OptStatus, name='opt_status'), nullable=False, server_default='pending')
+    model_used = Column(String(80))
+    input_snapshot = Column(JSONB, nullable=False)
+    result = Column(JSONB)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True))
+
+    macroprocess = relationship("Macroprocess", back_populates="optimization_runs")
 
 
 class BpmnArtifact(Base):

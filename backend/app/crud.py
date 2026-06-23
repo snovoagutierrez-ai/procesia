@@ -9,11 +9,15 @@ from app import models, schemas
 def get_macroprocess(db: Session, macroprocess_id: int):
     return db.query(models.Macroprocess).filter(models.Macroprocess.id == macroprocess_id).first()
 
-def get_macroprocesses(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Macroprocess).offset(skip).limit(limit).all()
+def get_macroprocesses(db: Session, skip: int = 0, limit: int = 100, user_id: int = None):
+    q = db.query(models.Macroprocess)
+    if user_id:
+        q = q.filter(models.Macroprocess.owner_id == user_id)
+    return q.offset(skip).limit(limit).all()
 
-def create_macroprocess(db: Session, macroprocess: schemas.MacroprocessCreate):
+def create_macroprocess(db: Session, macroprocess: schemas.MacroprocessCreate, owner_id: int):
     db_macro = models.Macroprocess(
+        owner_id=owner_id,
         code=macroprocess.code,
         name=macroprocess.name,
         owner_area=macroprocess.owner_area
@@ -46,16 +50,20 @@ def delete_macroprocess(db: Session, macroprocess_id: int):
 def get_process(db: Session, process_id: int):
     return db.query(models.Process).filter(models.Process.id == process_id).first()
 
-def get_processes(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Process).offset(skip).limit(limit).all()
+def get_processes(db: Session, skip: int = 0, limit: int = 100, user_id: int = None):
+    q = db.query(models.Process)
+    if user_id:
+        q = q.filter(models.Process.owner_id == user_id)
+    return q.offset(skip).limit(limit).all()
 
-def create_process(db: Session, process: schemas.ProcessCreate):
+def create_process(db: Session, process: schemas.ProcessCreate, owner_id: int):
     # Verify macroprocess exists
     macro = get_macroprocess(db, process.macroprocess_id)
     if not macro:
         raise HTTPException(status_code=400, detail="Macroprocess not found")
         
     db_process = models.Process(
+        owner_id=owner_id,
         macroprocess_id=process.macroprocess_id,
         code=process.code,
         name=process.name,
@@ -539,3 +547,106 @@ def _update_task_systems_direct(db: Session, task_id: int, systems_str: str):
                 db.flush()
             db_ts = models.TaskSystem(task_id=task_id, system_id=system.id)
             db.add(db_ts)
+
+# ==========================================
+# 8. Graph (Nodes & Edges) sync for Phase 3
+# ==========================================
+
+def get_graph(db: Session, process_id: int) -> schemas.GraphResponse:
+    gateways = db.query(models.FlowNode).filter(
+        models.FlowNode.process_id == process_id,
+        models.FlowNode.node_type.in_([models.BpmnNodeType.exclusiveGateway, models.BpmnNodeType.parallelGateway, models.BpmnNodeType.inclusiveGateway])
+    ).all()
+    
+    sequence_flows = db.query(models.SequenceFlow).filter(
+        models.SequenceFlow.process_id == process_id
+    ).all()
+    
+    return schemas.GraphResponse(
+        gateways=gateways,
+        sequence_flows=sequence_flows
+    )
+
+def get_macro_graph(db: Session, macroprocess_id: int) -> schemas.MacroGraphSync:
+    flows = db.query(models.MacroSequenceFlow).filter(models.MacroSequenceFlow.macroprocess_id == macroprocess_id).all()
+    return schemas.MacroGraphSync(sequence_flows=flows)
+
+def sync_macro_graph(db: Session, macroprocess_id: int, graph_data: schemas.MacroGraphSync) -> schemas.MacroGraphSync:
+    db.query(models.MacroSequenceFlow).filter(models.MacroSequenceFlow.macroprocess_id == macroprocess_id).delete(synchronize_session=False)
+    
+    new_flows = []
+    for f in graph_data.sequence_flows:
+        flow = models.MacroSequenceFlow(
+            macroprocess_id=macroprocess_id,
+            source_ref=f.source_ref,
+            target_ref=f.target_ref,
+            condition=f.condition
+        )
+        new_flows.append(flow)
+    
+    db.add_all(new_flows)
+    db.commit()
+    
+    return get_macro_graph(db, macroprocess_id)
+
+def sync_graph(db: Session, process_id: int, graph_data: schemas.GraphSync) -> schemas.GraphResponse:
+    # 1. Upsert Gateways
+    existing_gateways = db.query(models.FlowNode).filter(
+        models.FlowNode.process_id == process_id,
+        models.FlowNode.node_type.in_([models.BpmnNodeType.exclusiveGateway, models.BpmnNodeType.parallelGateway, models.BpmnNodeType.inclusiveGateway])
+    ).all()
+    
+    existing_gw_map = {gw.bpmn_id: gw for gw in existing_gateways}
+    incoming_gw_ids = set()
+    
+    for gw in graph_data.gateways:
+        incoming_gw_ids.add(gw.bpmn_id)
+        if gw.bpmn_id in existing_gw_map:
+            # Update existing
+            existing_gw_map[gw.bpmn_id].name = gw.name
+            existing_gw_map[gw.bpmn_id].node_type = gw.node_type
+        else:
+            # Insert new
+            db_gw = models.FlowNode(
+                process_id=process_id,
+                bpmn_id=gw.bpmn_id,
+                node_type=gw.node_type,
+                name=gw.name
+            )
+            db.add(db_gw)
+            
+    # Delete removed gateways
+    for bpmn_id, gw in existing_gw_map.items():
+        if bpmn_id not in incoming_gw_ids:
+            db.delete(gw)
+
+    # 2. Upsert Sequence Flows
+    existing_flows = db.query(models.SequenceFlow).filter(models.SequenceFlow.process_id == process_id).all()
+    existing_sf_map = {sf.bpmn_id: sf for sf in existing_flows}
+    incoming_sf_ids = set()
+    
+    for sf in graph_data.sequence_flows:
+        incoming_sf_ids.add(sf.bpmn_id)
+        if sf.bpmn_id in existing_sf_map:
+            existing_sf_map[sf.bpmn_id].source_ref = sf.source_ref
+            existing_sf_map[sf.bpmn_id].target_ref = sf.target_ref
+            existing_sf_map[sf.bpmn_id].name = sf.name
+            existing_sf_map[sf.bpmn_id].condition_expression = sf.condition_expression
+        else:
+            db_sf = models.SequenceFlow(
+                process_id=process_id,
+                bpmn_id=sf.bpmn_id,
+                source_ref=sf.source_ref,
+                target_ref=sf.target_ref,
+                name=sf.name,
+                condition_expression=sf.condition_expression
+            )
+            db.add(db_sf)
+            
+    # Delete removed sequence flows
+    for bpmn_id, sf in existing_sf_map.items():
+        if bpmn_id not in incoming_sf_ids:
+            db.delete(sf)
+
+    db.commit()
+    return get_graph(db, process_id)
