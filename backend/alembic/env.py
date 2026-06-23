@@ -10,7 +10,7 @@ from alembic import context
 # Ensure backend directory is in python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from app.database import Base
+from app.database import Base, db_url
 from app.config import settings
 import app.models  # Ensure models are imported for metadata collection
 
@@ -38,7 +38,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = settings.database_url
+    url = db_url
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -59,7 +59,7 @@ def run_migrations_online() -> None:
     """
     # Override sqlalchemy.url with configuration value
     alembic_config = config.get_section(config.config_ini_section) or {}
-    alembic_config["sqlalchemy.url"] = settings.database_url
+    alembic_config["sqlalchemy.url"] = db_url
 
     connectable = engine_from_config(
         alembic_config,
