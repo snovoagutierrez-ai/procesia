@@ -48,7 +48,7 @@ export default function Login() {
       }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
-            <img src="/logo-sidebar.png" alt="AiProces Logo" style={{ height: '40px', objectFit: 'contain' }} />
+            <img src="/aiproces-logo.svg" alt="AiProces Logo" style={{ height: '40px', objectFit: 'contain' }} />
           </div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#EAF1EF', margin: 0 }}>
             {isRegister ? "Crear una cuenta" : "Inicia sesión"}

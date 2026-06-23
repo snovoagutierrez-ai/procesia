@@ -2218,7 +2218,7 @@ button{font-family:inherit}
 /* ---- form fields ---- */
 .pa-field{display:flex;flex-direction:column;gap:6px;margin-bottom:13px}
 .pa-label{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.02em}
-.pa-input{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13.5px;
+.pa-input{box-sizing:border-box;width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13.5px;
   color:var(--text);background:#fff;outline:none;transition:.15s;font-family:inherit}
 .pa-input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(14,159,159,.12)}
 .pa-input.mono{font-family:var(--mono);font-size:12.5px}
