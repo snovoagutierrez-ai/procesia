@@ -20,6 +20,7 @@ import MacroprocessDiagram from "./MacroprocessDiagram.jsx";
    VSM Component
    ============================================================================ */
 function VSMLadder({ metrics }) {
+  const [showInfo, setShowInfo] = useState(false);
   if (!metrics) return null;
   
   const { total_cycle_time_sec, total_wait_time_sec, lead_time_sec, pce_percentage } = metrics;
@@ -56,6 +57,18 @@ function VSMLadder({ metrics }) {
             ? "Tu Eficiencia de Ciclo (PCE) es saludable. Estás por encima del umbral Lean del 25%, lo que indica un buen flujo de valor sin excesivas esperas." 
             : "Tu Eficiencia de Ciclo (PCE) está por debajo del umbral recomendado (25%). Hay demasiados tiempos de espera o tareas que no agregan valor en relación al tiempo de trabajo productivo."}
           </span>
+        </div>
+        <div style={{ marginTop: 16, borderTop: '1px solid #E2E7E3', paddingTop: 12 }}>
+          <button className="pa-btn pa-btn-ghost" onClick={() => setShowInfo(!showInfo)} style={{ fontSize: 12, width: '100%', justifyContent: 'space-between', color: 'var(--teal)', padding: '8px' }}>
+            <span>¿Qué significan estas métricas?</span>
+            {showInfo ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+          </button>
+          {showInfo && (
+            <div style={{ padding: 12, background: '#F8F9FA', borderRadius: 8, marginTop: 8, fontSize: 12, color: '#3A4B4B', lineHeight: 1.5 }}>
+              <strong>Eficiencia de Ciclo (PCE):</strong> Mide qué porcentaje de tu tiempo total se dedica realmente a trabajar (Valor Agregado) versus el tiempo que se pierde esperando. Si es menor a 25%, tienes un proceso lento lleno de cuellos de botella.<br/><br/>
+              <strong>Escalera de tiempo (Lead Time):</strong> Es el tiempo total que tarda una solicitud desde que entra al proceso hasta que sale. La barra verde es el trabajo real, y la roja son los tiempos muertos o de espera entre responsables.
+            </div>
+          )}
         </div>
       </div>
       
@@ -209,9 +222,14 @@ function ValueClassWizard({ valueClass, wasteType, onChange, expertMode, setExpe
     <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid var(--teal)', boxShadow: '0 4px 12px rgba(14, 159, 159, 0.1)' }}>
       {step === 0 && (
         <div className="wizard-step fade-in">
-          <p style={{ fontSize: '15px', fontWeight: 500, marginBottom: '16px', lineHeight: 1.5, color: 'var(--text)' }}>
-            Si tu cliente viera este paso, ¿pagaría con gusto por él? Es decir, ¿lo hace porque mejora directamente lo que va a recibir?
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <p style={{ fontSize: '15px', fontWeight: 500, lineHeight: 1.5, color: 'var(--text)', margin: 0, paddingRight: 12 }}>
+              Si tu cliente viera este paso, ¿pagaría con gusto por él? Es decir, ¿lo hace porque mejora directamente lo que va a recibir?
+            </p>
+            <button className="pa-btn pa-btn-ghost" onClick={() => setExpertMode(true)} style={{ padding: '4px', height: 'auto', minHeight: 'auto', color: 'var(--muted)' }} title="Cancelar asistente">
+              <X size={16} />
+            </button>
+          </div>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button className="pa-btn pa-btn-primary" style={{ flex: 1, minHeight: '44px', fontSize: '14px' }} onClick={() => setStep(3)}>Sí, agrega valor</button>
             <button className="pa-btn pa-btn-ghost" style={{ flex: 1, minHeight: '44px', fontSize: '14px', border: '1px solid var(--line)' }} onClick={() => setStep(1)}>
@@ -886,8 +904,10 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
    Optimization panel
    ============================================================================ */
 
-function Optimization({ state, onRun, onApply }) {
+function Optimization({ state, onRun, onApply, tasks }) {
   const d = state.data;
+  const incompleteTasks = tasks?.filter(t => !t.responsible || !t.valueClass || t.cycle_time_sec === undefined);
+  const isReady = tasks?.length > 0 && incompleteTasks?.length === 0;
   return (
     <div className="pa-opt">
       <div className="pa-opt-head">
@@ -895,11 +915,17 @@ function Optimization({ state, onRun, onApply }) {
           <h3>Optimización con IA</h3>
           <p>El motor analiza tiempos, RACI, sistemas y valor para detectar cuellos de botella y desperdicios.</p>
         </div>
-        <button className="pa-btn pa-btn-primary" onClick={onRun} disabled={state.status === "loading"}>
+        <button className="pa-btn pa-btn-primary" onClick={onRun} disabled={state.status === "loading" || !isReady}>
           {state.status === "loading" ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
           {state.status === "loading" ? "Analizando…" : "Optimizar proceso"}
         </button>
       </div>
+      {!isReady && (
+        <div style={{ background: '#FFF8E1', color: '#C98A12', padding: '12px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px', lineHeight: 1.5 }}>
+          <strong><AlertTriangle size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }}/> Faltan datos</strong><br/>
+          Para optimizar con IA, todas las tareas deben tener asignado un <b>Responsable</b>, un <b>Tiempo de ciclo</b> y una <b>Clasificación de valor</b>. Tienes {incompleteTasks?.length} tarea(s) incompleta(s).
+        </div>
+      )}
 
       {state.status === "error" && (
         <div className="pa-alert">
@@ -2107,17 +2133,17 @@ export default function App() {
                         isFirst={selectedTask ? tasks[0]?.id === selectedTask.id : true}
                         isLast={selectedTask ? tasks[tasks.length - 1]?.id === selectedTask.id : true} 
                         saveState={saveState} expertMode={expertMode} setExpertMode={setExpertMode}
-                        onDone={() => { if (isMobile) setMobileStep(1); else setSelectedId(null); }} />
+                        onDone={() => { if (isMobile) setMobileStep(2); else setSelectedId(null); }} />
                     ) : selectedGateway ? (
                       <GatewayEditor gateway={selectedGateway} onChange={updateGateway} onDelete={deleteGateway}
-                        saveState={saveState} onDone={() => { if (isMobile) setMobileStep(1); else setSelectedId(null); }} />
+                        saveState={saveState} onDone={() => { if (isMobile) setMobileStep(2); else setSelectedId(null); }} />
                     ) : (
                     <div style={{ padding: '24px', textAlign: 'center', color: '#5C6B6B' }}>
                       Selecciona un nodo para ver sus detalles.
                     </div>
                   )
                 ) : (
-                  <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} />
+                  <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} />
                 )}
               </div>
             </div>
@@ -2362,5 +2388,6 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
   .pa-topbar { flex-wrap: wrap; }
   .pa-diagram-head { flex-wrap: wrap; }
   .pa-mobile-nav button { min-height: 44px; }
+  .react-flow__handle { width: 32px !important; height: 32px !important; border-width: 2px !important; }
 }
 `;
