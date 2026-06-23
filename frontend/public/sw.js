@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aiproces-cache-v1';
+const CACHE_NAME = 'aiproces-cache-v2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -7,23 +7,50 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting(); // Force the new service worker to activate immediately
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
   );
 });
 
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim()) // Take control of all clients immediately
+  );
+});
+
 self.addEventListener('fetch', event => {
-  // Ignorar peticiones a la API del backend (cross-origin)
+  // Ignore API requests
   if (!event.request.url.startsWith(self.location.origin)) {
     return;
   }
 
+  // Use Network First strategy for HTML (navigation) to ensure latest index.html
+  if (event.request.mode === 'navigate' || event.request.headers.get('accept').includes('text/html')) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for other assets
   event.respondWith(
     caches.match(event.request)
-      .then(response => {
-        // Devuelve el recurso en caché si existe, sino haz fetch
-        return response || fetch(event.request);
+      .then(cachedResponse => {
+        const fetchPromise = fetch(event.request).then(networkResponse => {
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, networkResponse.clone()));
+          return networkResponse;
+        });
+        return cachedResponse || fetchPromise;
       })
   );
 });
