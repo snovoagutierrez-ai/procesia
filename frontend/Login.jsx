@@ -41,6 +41,53 @@ export default function Login() {
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '1rem', fontFamily: 'system-ui, sans-serif'
     }}>
+      <style>{`
+        body { margin: 0; background-color: #13202B; }
+        .pa-input {
+          box-sizing: border-box;
+          border: 1px solid #3B4B58;
+          border-radius: 9px;
+          background: #15232E;
+          color: #EAF1EF;
+          outline: none;
+          transition: 0.15s;
+        }
+        .pa-input:focus {
+          border-color: #0E9F9F;
+          box-shadow: 0 0 0 3px rgba(14,159,159,0.12);
+        }
+        .pa-input::placeholder {
+          color: #9AA8A8;
+        }
+        .pa-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          border-radius: 9px;
+          padding: 9px 14px;
+          font-size: 13.5px;
+          font-weight: 600;
+          cursor: pointer;
+          border: 1px solid transparent;
+          transition: 0.15s;
+          background: #0E9F9F;
+          color: #fff;
+        }
+        .pa-btn:hover:not(:disabled) {
+          background: #0B7A7A;
+        }
+        .pa-btn:disabled {
+          opacity: 0.55;
+          cursor: default;
+        }
+        .spin {
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
       <div style={{
         backgroundColor: '#1C2E3B', padding: '2.5rem', borderRadius: '12px',
         boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', border: '1px solid #3B4B58',
