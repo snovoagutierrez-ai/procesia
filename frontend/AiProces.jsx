@@ -1008,13 +1008,13 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
             </div>
           </div>
           
-          <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
-            <button className="pa-btn pa-btn-primary" style={{ padding: '12px 24px', fontSize: 15 }} onClick={onCreateMacro}>
+          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button className="pa-btn pa-btn-primary" style={{ padding: '12px 24px', fontSize: 15, width: isMobile ? '100%' : 'auto' }} onClick={onCreateMacro}>
               <Plus size={18} style={{ marginRight: 6 }}/> Crear mi primer proceso
             </button>
             {onLoadDemo && (
-              <button className="pa-btn pa-btn-ghost" style={{ padding: '12px 24px', fontSize: 15, border: '1px solid var(--line)' }} onClick={onLoadDemo}>
-                <FileText size={18} style={{ marginRight: 6 }}/> Cargar proceso de ejemplo
+              <button className="pa-btn pa-btn-ghost" style={{ padding: '12px 24px', fontSize: 15, border: '1px solid var(--teal)', color: 'var(--teal-deep)', width: isMobile ? '100%' : 'auto' }} onClick={onLoadDemo}>
+                <FileText size={18} style={{ marginRight: 6 }}/> Ver proceso de ejemplo
               </button>
             )}
           </div>
