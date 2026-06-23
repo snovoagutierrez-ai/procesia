@@ -1293,6 +1293,14 @@ export default function App() {
   const [optLongLoading, setOptLongLoading] = useState(false);
   const [macroLongLoading, setMacroLongLoading] = useState({});
   const [expertMode, setExpertMode] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [mobileStep, setMobileStep] = useState(1);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const debounceTimeoutRef = useRef(null);
   const updateTaskTimeoutRefs = useRef({});
@@ -1805,6 +1813,7 @@ export default function App() {
   const onNodeSelect = useCallback((taskId) => {
     setSelectedId(taskId);
     setTab("detalle");
+    setMobileStep(3);
   }, []);
 
   // Loading screen
@@ -1888,8 +1897,8 @@ export default function App() {
           macroLongLoading={macroLongLoading}
         />
       ) : proc ? (
-        <div className="pa-shell">
-          <div className="pa-topbar">
+        <div className="pa-editor-layout">
+          <div className="pa-topbar" style={{ maxWidth: '1320px', margin: '0 auto', width: '100%' }}>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <button className="pa-btn pa-btn-ghost" style={{ padding: '6px' }} onClick={() => setProc(null)} aria-label="Volver"><ArrowLeft size={16} /></button>
               
@@ -1928,7 +1937,16 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '18px', padding: '18px', maxWidth: '1320px', margin: '0 auto', width: '100%' }}>
+          {isMobile && (
+            <div className="pa-mobile-nav">
+              <button className={mobileStep === 1 ? 'on' : ''} onClick={() => setMobileStep(1)}>1. Tareas</button>
+              <button className={mobileStep === 2 ? 'on' : ''} onClick={() => setMobileStep(2)}>2. Diagrama</button>
+              <button className={mobileStep === 3 ? 'on' : ''} onClick={() => setMobileStep(3)}>3. Detalle</button>
+            </div>
+          )}
+
+          <div className="pa-shell">
+            {(!isMobile || mobileStep === 1) && (
             <aside className="pa-side">
               <div className="pa-side-sec">
                 <div className="pa-side-title">Proceso</div>
@@ -1941,7 +1959,7 @@ export default function App() {
                 <div className="pa-side-title">Tareas <span className="pa-count">{tasks.length}</span></div>
                 <div className="pa-steplist">
                   {tasks.map((t, i) => (
-                    <button key={t.id} className={"pa-step" + (t.id === selectedId ? " sel" : "")} onClick={() => { setSelectedId(t.id); setTab("detalle"); }}>
+                    <button key={t.id} className={"pa-step" + (t.id === selectedId ? " sel" : "")} onClick={() => { setSelectedId(t.id); setTab("detalle"); setMobileStep(3); }}>
                       <span className="pa-step-bar" style={{ background: VALUE[t.valueClass]?.color || "#EEF3F0" }} />
                       <span className="pa-step-n mono">{String(i + 1).padStart(2, "0")}</span>
                       <span className="pa-step-name">{t.name}</span>
@@ -1955,9 +1973,13 @@ export default function App() {
                 </div>
               </div>
             </aside>
+            )}
 
+            {(!isMobile || mobileStep === 2 || mobileStep === 3) && (
             <main className="pa-main">
-              <div className="pa-diagram-card">
+              {(!isMobile || mobileStep === 2) && (
+              <div className="pa-diagram-wrapper">
+              <div className="pa-diagram-card" style={isMobile ? { minHeight: '60vh' } : {}}>
                 <div className="pa-diagram-head">
                   <span>Flujo del proceso</span>
                   <div className="pa-legend">
@@ -1995,7 +2017,10 @@ export default function App() {
               </div>
               
               <VSMLadder metrics={metricsData} />
+              </div>
+              )}
 
+              {(!isMobile || mobileStep === 3) && (
               <div className="pa-panel" style={{ marginTop: 16 }}>
                 <div className="pa-tabs">
                   <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
@@ -2058,7 +2083,9 @@ export default function App() {
                 )}
               </div>
             </div>
+            )}
           </main>
+          )}
           </div>
         </div>
       ) : null}
@@ -2137,8 +2164,13 @@ button{font-family:inherit}
 .pa-dash-macro-title h3{margin:0;font-family:var(--disp);font-size:18px;font-weight:700}
 .pa-dash-macro-actions{display:flex;align-items:center;gap:8px}
 
+/* ---- mobile nav ---- */
+.pa-mobile-nav{display:flex;background:var(--card);border-bottom:1px solid var(--line);padding:0 12px;overflow-x:auto}
+.pa-mobile-nav button{flex:1;background:transparent;border:none;padding:12px;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;border-bottom:2px solid transparent}
+.pa-mobile-nav button.on{color:var(--teal);border-bottom-color:var(--teal)}
+
 /* ---- shell ---- */
-.pa-shell{display:grid;grid-template-columns:296px 1fr;gap:18px;padding:18px;max-width:1320px;margin:0 auto}
+.pa-shell{display:grid;grid-template-columns:296px 1fr;gap:18px;padding:18px;max-width:1320px;margin:0 auto;align-items:start}
 @media (max-width:880px){.pa-shell{grid-template-columns:1fr;padding:12px;gap:12px}}
 @media (max-width:768px){.pa-shell{display:flex;flex-direction:column-reverse;padding:12px;gap:16px}}
 
@@ -2284,4 +2316,13 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
 .react-flow__controls{border-radius:8px !important;overflow:hidden;border:1px solid var(--line) !important;box-shadow:0 2px 8px rgba(0,0,0,.06) !important}
 .react-flow__controls button{background:#fff !important;border-bottom:1px solid var(--line) !important}
 .react-flow__controls button:hover{background:#F5F7F5 !important}
+
+/* ---- mobile optimizations ---- */
+@media (max-width: 768px) {
+  .pa-btn { min-height: 44px; justify-content: center; }
+  .pa-input, .pa-step { min-height: 44px; }
+  .pa-topbar { flex-wrap: wrap; }
+  .pa-diagram-head { flex-wrap: wrap; }
+  .pa-mobile-nav button { min-height: 44px; }
+}
 `;
