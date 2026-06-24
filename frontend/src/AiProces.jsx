@@ -1477,8 +1477,16 @@ export default function App() {
       clearTimeout(t);
       setOptLongLoading(false);
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail?.message || errorData.detail || "Error en el motor de optimización.");
+        if (res.status === 429) {
+          throw new Error("Has excedido el límite de consultas a la IA. Por favor, espera 1 minuto y vuelve a intentarlo.");
+        }
+        const errorData = await res.json().catch(() => ({}));
+        let errMsg = errorData.detail?.message || errorData.detail || "Error en el motor de optimización.";
+        if (typeof errMsg !== 'string') errMsg = JSON.stringify(errMsg);
+        if (errMsg.includes('429') || errMsg.includes('Too Many Requests') || errMsg.includes('503 UNAVAILABLE') || errMsg.includes('excepcional demand')) {
+          errMsg = "Los servidores de IA de Google están saturados en este momento. Por favor, espera unos minutos e inténtalo de nuevo.";
+        }
+        throw new Error(errMsg);
       }
       const data = await res.json();
       setOpt({ status: "done", data });
@@ -1498,8 +1506,16 @@ export default function App() {
       clearTimeout(t);
       setMacroLongLoading(prev => ({ ...prev, [mId]: false }));
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail?.message || errorData.detail || "Error en el motor de optimización macro.");
+        if (res.status === 429) {
+          throw new Error("Has excedido el límite de consultas a la IA. Por favor, espera 1 minuto y vuelve a intentarlo.");
+        }
+        const errorData = await res.json().catch(() => ({}));
+        let errMsg = errorData.detail?.message || errorData.detail || "Error en el motor de optimización macro.";
+        if (typeof errMsg !== 'string') errMsg = JSON.stringify(errMsg);
+        if (errMsg.includes('429') || errMsg.includes('Too Many Requests') || errMsg.includes('503 UNAVAILABLE') || errMsg.includes('excepcional demand')) {
+          errMsg = "Los servidores de IA de Google están saturados en este momento. Por favor, espera unos minutos e inténtalo de nuevo.";
+        }
+        throw new Error(errMsg);
       }
       const data = await res.json();
       setMacroOpts(prev => ({ ...prev, [mId]: { status: "done", data } }));
