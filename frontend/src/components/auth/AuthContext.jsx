@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { apiFetch } from './api';
+import { apiFetch } from '../../api';
 
 export const AuthContext = createContext();
 

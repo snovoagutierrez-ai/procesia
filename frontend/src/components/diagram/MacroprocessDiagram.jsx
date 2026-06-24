@@ -12,7 +12,7 @@ import {
   addEdge
 } from "@xyflow/react";
 import dagre from "dagre";
-import { apiFetch } from "./api.js";
+import { apiFetch } from "../../api.js";
 import "@xyflow/react/dist/style.css";
 
 /* ---------- Custom Node: Process ---------- */

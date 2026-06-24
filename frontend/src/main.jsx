@@ -1,8 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './AiProces.jsx'
-import { AuthProvider, useAuth } from './AuthContext.jsx'
-import Login from './Login.jsx'
+import { AuthProvider, useAuth } from './components/auth/AuthContext.jsx'
+import Login from './components/auth/Login.jsx'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 
 const AuthWrapper = () => {
