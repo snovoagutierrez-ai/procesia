@@ -121,7 +121,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                         <h3>{m.name}</h3>
                         <span className="pa-dash-code">{m.code}</span>
                       </div>
-                      <div className="pa-dash-macro-actions" onClick={(e) => e.stopPropagation()}>
+                      <div className="pa-dash-macro-actions" onClick={(e) => e.stopPropagation()} style={{ flexWrap: 'wrap', justifyContent: 'flex-start' }}>
                         {mProcs.length > 0 && (
                           <button className="pa-btn pa-btn-primary" onClick={() => runOptimizeMacro(m.id)} disabled={macroOpts[m.id]?.status === "loading"}>
                             {macroOpts[m.id]?.status === "loading" ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} 
@@ -131,7 +131,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                         <button className="pa-btn pa-btn-ghost" style={{ color: '#0E9F9F', border: '1px solid #E2E7E3' }} onClick={() => onCreateProcess(m.id)}>
                           <Plus size={14} /> Añadir proceso
                         </button>
-                        <button className="pa-icon danger" style={{position:"static", width:34, height:34}} onClick={() => onDeleteMacro(m.id)} title="Eliminar macroproceso">
+                        <button className="pa-icon danger" style={{position:"static", width:34, height:34, flexShrink: 0}} onClick={() => onDeleteMacro(m.id)} title="Eliminar macroproceso">
                           <Trash2 size={14} />
                         </button>
                       </div>

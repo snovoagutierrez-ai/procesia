@@ -34,6 +34,9 @@ class UserResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., max_length=500)
 # ==========================================
 
 class TaskRaciBase(BaseModel):

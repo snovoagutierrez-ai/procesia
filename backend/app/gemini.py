@@ -503,3 +503,34 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
         db.refresh(db_run)
 
     return db_run
+
+def tutorial_chat(message: str) -> str:
+    import httpx
+    http_opts = None
+    if not settings.gemini_ssl_verify and os.environ.get("ENVIRONMENT", "development") != "production":
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        h_client = httpx.Client(verify=False)
+        http_opts = types.HttpOptions(httpx_client=h_client)
+
+    client = genai.Client(api_key=settings.gemini_api_key, http_options=http_opts)
+    
+    system_prompt = (
+        "Eres el asistente amigable de AiProces. Tu objetivo es ayudar a los usuarios a entender la plataforma. "
+        "Responde de forma MUY breve (1-3 oraciones), directa y con tono motivador. "
+        "Si la pregunta no tiene relación con mapas de procesos, bpm, cuellos de botella o AiProces, dile amablemente "
+        "que tu función es exclusiva para optimización de procesos empresariales."
+    )
+    
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=message,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=0.3
+            )
+        )
+        return response.text if response.text else "Lo siento, no pude formular una respuesta."
+    except Exception as e:
+        return "Hubo un problema temporal con nuestra IA. ¡Intenta de nuevo en unos minutos!"
