@@ -69,7 +69,7 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
         samesite="lax",
         max_age=auth.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )
-    return {"message": "Logged in successfully", "role": user.role.value, "access_token": access_token}
+    return {"message": "Logged in successfully", "role": user.role.value}
 
 
 @router.post("/auth/logout")

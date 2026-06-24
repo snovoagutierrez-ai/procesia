@@ -47,10 +47,6 @@ export const AuthProvider = ({ children }) => {
       body: formData.toString(),
     });
     if (res.ok) {
-      const data = await res.json();
-      if (data.access_token) {
-        localStorage.setItem("access_token", data.access_token);
-      }
       await checkAuth();
       return true;
     }
@@ -71,7 +67,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    localStorage.removeItem("access_token");
     await apiFetch(`/auth/logout`, { method: 'POST' });
     setUser(null);
   };
