@@ -1175,9 +1175,10 @@ export default function App() {
   const loadDemoData = async () => {
     setLoading(true);
     try {
+      const demoCode = "DEMO-" + Math.random().toString(36).slice(2, 6).toUpperCase();
       const resM = await apiFetch(`/macroprocesses`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: "DEMO-01", name: "Alta de Cliente Demo", description: "Macroproceso de ejemplo generado automáticamente" }),
+        body: JSON.stringify({ code: demoCode, name: "Alta de Cliente Demo", description: "Macroproceso de ejemplo generado automáticamente" }),
       });
       if (!resM.ok) throw new Error("No se pudo crear macroproceso");
       const mData = await resM.json();
@@ -1185,7 +1186,7 @@ export default function App() {
       const resP = await apiFetch(`/processes`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          macroprocess_id: mData.id, code: "PROC-DEMO", name: "Evaluación Crediticia",
+          macroprocess_id: mData.id, code: demoCode + "-PROC", name: "Evaluación Crediticia",
           objective: "Evaluar y aprobar solicitud", trigger_event: "Recibe solicitud", output_result: "Cliente aprobado"
         }),
       });
