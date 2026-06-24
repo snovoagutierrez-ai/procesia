@@ -14,8 +14,10 @@ def run_test():
     password = "SuperSecretPassword123"
     print(f"[*] Registering user {email}...")
     
+    session = requests.Session()
+    
     try:
-        res = requests.post(f"{BASE_URL}/auth/register", json={
+        res = session.post(f"{BASE_URL}/auth/register", json={
             "email": email,
             "password": password
         })
@@ -29,18 +31,19 @@ def run_test():
 
     # 2. Login
     print("[*] Logging in...")
-    res = requests.post(f"{BASE_URL}/auth/login", data={
+    res = session.post(f"{BASE_URL}/auth/login", data={
         "username": email,
         "password": password
     })
     
-    token = res.json().get("access_token")
+    # Session automatically stores the HTTP-Only cookie, but we extract it to bypass CookieJar bugs
+    token = session.cookies.get("access_token")
     headers = {"Authorization": f"Bearer {token}"}
     
     # 3. Create Macroprocess
     print("[*] Creating Macroprocess...")
     mac_code = f"MAC-TEST-{random.randint(1000, 9999)}"
-    res = requests.post(f"{BASE_URL}/macroprocesses", json={
+    res = session.post(f"{BASE_URL}/macroprocesses", json={
         "code": mac_code,
         "name": "E2E Test Macro",
         "owner_area": "IT"
@@ -58,6 +61,10 @@ def run_test():
         "trigger_event": "Start",
         "output_result": "End"
     }, headers=headers)
+    print(f"[DEBUG] POST /processes status: {res.status_code}")
+    if res.status_code != 200 and res.status_code != 201:
+        print(f"[DEBUG] Error content: {res.text}")
+        print(f"[DEBUG] Cookies in session: {session.cookies.get_dict()}")
     proc_id = res.json()["id"]
     
     # 5. Create Tasks
@@ -102,14 +109,14 @@ def run_test():
         {"bpmn_id": f"Flow_E2E_{random.randint(1000,9999)}_2", "source_ref": gateway_bpmn, "target_ref": task_bpmns[1], "name": "Yes"},
     ]
     
-    res = requests.put(f"{BASE_URL}/processes/{proc_id}/graph", json={
+    res = session.put(f"{BASE_URL}/processes/{proc_id}/graph", json={
         "gateways": gateways,
         "sequence_flows": sequence_flows
     }, headers=headers)
     
     # 7. Optimize!
     print("[*] Triggering AI Optimization (this might take 10-20 seconds)...")
-    res = requests.post(f"{BASE_URL}/processes/{proc_id}/optimize", headers=headers)
+    res = session.post(f"{BASE_URL}/processes/{proc_id}/optimize", headers=headers)
     
     if res.status_code == 200:
         opt_result = res.json()

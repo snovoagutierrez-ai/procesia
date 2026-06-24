@@ -63,7 +63,7 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
     
     response.set_cookie(
         key="access_token",
-        value=f"Bearer {access_token}",
+        value=access_token,
         httponly=True,
         secure=is_production,
         samesite="lax",

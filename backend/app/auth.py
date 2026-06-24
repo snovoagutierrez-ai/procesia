@@ -33,6 +33,8 @@ class OAuth2PasswordBearerWithCookie(OAuth2):
 
     async def __call__(self, request: Request) -> Optional[str]:
         authorization = request.cookies.get("access_token")
+        if authorization:
+            authorization = f"Bearer {authorization}"
         if not authorization:
             authorization = request.headers.get("Authorization")
 
