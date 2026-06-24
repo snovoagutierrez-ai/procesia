@@ -2000,19 +2000,19 @@ export default function App() {
         <div className="pa-editor-layout">
           <div className="pa-topbar" style={{ maxWidth: '1320px', margin: '0 auto', width: '100%' }}>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button className="pa-btn pa-btn-ghost" style={{ padding: '6px' }} onClick={() => setProc(null)} aria-label="Volver"><ArrowLeft size={16} /></button>
+              <button className="pa-btn pa-btn-ghost" style={{ padding: '6px' }} onClick={() => { setProc(null); setView("dashboard"); }} aria-label="Volver"><ArrowLeft size={16} /></button>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)' }}>
                 <span 
                   style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500 }} 
-                  onClick={() => setProc(null)}
+                  onClick={() => { setProc(null); setView("dashboard"); }}
                 >
                   Mis procesos
                 </span>
                 <span style={{ opacity: 0.5 }}>/</span>
                 <span 
                   style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500 }} 
-                  onClick={() => setProc(null)}
+                  onClick={() => { setProc(null); setView("dashboard"); }}
                 >
                   {macroprocesses.find(m => m.id === proc.macroprocess_id)?.name || "General"}
                 </span>
@@ -2059,12 +2059,15 @@ export default function App() {
                 <div className="pa-side-title">Tareas <span className="pa-count">{tasks.length}</span></div>
                 <div className="pa-steplist">
                   {tasks.map((t, i) => (
-                    <button key={t.id} className={"pa-step" + (t.id === selectedId ? " sel" : "")} onClick={() => { setSelectedId(t.id); setTab("detalle"); setMobileStep(3); }}>
-                      <span className="pa-step-bar" style={{ background: VALUE[t.valueClass]?.color || "#EEF3F0" }} />
-                      <span className="pa-step-n mono">{String(i + 1).padStart(2, "0")}</span>
-                      <span className="pa-step-name">{t.name}</span>
-                      <span className="pa-step-t mono">{fmtShort((Number(t.cycleTime) || 0) + (Number(t.waitTime) || 0))}</span>
-                    </button>
+                    <div key={t.id} className={"pa-step" + (t.id === selectedId ? " sel" : "")} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                      <div onClick={() => { setSelectedId(t.id); setTab("detalle"); setMobileStep(3); }} style={{ display: "flex", alignItems: "center", gap: 9, flex: 1, minWidth: 0, cursor: "pointer" }}>
+                        <span className="pa-step-bar" style={{ background: VALUE[t.valueClass]?.color || "#EEF3F0" }} />
+                        <span className="pa-step-n mono">{String(i + 1).padStart(2, "0")}</span>
+                        <span className="pa-step-name">{t.name}</span>
+                        <span className="pa-step-t mono">{fmtShort((Number(t.cycleTime) || 0) + (Number(t.waitTime) || 0))}</span>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); if (window.confirm("\u00bfEliminar esta tarea?")) deleteTask(t.id); }} title="Eliminar tarea" aria-label="Eliminar tarea" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
+                    </div>
                   ))}
                 </div>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
