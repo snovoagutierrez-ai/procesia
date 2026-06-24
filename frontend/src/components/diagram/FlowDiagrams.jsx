@@ -240,12 +240,12 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   if (sequenceFlows && sequenceFlows.length > 0) {
     sequenceFlows.forEach((sf) => {
       let sourceId = sf.source_ref;
-      const sTask = tasks.find(t => t.id.toString() === sf.source_ref || t.bpmnId === sf.source_ref);
+      const sTask = tasks.find(t => t.id != null && (t.id.toString() === sf.source_ref || t.bpmnId === sf.source_ref));
       if (sTask) sourceId = `task-${sTask.id}`;
       else if ((gateways || []).some(g => g.bpmn_id === sf.source_ref)) sourceId = `gw-${sf.source_ref}`;
       
       let targetId = sf.target_ref;
-      const tTask = tasks.find(t => t.id.toString() === sf.target_ref || t.bpmnId === sf.target_ref);
+      const tTask = tasks.find(t => t.id != null && (t.id.toString() === sf.target_ref || t.bpmnId === sf.target_ref));
       if (tTask) targetId = `task-${tTask.id}`;
       else if ((gateways || []).some(g => g.bpmn_id === sf.target_ref)) targetId = `gw-${sf.target_ref}`;
 

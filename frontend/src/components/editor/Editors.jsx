@@ -1,7 +1,77 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Clock, Trash2, Check, ChevronUp, ChevronDown, Sparkles, Loader2, ArrowRight, AlertTriangle, X, Lightbulb, Info } from 'lucide-react';
 import { VALUE, WASTE, TYPES, ACTION, SEVERITY, WASTE_QUESTIONS } from '../../constants.js';
 import { Seg, Field, TimeField } from '../shared/uiAtoms.jsx';
+
+function ClickableTooltip({ content }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    function handleEscape(e) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [open]);
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} ref={containerRef}>
+      <button 
+        type="button"
+        className="pa-icon" 
+        onClick={() => setOpen(!open)}
+        onKeyDown={(e) => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}
+        style={{ padding: 2, background: 'none', border: 'none', cursor: 'pointer' }}
+        aria-label="Más información"
+        aria-expanded={open}
+      >
+        <Info size={14} style={{ color: 'var(--muted)' }} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: '50%',
+          transform: 'translate(-50%, -8px)',
+          background: 'var(--ink)',
+          color: 'var(--inv)',
+          padding: '12px',
+          borderRadius: '6px',
+          fontSize: '12px',
+          lineHeight: '1.5',
+          width: 'max-content',
+          maxWidth: '250px',
+          zIndex: 100,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          textAlign: 'left'
+        }}>
+          {content}
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            borderWidth: '6px',
+            borderStyle: 'solid',
+            borderColor: 'var(--ink) transparent transparent transparent'
+          }} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ValueClassWizard({ valueClass, wasteType, onChange, expertMode, setExpertMode }) {
   const [step, setStep] = useState(0);
@@ -223,7 +293,13 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
       <div style={{ marginBottom: '16px' }}>
         <div style={{ marginBottom: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--text)', display: 'flex', gap: '8px', alignItems: 'center' }}>
           Clasificación de valor 
-          <Info size={14} style={{ color: 'var(--muted)' }} title="Valor Agregado (VA): El cliente lo valora. Necesario sin valor (NNVA): Regulaciones o control. Desperdicio (NVA): Tareas que podrían eliminarse."/>
+          <ClickableTooltip content={
+            <>
+              <strong>Valor Agregado (VA):</strong> El cliente lo valora y paga por ello.<br/>
+              <strong>Necesario sin valor (NNVA):</strong> Regulaciones, leyes o control interno.<br/>
+              <strong>Desperdicio (NVA):</strong> Tareas que podrían eliminarse.
+            </>
+          } />
         </div>
         <ValueClassWizard 
           valueClass={task.valueClass} 
