@@ -1,7 +1,7 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Handle, Position, ReactFlow, Controls, MiniMap, Background, useNodesState, useEdgesState, MarkerType, addEdge } from '@xyflow/react';
 import dagre from 'dagre';
-import { User, PenLine, Wrench, Clock, RotateCcw } from 'lucide-react';
+import { User, PenLine, Wrench, Clock, RotateCcw, Info, ChevronUp, ChevronDown } from 'lucide-react';
 import { fmtShort } from '../editor/Editors.jsx';
 
 function VSMLadder({ metrics }) {
