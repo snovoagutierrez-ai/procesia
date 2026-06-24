@@ -181,7 +181,7 @@ function getLayoutedElements(rfNodes, rfEdges, direction = "LR") {
   return { nodes: layouted, edges: rfEdges };
 }
 
-function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelect) {
+function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onEdgesDelete) {
   const rfNodes = [];
   const rfEdges = [];
 
@@ -254,7 +254,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         source: sourceId,
         target: targetId,
         type: "deletable",
-        data: { onDelete: sf.onDelete },
+        data: { onDelete: (edgeId) => { if(onEdgesDelete) onEdgesDelete([{ id: edgeId }]); } },
         label: sf.condition || "",
         animated: true,
         style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
@@ -267,9 +267,20 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
 }
 
 function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange }) {
+  const onEdgesDelete = useCallback(
+    (deletedEdges) => {
+      const deletedIds = deletedEdges.map(e => e.id);
+      const newFlows = (sequenceFlows||[]).filter(f => !deletedIds.includes(f.id));
+      if (onGraphChange) {
+        onGraphChange(gateways, newFlows);
+      }
+    },
+    [gateways, sequenceFlows, onGraphChange]
+  );
+
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
-    () => buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelect),
-    [proc, tasks, gateways, sequenceFlows, selectedId, onSelect]
+    () => buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onEdgesDelete),
+    [proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onEdgesDelete]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutedNodes);
@@ -294,17 +305,6 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
       }
     },
     [gateways, sequenceFlows, onGraphChange, setEdges]
-  );
-
-  const onEdgesDelete = useCallback(
-    (deletedEdges) => {
-      const deletedIds = deletedEdges.map(e => e.id);
-      const newFlows = (sequenceFlows||[]).filter(f => !deletedIds.includes(f.id));
-      if (onGraphChange) {
-        onGraphChange(gateways, newFlows);
-      }
-    },
-    [gateways, sequenceFlows, onGraphChange]
   );
 
   return (
