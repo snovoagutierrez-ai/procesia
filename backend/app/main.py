@@ -24,6 +24,14 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
+# Determinar regex base (vercel previews + localhost)
+cors_regex = r"^https://aiproces.*\.vercel\.app$|^http://(localhost|127\.0\.0\.1)(:\d+)?$"
+
+# Expandir para redes locales solo en desarrollo
+is_production = os.environ.get("ENV", "development").lower() == "production" or os.environ.get("RENDER") == "true"
+if not is_production:
+    cors_regex = r"^https://aiproces.*\.vercel\.app$|^http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$"
+
 # Configurar middleware de CORS
 app.add_middleware(
     CORSMiddleware,
@@ -31,7 +39,7 @@ app.add_middleware(
         "https://aiproces.vercel.app",
         "http://localhost:5173",  # Para desarrollo local frontend
     ],
-    allow_origin_regex=r"^https://aiproces.*\.vercel\.app$|^http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$",
+    allow_origin_regex=cors_regex,
     allow_credentials=True, # Necesario para SameSite cookies / JWT
     allow_methods=["*"],
     allow_headers=["*"],
