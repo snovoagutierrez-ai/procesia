@@ -8,6 +8,9 @@ pydantic-settings>=2.3.0
 python-dotenv==1.0.1
 google-genai>=0.1.0
 passlib>=1.7.4
+# bcrypt clavado en 3.2.2: versiones posteriores (4.0.0+) rompen passlib
+# porque passlib está abandonado y depende del antiguo __about__.
+# NO actualizar a no ser que se reescriba app/auth.py usando otra librería.
 bcrypt==3.2.2
 python-jose[cryptography]>=3.3.0
 python-multipart>=0.0.9

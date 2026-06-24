@@ -34,6 +34,11 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Explicitly ignore any backend API calls (Vercel proxies /api/)
+  if (event.request.url.includes('/api/')) {
+    return;
+  }
+
   // Use Network First strategy for HTML (navigation) to ensure latest index.html
   if (event.request.mode === 'navigate' || event.request.headers.get('accept').includes('text/html')) {
     event.respondWith(
