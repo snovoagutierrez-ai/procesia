@@ -85,7 +85,7 @@ export default function WelcomeModal({ isOpen, onClose }) {
   };
 
   return (
-    <div className="pa-modal-overlay" style={{ zIndex: 9999, background: '#13202B', alignItems: 'stretch', justifyContent: 'stretch' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 99999, background: '#13202B', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
         
         {/* Top Header */}
