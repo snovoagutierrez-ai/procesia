@@ -1178,7 +1178,51 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                         </button>
                       </div>
                     </div>
-                                <span className="pa-stat-label">Eficiencia (PCE) Macro</span>
+                    {expandedMacros[m.id] && (
+                      <>
+                        {macroOpts[m.id]?.status === "error" && (
+                          <div className="pa-alert" style={{margin: '16px 20px 0'}}>
+                            <AlertTriangle size={18} style={{color:"var(--danger)"}}/>
+                            <p>{macroOpts[m.id].error}</p>
+                          </div>
+                        )}
+                        {macroOpts[m.id]?.status === "done" && macroOpts[m.id]?.data && (
+                          <div className="pa-macro-opt-results" style={{ margin: '16px 20px 0', background: 'white', borderRadius: 8, border: '1px solid var(--teal)' }}>
+                            <div 
+                              style={{ padding: '12px 16px', background: 'var(--teal)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderRadius: openOpts[m.id] ? '8px 8px 0 0' : '8px' }}
+                              onClick={() => setOpenOpts(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
+                            >
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                <Sparkles size={16} />
+                                <strong style={{ fontSize: 14 }}>Insights de IA a Nivel Macroproceso</strong>
+                              </div>
+                              {openOpts[m.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            </div>
+                            
+                            {openOpts[m.id] && (
+                              <div style={{ padding: 20 }}>
+                                {/* Insight Principal */}
+                                {macroOpts[m.id].data.macro_bottlenecks?.length > 0 && (
+                                  <div style={{ background: 'var(--ink)', color: 'white', padding: 16, borderRadius: 8, marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                                    <div style={{ background: 'rgba(255,255,255,0.1)', padding: 8, borderRadius: '50%' }}>
+                                      <AlertTriangle size={24} style={{ color: 'var(--bg-nva)' }} />
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--inv-muted)', marginBottom: 4, fontWeight: 600 }}>Insight Principal</div>
+                                      <div style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.4 }}>
+                                        El cuello de botella más crítico está en el proceso <strong>{macroOpts[m.id].data.macro_bottlenecks[0].process_name}</strong>. Abordarlo reduciría significativamente el Lead Time total.
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+                                  <div className="pa-stat">
+                                    <span className="pa-stat-label">Lead Time Total (Estimado)</span>
+                                    <span className="pa-stat-value">{macroOpts[m.id].data.summary.total_macro_lead_time_sec} s</span>
+                                  </div>
+                                  <div className="pa-stat">
+                                    <span className="pa-stat-label">Eficiencia (PCE) Macro</span>
                                 <span className="pa-stat-value">{Math.round(macroOpts[m.id].data.summary.macro_pce_percentage)}%</span>
                               </div>
                               <div className="pa-stat">
@@ -1245,6 +1289,8 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                       <div style={{ width: '100%', height: '400px', marginTop: '16px' }}>
                         <MacroprocessDiagram macroprocessId={m.id} processes={mProcs} onProcessDoubleClick={onSelect} />
                       </div>
+                    )}
+                      </>
                     )}
                   </div>
                 );
