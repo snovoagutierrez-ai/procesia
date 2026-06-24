@@ -1047,6 +1047,7 @@ function Logo({ size = 34 }) {
 
 function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCreateMacro, onDeleteProcess, onDeleteMacro, macroOpts, runOptimizeMacro, onLoadDemo, openOpts, setOpenOpts, macroLongLoading }) {
   const [dashTab, setDashTab] = useState("jerarquia");
+  const [expandedMacros, setExpandedMacros] = useState({});
   const [search, setSearch] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -1375,7 +1376,6 @@ export default function App() {
   // Views: "dashboard" | "editor"
   const [view, setView] = useState("dashboard");
   const [dashTab, setDashTab] = useState("jerarquia");
-  const [expandedMacros, setExpandedMacros] = useState({});
   const [allProcesses, setAllProcesses] = useState([]);
   const [macroprocesses, setMacroprocesses] = useState([]);
   const [proc, setProc] = useState(null);
