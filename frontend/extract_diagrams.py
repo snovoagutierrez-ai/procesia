@@ -1,16 +1,15 @@
 import sys
 import re
 
-def extract_editors():
+def extract_diagrams():
     with open('src/AiProces.jsx', 'r', encoding='utf-8') as f:
         content = f.read()
 
-    functions_to_extract = ['ValueClassWizard', 'Editor', 'GatewayEditor', 'Optimization', 'fmtShort', 'fmtLong']
+    functions_to_extract = ['VSMLadder', 'StartNode', 'EndNode', 'TaskNode', 'getLayoutedElements', 'buildFlowData', 'FlowDiagram']
     extracted_code = []
     
     for func_name in functions_to_extract:
         # Match function definition until the main block brace
-        # We look for "function Name" followed by everything until ") {"
         pattern = r'(function\s+' + func_name + r'\s*\([^)]*\)\s*\{)'
         match = re.search(pattern, content)
         
@@ -19,7 +18,6 @@ def extract_editors():
             continue
             
         start_idx = match.start()
-        # The body brace starts at the end of the match minus 1
         body_start = match.end() - 1
         
         brace_count = 0
@@ -48,19 +46,21 @@ def extract_editors():
         func_content = content[start_idx:idx]
         extracted_code.append(func_content)
         
-        # Replace the function in the original content with empty lines to preserve line numbers
         content = content[:start_idx] + ('\n' * content[start_idx:idx].count('\n')) + content[idx:]
 
-    imports = """import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Clock, Copy, Trash2, Check, ChevronRight, Sparkles, Loader2, ArrowRight, AlertTriangle, TrendingUp } from 'lucide-react';
+    imports = """import React, { useMemo, useCallback } from 'react';
+import { Handle, Position, ReactFlow, Controls, MiniMap, Background, useNodesState, useEdgesState, MarkerType, addEdge } from '@xyflow/react';
+import dagre from 'dagre';
+import { User, PenLine, Wrench, Clock, RotateCcw } from 'lucide-react';
+import { fmtShort } from '../editor/Editors.jsx';
 
 """
     exports = "\nexport { " + ", ".join(functions_to_extract) + " };\n"
     
-    with open('src/components/editor/Editors.jsx', 'w', encoding='utf-8') as f:
+    with open('src/components/diagram/FlowDiagrams.jsx', 'w', encoding='utf-8') as f:
         f.write(imports + '\n\n'.join(extracted_code) + exports)
         
-    import_statement = 'import { Editor, GatewayEditor, Optimization, ValueClassWizard, fmtShort, fmtLong } from "./components/editor/Editors.jsx";\n'
+    import_statement = 'import { VSMLadder, FlowDiagram } from "./components/diagram/FlowDiagrams.jsx";\n'
     
     match = re.search(r'import\s+.*?;', content)
     if match:
@@ -74,4 +74,4 @@ import { ArrowLeft, Clock, Copy, Trash2, Check, ChevronRight, Sparkles, Loader2,
         f.write(content)
         
 if __name__ == '__main__':
-    extract_editors()
+    extract_diagrams()

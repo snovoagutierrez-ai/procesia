@@ -541,3 +541,51 @@ class ProcessMetricsResponse(BaseModel):
     structural: StructuralMetrics
     bottlenecks: List[MetricBottleneck]
     cost: MetricCost
+
+# ==========================================
+# 10. Macro Optimization Results (Pydantic)
+# ==========================================
+
+class MacroOptimizationSummary(BaseModel):
+    total_macro_lead_time_sec: float
+    macro_pce: float
+    total_handoffs: int
+
+class MacroBottleneck(BaseModel):
+    process_code: str
+    process_name: str
+    metric: Literal['lead_time', 'cycle_time']
+    value_sec: float
+    severity: Literal['low', 'medium', 'high', 'critical']
+    impact_description: str
+
+class InterfaceWaste(BaseModel):
+    from_process_code: str
+    to_process_code: str
+    waste_type: Literal['waiting', 'rework', 'information_loss', 'motion']
+    description: str
+    estimated_delay_sec: float
+
+class Redundancy(BaseModel):
+    processes_involved: List[str]
+    description: str
+    consolidation_opportunity: str
+
+class MacroRecommendation(BaseModel):
+    id: str
+    target_process_codes: List[str]
+    action_type: Literal['ELIMINATE', 'AUTOMATE', 'SIMPLIFY', 'MERGE', 'PARALLELIZE', 'REASSIGN', 'STANDARDIZE']
+    description: str
+    expected_benefit: str
+    implementation_complexity: Literal['low', 'medium', 'high']
+    priority: int
+
+class MacroOptimizationResult(BaseModel):
+    macroprocess_id: str
+    analysis_confidence: float = Field(..., ge=0.0, le=1.0)
+    summary: MacroOptimizationSummary
+    macro_bottlenecks: List[MacroBottleneck]
+    interface_wastes: List[InterfaceWaste]
+    redundancies: List[Redundancy]
+    recommendations: List[MacroRecommendation]
+    projected_macro_lead_time_sec: float
