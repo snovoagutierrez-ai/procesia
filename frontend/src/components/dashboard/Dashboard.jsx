@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Play, Trash2, Plus, PenLine, Network, ChevronDown, ChevronRight, Layers, LayoutGrid, Bot, ArrowRight, Loader2, FileText, FolderOpen } from 'lucide-react';
+import { Sparkles, Play, Trash2, Plus, PenLine, Network, ChevronUp, ChevronDown, ChevronRight, Layers, LayoutGrid, Bot, ArrowRight, Loader2, FileText, FolderOpen } from 'lucide-react';
 import MacroprocessDiagram from '../diagram/MacroprocessDiagram.jsx';
 
 function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCreateMacro, onDeleteProcess, onDeleteMacro, macroOpts, runOptimizeMacro, onLoadDemo, openOpts, setOpenOpts, macroLongLoading }) {
