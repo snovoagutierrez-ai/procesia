@@ -23,6 +23,7 @@ import Dashboard from "./components/dashboard/Dashboard.jsx";
 import './styles/main.css';
 import { Editor, GatewayEditor, Optimization, ValueClassWizard, fmtShort, fmtLong } from "./components/editor/Editors.jsx";
 import { VSMLadder, FlowDiagram } from "./components/diagram/FlowDiagrams.jsx";
+import WelcomeModal from "./components/shared/WelcomeModal.jsx";
 
 
 
@@ -938,6 +939,15 @@ export default function App() {
   const [expertMode, setExpertMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [mobileStep, setMobileStep] = useState(1);
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  useEffect(() => {
+    const tutorialSeen = localStorage.getItem('aiproces_tutorial_seen');
+    if (!tutorialSeen) {
+      setShowTutorial(true);
+      localStorage.setItem('aiproces_tutorial_seen', 'true');
+    }
+  }, []);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -1554,6 +1564,7 @@ export default function App() {
 
   return (
     <div className="pa-root">
+      <WelcomeModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
 
       {view !== "editor" && (
         <header className="pa-topbar">
@@ -1573,6 +1584,9 @@ export default function App() {
                   <span style={{ color: '#0E9F9F', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase' }}>Admin</span>
                 )}
               </div>
+              <button className="pa-btn pa-btn-ghost" onClick={() => setShowTutorial(true)} title="Ver Tutorial">
+                <Info size={16} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>Tutorial</span>
+              </button>
               <button className="pa-btn pa-btn-ghost" onClick={logout} title="Cerrar sesion">
                 <LogOut size={16} />
               </button>
