@@ -1292,15 +1292,7 @@ export default function App() {
       const data = await res.json();
       const mapped = mapBackendTaskToFrontend(data);
 
-      let sourceNodeId = "start";
-      if (selectedId) {
-        const selTask = tasks.find(t => t.id === selectedId);
-        if (selTask) sourceNodeId = selTask.bpmnId;
-        else if (gateways.find(g => g.bpmn_id === selectedId)) sourceNodeId = selectedId;
-      }
-      if (sourceNodeId === "start" && tasks.length > 0) {
-        sourceNodeId = tasks[tasks.length - 1].bpmnId;
-      }
+      let sourceNodeId = tasks.length > 0 ? tasks[tasks.length - 1].bpmnId : "start";
 
       // Filtrar la flecha vieja que iba de sourceNodeId a "end" para no duplicar salidas al final
       let newFlows = (sequenceFlows || []).filter(f => !(f.source_ref === sourceNodeId && f.target_ref === "end"));
@@ -1679,12 +1671,15 @@ export default function App() {
                       <select 
                          value={getOutgoingTarget(t.bpmnId)} 
                          onChange={(e) => setOutgoingTarget(t.bpmnId, e.target.value)}
-                         style={{ background: "transparent", border: "1px solid var(--line-ink)", color: "var(--inv-muted)", borderRadius: 4, padding: "2px 4px", fontSize: 11, maxWidth: 120 }}
+                         style={{ background: "transparent", border: "1px solid var(--line-ink)", color: "var(--inv-muted)", borderRadius: 4, padding: "2px 4px", fontSize: 11, maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis" }}
                          onClick={(e) => e.stopPropagation()}
                       >
                          <option value="">(Desconectado)</option>
                          <option value="end">🏁 Fin</option>
-                         {tasks.filter(tk => tk.id !== t.id).map(tk => <option key={tk.bpmnId} value={tk.bpmnId}>Hacia {tk.name}</option>)}
+                         {tasks.filter(tk => tk.id !== t.id).map((tk) => {
+                           const tIdx = String(tasks.findIndex(x => x.id === tk.id) + 1).padStart(2, "0");
+                           return <option key={tk.bpmnId} value={tk.bpmnId}>Hacia {tIdx}. {tk.name}</option>
+                         })}
                          {gateways.map(g => <option key={g.bpmn_id} value={g.bpmn_id}>Hacia {g.name}</option>)}
                       </select>
                       <button onClick={(e) => { e.stopPropagation(); if (window.confirm("\u00bfEliminar esta tarea?")) deleteTask(t.id); }} title="Eliminar tarea" aria-label="Eliminar tarea" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
@@ -1705,12 +1700,15 @@ export default function App() {
                           <select 
                              value={getOutgoingTarget(g.bpmn_id)} 
                              onChange={(e) => setOutgoingTarget(g.bpmn_id, e.target.value)}
-                             style={{ background: "transparent", border: "1px solid var(--line-ink)", color: "var(--inv-muted)", borderRadius: 4, padding: "2px 4px", fontSize: 11, maxWidth: 120 }}
+                             style={{ background: "transparent", border: "1px solid var(--line-ink)", color: "var(--inv-muted)", borderRadius: 4, padding: "2px 4px", fontSize: 11, maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis" }}
                              onClick={(e) => e.stopPropagation()}
                           >
                              <option value="">(Desconectado)</option>
                              <option value="end">🏁 Fin</option>
-                             {tasks.map(tk => <option key={tk.bpmnId} value={tk.bpmnId}>Hacia {tk.name}</option>)}
+                             {tasks.map(tk => {
+                               const tIdx = String(tasks.findIndex(x => x.id === tk.id) + 1).padStart(2, "0");
+                               return <option key={tk.bpmnId} value={tk.bpmnId}>Hacia {tIdx}. {tk.name}</option>
+                             })}
                              {gateways.filter(gx => gx.bpmn_id !== g.bpmn_id).map(gx => <option key={gx.bpmn_id} value={gx.bpmn_id}>Hacia {gx.name}</option>)}
                           </select>
                           <button onClick={(e) => { e.stopPropagation(); if (window.confirm("\u00bfEliminar esta compuerta?")) deleteGateway(g.bpmn_id); }} title="Eliminar compuerta" aria-label="Eliminar compuerta" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
