@@ -58,7 +58,7 @@ class OAuth2PasswordBearerWithCookie(OAuth2):
                 return None
         return param
 
-oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="auth/login/cookie")
+oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="auth/login")
 
 # JWT configurations
 SECRET_KEY = os.environ.get("JWT_SECRET")

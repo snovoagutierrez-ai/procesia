@@ -219,7 +219,7 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
 
     try:
         # First call to Gemini
-        contents_json = json.dumps(snapshot, indent=2)
+        contents_json = json.dumps(snapshot, indent=2, default=str)
 
 
 

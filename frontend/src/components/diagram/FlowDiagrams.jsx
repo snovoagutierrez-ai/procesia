@@ -2,7 +2,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Handle, Position, ReactFlow, Controls, MiniMap, Background, useNodesState, useEdgesState, MarkerType, addEdge } from '@xyflow/react';
 import dagre from 'dagre';
 import { User, PenLine, Wrench, Clock, RotateCcw, Info, ChevronUp, ChevronDown } from 'lucide-react';
-import { fmtShort } from '../editor/Editors.jsx';
+import { fmtShort, fmtLong } from '../editor/Editors.jsx';
+import { VALUE, TYPES } from '../../constants.js';
+
+// Icons per task type (kept local so constants.js stays icon-free)
+const TYPE_ICONS = { user: User, manual: PenLine, service: Wrench };
 
 function VSMLadder({ metrics }) {
   const [showInfo, setShowInfo] = useState(false);
@@ -110,7 +114,7 @@ function EndNode({ data }) {
 
 function TaskNode({ data }) {
   const v = VALUE[data.valueClass] || VALUE.VA;
-  const TypeIcon = TYPES[data.taskType]?.Icon || User;
+  const TypeIcon = TYPE_ICONS[data.taskType] || User;
   return (
     <div
       className={`rf-task-node ${data.selected ? "selected" : ""}`}

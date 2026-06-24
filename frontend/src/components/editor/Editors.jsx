@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Clock, Copy, Trash2, Check, ChevronRight, Sparkles, Loader2, ArrowRight, AlertTriangle, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Clock, Trash2, Check, ChevronUp, ChevronDown, Sparkles, Loader2, ArrowRight, AlertTriangle, X, Lightbulb, Info } from 'lucide-react';
+import { VALUE, WASTE, TYPES, ACTION, SEVERITY, WASTE_QUESTIONS } from '../../constants.js';
+import { Seg, Field, TimeField } from '../shared/uiAtoms.jsx';
 
 function ValueClassWizard({ valueClass, wasteType, onChange, expertMode, setExpertMode }) {
   const [step, setStep] = useState(0);
@@ -197,6 +199,7 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
         <div className="pa-editor-actions">
           <button className="pa-icon" disabled={isFirst} onClick={() => onMove(task.id, -1)} title="Subir"><ChevronUp size={16} /></button>
           <button className="pa-icon" disabled={isLast} onClick={() => onMove(task.id, 1)} title="Bajar"><ChevronDown size={16} /></button>
+
           <button className="pa-icon danger" onClick={() => onDelete(task.id)} title="Eliminar"><Trash2 size={16} /></button>
         </div>
       </div>

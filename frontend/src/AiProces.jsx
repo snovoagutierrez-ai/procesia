@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
 import { apiFetch } from "./api.js";
+import { VALUE, WASTE, TYPES, ACTION, SEVERITY, WASTE_QUESTIONS } from "./constants.js";
+import { Seg, Field, TimeField } from "./components/shared/uiAtoms.jsx";
 import {
   ReactFlow, Background, Controls,
   useNodesState, useEdgesState, MarkerType,
@@ -114,60 +116,12 @@ import { VSMLadder, FlowDiagram } from "./components/diagram/FlowDiagrams.jsx";
 
 const API = import.meta.env.VITE_API_URL;
 
-const VALUE = {
-  VA:   { label: "Valor agregado",     short: "VA",   color: "#1FA463", bg: "#E8F5E9" },
-  NNVA: { label: "Necesario sin valor", short: "NNVA", color: "#C98A12", bg: "#FFF8E1" },
-  NVA:  { label: "Desperdicio",         short: "NVA",  color: "#D9503C", bg: "#FFEBEE" },
-};
-
-const WASTE = {
-  defects: "Defectos / reproceso",
-  overproduction: "Sobreproducción",
-  waiting: "Espera",
-  non_utilized_talent: "Talento desaprovechado",
-  transportation: "Transporte",
-  inventory: "Inventario",
-  motion: "Movimiento",
-  excess_processing: "Sobreprocesamiento",
-};
-
-const TYPES = {
-  user:    { label: "Persona",  Icon: User,    bpmn: "userTask" },
-  manual:  { label: "Manual",   Icon: PenLine, bpmn: "manualTask" },
-  service: { label: "Sistema",  Icon: Wrench,  bpmn: "serviceTask" },
-};
-
-const ACTION = {
-  ELIMINATE:   { label: "Eliminar",     color: "#D9503C" },
-  AUTOMATE:    { label: "Automatizar",  color: "#0E9F9F" },
-  SIMPLIFY:    { label: "Simplificar",  color: "#0E9F9F" },
-  MERGE:       { label: "Fusionar",     color: "#0E9F9F" },
-  PARALLELIZE: { label: "Paralelizar",  color: "#7A5AF8" },
-  REASSIGN:    { label: "Reasignar",    color: "#C98A12" },
-  STANDARDIZE: { label: "Estandarizar", color: "#3B7DD8" },
-};
-
-const SEVERITY = {
-  low:      { label: "Baja",     color: "#5C6B6B" },
-  medium:   { label: "Media",    color: "#C98A12" },
-  high:     { label: "Alta",     color: "#D9503C" },
-  critical: { label: "Crítica",  color: "#A4271A" },
-};
+// VALUE, WASTE, TYPES, ACTION, SEVERITY imported from ./constants.js
 
 /* ============================================================================
    Value Class Wizard
    ============================================================================ */
-
-const WASTE_QUESTIONS = [
-  { value: "waiting", label: "Espera", question: "¿La tarea principal es solo esperar a que algo o alguien esté listo?" },
-  { value: "defects", label: "Defectos", question: "¿Este paso existe para corregir un error o repetir algo que salió mal antes?" },
-  { value: "overproduction", label: "Sobreproducción", question: "¿Se está haciendo o generando más de lo que realmente se necesita?" },
-  { value: "non_utilized_talent", label: "Talento desaprovechado", question: "¿Una persona capacitada está haciendo algo muy por debajo de su capacidad?" },
-  { value: "transportation", label: "Transporte", question: "¿El paso es mover físicamente algo de un lugar a otro sin transformarlo?" },
-  { value: "inventory", label: "Inventario", question: "¿Es mantener o almacenar algo (físico o digital) en espera de ser usado?" },
-  { value: "motion", label: "Movimiento", question: "¿La persona se mueve, busca o navega más de lo necesario para hacer el trabajo real?" },
-  { value: "excess_processing", label: "Sobreproceso", question: "¿Se hace más trabajo, revisión o detalle del que el cliente realmente necesita?" }
-];
+// WASTE_QUESTIONS imported from ./constants.js
 
 
 
@@ -671,99 +625,8 @@ function mapBackendProcessToFrontend(p) {
 
 
 /* ============================================================================
-   Small UI atoms
+   Small UI atoms — imported from ./components/shared/uiAtoms.jsx
    ============================================================================ */
-
-const Field = ({ label, tooltip, children }) => {
-  const [open, setOpen] = useState(false);
-  const popoverRef = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    const handleEsc = (e) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleEsc);
-    return () => {
-      document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleEsc);
-    };
-  }, [open]);
-
-  return (
-    <div className="pa-field" style={{ position: 'relative' }}>
-      <label className="pa-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {label}
-        {tooltip && (
-          <button
-            type="button"
-            className="pa-icon pa-tooltip-btn"
-            onClick={(e) => { e.preventDefault(); setOpen(!open); }}
-            aria-label="Ayuda"
-            style={{
-              background: 'none', border: 'none', padding: 0, margin: 0,
-              color: '#0E9F9F', cursor: 'pointer', outline: 'none', display: 'inline-flex'
-            }}
-          >
-            <Info size={14} />
-          </button>
-        )}
-      </label>
-      {open && (
-        <div ref={popoverRef} style={{
-          position: 'absolute', top: 24, left: 0, zIndex: 100, 
-          background: '#13202B', color: '#fff', padding: '10px 14px', 
-          borderRadius: 8, fontSize: 13, fontWeight: 400, width: 'max-content', maxWidth: 300,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.15)', lineHeight: 1.5,
-          whiteSpace: 'normal', pointerEvents: 'auto'
-        }}>
-          {tooltip}
-        </div>
-      )}
-      {children}
-    </div>
-  );
-};
-
-const TimeField = ({ label, tooltip, valueSec, onChangeSec }) => {
-  const [unit, setUnit] = useState(valueSec >= 86400 && valueSec % 86400 === 0 ? 86400 : valueSec >= 3600 && valueSec % 3600 === 0 ? 3600 : valueSec >= 60 && valueSec % 60 === 0 ? 60 : 1);
-  const displayVal = valueSec / unit;
-  return (
-    <Field label={label} tooltip={tooltip}>
-      <div style={{display: 'flex', gap: 4}}>
-        <input className="pa-input" type="number" min="0" step="any" placeholder="0" value={valueSec === 0 ? "" : displayVal} onChange={e => onChangeSec(e.target.value === "" ? 0 : (Number(e.target.value) || 0) * unit)} style={{flex: 1}}/>
-        <select className="pa-input" value={unit} onChange={e => {
-          const newU = Number(e.target.value);
-          setUnit(newU);
-          // Auto-convert to keep the display value the same
-          onChangeSec(displayVal * newU);
-        }} style={{width: 70, padding: '0 4px'}}>
-          <option value={1}>s</option>
-          <option value={60}>m</option>
-          <option value={3600}>h</option>
-          <option value={86400}>d</option>
-        </select>
-      </div>
-    </Field>
-  );
-};
-
-const Seg = ({ value, options, onChange }) => (
-  <div className="pa-seg">
-    {options.map((o) => (
-      <button key={o.value} className={value === o.value ? "on" : ""} onClick={() => onChange(o.value)}
-        style={value === o.value && o.color ? { background: o.color, borderColor: o.color, color: "#fff" } : undefined}>
-        {o.label}
-      </button>
-    ))}
-  </div>
-);
 
 /* ============================================================================
    Step Editor
@@ -1194,9 +1057,9 @@ export default function App() {
       const pData = await resP.json();
 
       const tasksToCreate = [
-        { bpmn_id: "T1", name: "Revisar documentos", task_type: "User Task", value_classification: "NVA", waste_type: "waiting", std_cycle_time_sec: 300, std_wait_time_sec: 3600 },
-        { bpmn_id: "T2", name: "Consultar buró", task_type: "Service Task", value_classification: "NNVA", std_cycle_time_sec: 120, std_wait_time_sec: 0 },
-        { bpmn_id: "T3", name: "Aprobar crédito", task_type: "User Task", value_classification: "VA", std_cycle_time_sec: 600, std_wait_time_sec: 1800 },
+        { bpmn_id: "T1", name: "Revisar documentos", task_type: "user", value_classification: "NVA", waste_type: "waiting", std_cycle_time_sec: 300, std_wait_time_sec: 3600 },
+        { bpmn_id: "T2", name: "Consultar buró", task_type: "service", value_classification: "NNVA", std_cycle_time_sec: 120, std_wait_time_sec: 0 },
+        { bpmn_id: "T3", name: "Aprobar crédito", task_type: "user", value_classification: "VA", std_cycle_time_sec: 600, std_wait_time_sec: 1800 },
       ];
 
       for (let t of tasksToCreate) {

@@ -122,6 +122,7 @@ def sync_macro_graph(id: int, graph_data: schemas.MacroGraphSync, db: Session = 
     return crud.sync_macro_graph(db, id, graph_data)
 
 @router.post("/macroprocesses/{id}/optimize")
+@limiter.limit("2/minute")
 def optimize_macroprocess(request: Request, id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     verify_macroprocess_access(db, id, current_user)
     try:

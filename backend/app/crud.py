@@ -169,11 +169,11 @@ def create_task(db: Session, task_in: schemas.TaskCreate):
     if not act:
         raise HTTPException(status_code=400, detail="Activity not found")
         
-    # Check database-level CHECK constraint: (value_classification = 'VA' OR waste_type IS NOT NULL)
-    if task_in.value_classification != models.ValueClass.VA and task_in.waste_type is None:
+    # Only pure waste (NVA) tasks require a waste_type classification
+    if task_in.value_classification == models.ValueClass.NVA and task_in.waste_type is None:
         raise HTTPException(
-            status_code=400, 
-            detail="If task is not Value Added (VA), a waste_type must be specified"
+            status_code=400,
+            detail="NVA tasks must have a waste_type specified"
         )
 
     # Core data fields (excluding nested tables)
@@ -230,15 +230,13 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate):
         if not act:
             raise HTTPException(status_code=400, detail="Activity not found")
 
-    # Validate the CHECK constraint manually
+    # Only pure waste (NVA) tasks require a waste_type classification
     val_class = task_in.value_classification if task_in.value_classification is not None else db_task.value_classification
     w_type = task_in.waste_type if task_in.waste_type is not None else db_task.waste_type
-    
-    # If the user sets waste_type to None, or it was None
-    if val_class != models.ValueClass.VA and w_type is None:
+    if val_class == models.ValueClass.NVA and w_type is None:
         raise HTTPException(
-            status_code=400, 
-            detail="If task is not Value Added (VA), a waste_type must be specified"
+            status_code=400,
+            detail="NVA tasks must have a waste_type specified"
         )
 
     # Update core Task fields
@@ -479,15 +477,13 @@ def create_task_direct(db: Session, activity_id: int, task_in: schemas.TaskCreat
     return db_task
 
 def update_task_direct(db: Session, db_task: models.Task, task_in: schemas.TaskUpdateDirect):
-    # Validate constraint manually
+    # Only pure waste (NVA) tasks require a waste_type classification
     val_class = task_in.value_classification if task_in.value_classification is not None else db_task.value_classification
     w_type = task_in.waste_type if task_in.waste_type is not None else db_task.waste_type
-    
-    # Check if we set waste_type to None/None equivalent
-    if val_class != models.ValueClass.VA and w_type is None:
+    if val_class == models.ValueClass.NVA and w_type is None:
         raise HTTPException(
             status_code=400,
-            detail="If task is not Value Added (VA), a waste_type must be specified"
+            detail="NVA tasks must have a waste_type specified"
         )
 
     # Update task fields
@@ -499,11 +495,16 @@ def update_task_direct(db: Session, db_task: models.Task, task_in: schemas.TaskU
     raci_fields = {'responsible', 'accountable', 'consulted', 'informed'}
     sent_fields = task_in.model_dump(exclude_unset=True).keys()
     if any(rf in sent_fields for rf in raci_fields):
-        # We replace RACI
-        resp = task_in.responsible if task_in.responsible is not None else db_task.responsible
-        acc = task_in.accountable if task_in.accountable is not None else db_task.accountable
-        cons = task_in.consulted if task_in.consulted is not None else db_task.consulted
-        inf = task_in.informed if task_in.informed is not None else db_task.informed
+        # Query current RACI names from DB (db_task has no .responsible attribute — it's in TaskRaci)
+        existing_raci: dict[str, str | None] = {rt: None for rt in ('R', 'A', 'C', 'I')}
+        for r in db_task.raci:
+            role = db.query(models.Role).filter(models.Role.id == r.role_id).first()
+            if role:
+                existing_raci[r.raci_type] = role.name
+        resp = task_in.responsible if task_in.responsible is not None else existing_raci['R']
+        acc  = task_in.accountable if task_in.accountable is not None else existing_raci['A']
+        cons = task_in.consulted   if task_in.consulted   is not None else existing_raci['C']
+        inf  = task_in.informed    if task_in.informed    is not None else existing_raci['I']
         _update_task_raci_direct(db, db_task.id, resp, acc, cons, inf)
 
     # Update Systems if provided
