@@ -61,7 +61,9 @@ class OAuth2PasswordBearerWithCookie(OAuth2):
 oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="auth/login/cookie")
 
 # JWT configurations
-SECRET_KEY = os.environ.get("JWT_SECRET", "super-secret-default-key-for-dev")
+SECRET_KEY = os.environ.get("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET no configurado")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
