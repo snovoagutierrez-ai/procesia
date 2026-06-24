@@ -566,7 +566,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         target: targetId,
         type: "smoothstep",
         label: sf.condition || "",
-        animated: false,
+        animated: true,
         style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
         markerEnd: { type: MarkerType.ArrowClosed, color: "#9AA8A8", width: 16, height: 16 },
       });
@@ -580,7 +580,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         source: allIds[i],
         target: allIds[i + 1],
         type: "smoothstep",
-        animated: false,
+        animated: true,
         style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
         markerEnd: { type: MarkerType.ArrowClosed, color: "#9AA8A8", width: 16, height: 16 },
       });
@@ -906,7 +906,7 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
 
 function Optimization({ state, onRun, onApply, tasks }) {
   const d = state.data;
-  const incompleteTasks = tasks?.filter(t => !t.responsible || !t.valueClass || t.cycle_time_sec === undefined);
+  const incompleteTasks = tasks?.filter(t => !t.responsible || !t.valueClass || t.cycleTime === undefined);
   const isReady = tasks?.length > 0 && incompleteTasks?.length === 0;
   return (
     <div className="pa-opt">
@@ -1038,13 +1038,7 @@ function Optimization({ state, onRun, onApply, tasks }) {
    ============================================================================ */
 
 function Logo({ size = 34 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="AiProces">
-      <rect width="32" height="32" rx="8" fill="#1E293B" />
-      <path d="M11 22V10H17C19.2091 10 21 11.7909 21 14C21 16.2091 19.2091 18 17 18H11" stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="16" cy="14" r="2.5" fill="#38BDF8" />
-    </svg>
-  );
+  return <img src="/aiproces-logo.svg" alt="AiProces" width={size} height={size} style={{ borderRadius: '8px' }} />;
 }
 
 /* ============================================================================
@@ -1162,13 +1156,14 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                 const mProcs = processes.filter(p => p.macroprocess_id === m.id);
                 return (
                   <div key={m.id} className="pa-dash-macro-sec">
-                    <div className="pa-dash-macro-head">
+                    <div className="pa-dash-macro-head" style={{ cursor: 'pointer' }} onClick={() => setExpandedMacros(prev => ({ ...prev, [m.id]: !prev[m.id] }))}>
                       <div className="pa-dash-macro-title">
-                        <FolderOpen size={20} style={{ color: "#0E9F9F" }} />
+                        {expandedMacros[m.id] ? <ChevronDown size={20} style={{ color: "#0E9F9F" }} /> : <ChevronRight size={20} style={{ color: "#0E9F9F" }} />}
+                        <FolderOpen size={20} style={{ color: "#0E9F9F", marginLeft: 4 }} />
                         <h3>{m.name}</h3>
                         <span className="pa-dash-code">{m.code}</span>
                       </div>
-                      <div className="pa-dash-macro-actions">
+                      <div className="pa-dash-macro-actions" onClick={(e) => e.stopPropagation()}>
                         {mProcs.length > 0 && (
                           <button className="pa-btn pa-btn-primary" onClick={() => runOptimizeMacro(m.id)} disabled={macroOpts[m.id]?.status === "loading"}>
                             {macroOpts[m.id]?.status === "loading" ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} 
@@ -1183,48 +1178,6 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                         </button>
                       </div>
                     </div>
-                    {macroOpts[m.id]?.status === "error" && (
-                      <div className="pa-alert" style={{margin: '16px 20px 0'}}>
-                        <AlertTriangle size={18} style={{color:"var(--danger)"}}/>
-                        <p>{macroOpts[m.id].error}</p>
-                      </div>
-                    )}
-                    {macroOpts[m.id]?.status === "done" && macroOpts[m.id]?.data && (
-                      <div className="pa-macro-opt-results" style={{ margin: '16px 20px 0', background: 'white', borderRadius: 8, border: '1px solid var(--teal)' }}>
-                        <div 
-                          style={{ padding: '12px 16px', background: 'var(--teal)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderRadius: openOpts[m.id] ? '8px 8px 0 0' : '8px' }}
-                          onClick={() => setOpenOpts(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
-                        >
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            <Sparkles size={16} />
-                            <strong style={{ fontSize: 14 }}>Insights de IA a Nivel Macroproceso</strong>
-                          </div>
-                          {openOpts[m.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </div>
-                        
-                        {openOpts[m.id] && (
-                          <div style={{ padding: 20 }}>
-                            {/* Insight Principal */}
-                            {macroOpts[m.id].data.macro_bottlenecks?.length > 0 && (
-                              <div style={{ background: 'var(--ink)', color: 'white', padding: 16, borderRadius: 8, marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                                <div style={{ background: 'rgba(255,255,255,0.1)', padding: 8, borderRadius: '50%' }}>
-                                  <AlertTriangle size={24} style={{ color: 'var(--bg-nva)' }} />
-                                </div>
-                                <div>
-                                  <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--inv-muted)', marginBottom: 4, fontWeight: 600 }}>Insight Principal</div>
-                                  <div style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.4 }}>
-                                    El cuello de botella más crítico está en el proceso <strong>{macroOpts[m.id].data.macro_bottlenecks[0].process_name}</strong>. Abordarlo reduciría significativamente el Lead Time total.
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-                              <div className="pa-stat">
-                                <span className="pa-stat-label">Lead Time Total (Estimado)</span>
-                                <span className="pa-stat-value">{macroOpts[m.id].data.summary.total_macro_lead_time_sec} s</span>
-                              </div>
-                              <div className="pa-stat">
                                 <span className="pa-stat-label">Eficiencia (PCE) Macro</span>
                                 <span className="pa-stat-value">{Math.round(macroOpts[m.id].data.summary.macro_pce_percentage)}%</span>
                               </div>
@@ -1330,7 +1283,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                 {filteredProcesses.map(p => {
                   const macro = macroprocesses.find(m => m.id === p.macroprocess_id);
                   return (
-                    <tr key={p.id} style={{ borderBottom: '1px solid var(--line)', background: '#fff' }}>
+                    <tr key={p.id} style={{ borderBottom: '1px solid var(--line)', background: '#fff', cursor: 'pointer' }} onClick={() => onSelect(p)}>
                       <td style={{ padding: '12px 16px', fontWeight: 500 }}><span className="pa-tag" style={{ margin: 0, fontSize: 11 }}>{p.code}</span></td>
                       <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--teal-deep)' }}>{p.name}</td>
                       <td style={{ padding: '12px 16px', color: 'var(--muted)' }}>{macro ? macro.name : '—'}</td>
@@ -1338,8 +1291,8 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                       <td style={{ padding: '12px 16px' }}>{p.output_result || p.output || '—'}</td>
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                          <button className="pa-btn pa-btn-ghost" style={{ padding: '4px 8px' }} onClick={() => onSelect(p)}>Abrir</button>
-                          <button className="pa-icon danger small" onClick={() => onDeleteProcess(p.id)} title="Eliminar proceso"><Trash2 size={14} /></button>
+                          <button className="pa-btn pa-btn-ghost" style={{ padding: '4px 8px' }} onClick={(e) => { e.stopPropagation(); onSelect(p); }}>Abrir</button>
+                          <button className="pa-icon danger small" onClick={(e) => { e.stopPropagation(); onDeleteProcess(p.id); }} title="Eliminar proceso"><Trash2 size={14} /></button>
                         </div>
                       </td>
                     </tr>
@@ -1375,6 +1328,8 @@ export default function App() {
   const { user, logout } = useAuth();
   // Views: "dashboard" | "editor"
   const [view, setView] = useState("dashboard");
+  const [dashTab, setDashTab] = useState("jerarquia");
+  const [expandedMacros, setExpandedMacros] = useState({});
   const [allProcesses, setAllProcesses] = useState([]);
   const [macroprocesses, setMacroprocesses] = useState([]);
   const [proc, setProc] = useState(null);
@@ -1732,20 +1687,6 @@ export default function App() {
     });
   };
 
-  const deleteGateway = async (id) => {
-    const updated = gateways.filter(g => g.bpmn_id !== id);
-    setGateways(updated);
-    if (id === selectedId) setSelectedId(null);
-    try {
-      await apiFetch(`/processes/${proc.id}/graph`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gateways: updated, sequence_flows: sequenceFlows })
-      });
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const addTask = async () => {
     if (!proc) return;
     try {
@@ -1835,6 +1776,7 @@ export default function App() {
     const i = tasks.findIndex((t) => t.id === id);
     const j = i + dir;
     if (j < 0 || j >= tasks.length) return;
+    setSaveState({ status: 'saving' });
     const updatedTasks = [...tasks];
     [updatedTasks[i], updatedTasks[j]] = [updatedTasks[j], updatedTasks[i]];
     updatedTasks.forEach((t, idx) => { t.position_order = idx + 1; });
@@ -1855,7 +1797,11 @@ export default function App() {
           })
         )
       );
-    } catch (e) { /* silent */ }
+      setSaveState({ status: 'saved' });
+      setTimeout(() => setSaveState({ status: 'idle' }), 2000);
+    } catch (e) {
+      setSaveState({ status: 'error' });
+    }
   };
 
   const applyOptimized = async (steps) => {
@@ -2076,10 +2022,6 @@ export default function App() {
               <button className="pa-btn pa-btn-ghost" onClick={exportBpmn}>
                 <Download size={16} /> .bpmn
               </button>
-              <button className="pa-btn pa-btn-primary" onClick={runOptimize} disabled={opt.status === "loading"}>
-                {opt.status === "loading" ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />} 
-                {opt.status === "loading" ? (optLongLoading ? "Despertando modelo..." : "Optimizando...") : "Optimizar con IA"}
-              </button>
             </div>
           </div>
 
@@ -2087,7 +2029,8 @@ export default function App() {
             <div className="pa-mobile-nav">
               <button className={mobileStep === 1 ? 'on' : ''} onClick={() => setMobileStep(1)}>1. Tareas</button>
               <button className={mobileStep === 2 ? 'on' : ''} onClick={() => setMobileStep(2)}>2. Diagrama</button>
-              <button className={mobileStep === 3 ? 'on' : ''} onClick={() => setMobileStep(3)}>3. Detalle</button>
+              <button className={mobileStep === 3 && tab === "detalle" ? 'on' : ''} onClick={() => { setMobileStep(3); setTab("detalle"); }}>3. Detalle</button>
+              <button className={mobileStep === 4 || (mobileStep === 3 && tab === "optim") ? 'on' : ''} onClick={() => { setMobileStep(4); setTab("optim"); }}>4. IA</button>
             </div>
           )}
 
@@ -2137,11 +2080,14 @@ export default function App() {
                   <button className="pa-btn pa-btn-ghost" style={{ flex: 1 }} onClick={addTask}><Plus size={14} /> Tarea</button>
                   <button className="pa-btn pa-btn-ghost" style={{ flex: 1 }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
                 </div>
+                <button className="pa-btn pa-btn-primary full" style={{ marginTop: 16 }} onClick={() => { setTab("optim"); if (isMobile) setMobileStep(4); }}>
+                  <Sparkles size={16} /> 4. Ir a Optimización IA
+                </button>
               </div>
             </aside>
             )}
 
-            {(!isMobile || mobileStep === 2 || mobileStep === 3) && (
+            {(!isMobile || mobileStep === 2 || mobileStep === 3 || mobileStep === 4) && (
             <main className="pa-main">
               {(!isMobile || mobileStep === 2) && (
               <div className="pa-diagram-wrapper">
@@ -2186,12 +2132,14 @@ export default function App() {
               </div>
               )}
 
-              {(!isMobile || mobileStep === 3) && (
+              {(!isMobile || mobileStep === 3 || mobileStep === 4) && (
               <div className="pa-panel" style={{ marginTop: 16 }}>
-                <div className="pa-tabs">
-                  <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
-                  <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> Optimización IA</button>
-                </div>
+                {!isMobile && (
+                  <div className="pa-tabs">
+                    <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
+                    <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> Optimización IA</button>
+                  </div>
+                )}
                 <div className="pa-panel-body">
                   {tab === "detalle" ? (
                     selectedTask ? (

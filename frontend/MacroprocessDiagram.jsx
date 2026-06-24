@@ -173,12 +173,15 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
     };
     
     try {
-      await apiFetch(`/macroprocesses/${macroprocessId}/graph`, {
+      const res = await apiFetch(`/macroprocesses/${macroprocessId}/graph`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      // Optionally fetchGraph() again to ensure consistency, but local state is already updated.
+      if (res.ok) {
+        const data = await res.json();
+        setSequenceFlows(data.sequence_flows || []);
+      }
     } catch (err) {
       console.error("Failed to save macro graph", err);
     }

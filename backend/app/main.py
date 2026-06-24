@@ -31,7 +31,7 @@ app.add_middleware(
         "https://aiproces.vercel.app",
         "http://localhost:5173",  # Para desarrollo local frontend
     ],
-    allow_origin_regex=r"^https://aiproces.*\.vercel\.app$",
+    allow_origin_regex=r"^https://aiproces.*\.vercel\.app$|^http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$",
     allow_credentials=True, # Necesario para SameSite cookies / JWT
     allow_methods=["*"],
     allow_headers=["*"],

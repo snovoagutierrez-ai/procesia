@@ -1,5 +1,5 @@
-const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-const API = isLocal ? (import.meta.env.VITE_API_URL || "http://localhost:8000") : "/api";
+const isDev = import.meta.env.DEV;
+const API = isDev ? `http://${window.location.hostname}:8001` : "/api";
 
 export async function apiFetch(path, options = {}) {
   const cleanAPI = API.endsWith('/') ? API.slice(0, -1) : API;
