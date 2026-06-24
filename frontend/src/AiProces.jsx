@@ -1439,6 +1439,31 @@ export default function App() {
   // local nva count calculation since metricsData might not have it explicitly as a simple count
   const localNvaCount = tasks.filter((t) => t.valueClass === "NVA").length;
 
+  const getOutgoingTarget = useCallback((bpmnId) => {
+    const flows = (sequenceFlows || []).filter(f => f.source_ref === bpmnId);
+    return flows.length > 0 ? flows[0].target_ref : "";
+  }, [sequenceFlows]);
+
+  const setOutgoingTarget = useCallback((sourceBpmnId, newTarget) => {
+    let newFlows = [...(sequenceFlows || [])];
+    if (!newTarget) {
+      newFlows = newFlows.filter(f => f.source_ref !== sourceBpmnId);
+    } else {
+      newFlows = newFlows.filter(f => f.source_ref !== sourceBpmnId);
+      newFlows.push({
+        bpmn_id: "Flow_" + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        source_ref: sourceBpmnId,
+        target_ref: newTarget,
+        name: ""
+      });
+    }
+    setSequenceFlows(newFlows);
+    apiFetch(`/processes/${proc.id}/graph`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gateways: gateways || [], sequence_flows: newFlows })
+    }).catch(() => {});
+  }, [sequenceFlows, gateways, proc]);
+
   async function runOptimize() {
     if (!proc) return;
     setOpt({ status: "loading" });
@@ -1651,6 +1676,17 @@ export default function App() {
                         <span className="pa-step-name">{t.name}</span>
                         <span className="pa-step-t mono">{fmtShort((Number(t.cycleTime) || 0) + (Number(t.waitTime) || 0))}</span>
                       </div>
+                      <select 
+                         value={getOutgoingTarget(t.bpmnId)} 
+                         onChange={(e) => setOutgoingTarget(t.bpmnId, e.target.value)}
+                         style={{ background: "transparent", border: "1px solid var(--line-ink)", color: "var(--inv-muted)", borderRadius: 4, padding: "2px 4px", fontSize: 11, maxWidth: 120 }}
+                         onClick={(e) => e.stopPropagation()}
+                      >
+                         <option value="">(Desconectado)</option>
+                         <option value="end">🏁 Fin</option>
+                         {tasks.filter(tk => tk.id !== t.id).map(tk => <option key={tk.bpmnId} value={tk.bpmnId}>Hacia {tk.name}</option>)}
+                         {gateways.map(g => <option key={g.bpmn_id} value={g.bpmn_id}>Hacia {g.name}</option>)}
+                      </select>
                       <button onClick={(e) => { e.stopPropagation(); if (window.confirm("\u00bfEliminar esta tarea?")) deleteTask(t.id); }} title="Eliminar tarea" aria-label="Eliminar tarea" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
                     </div>
                   ))}
@@ -1666,6 +1702,17 @@ export default function App() {
                             <span className="pa-step-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name || "Compuerta"}</span>
                             <span className="pa-step-t mono">{g.node_type === "exclusiveGateway" ? "EXC" : "PAR"}</span>
                           </div>
+                          <select 
+                             value={getOutgoingTarget(g.bpmn_id)} 
+                             onChange={(e) => setOutgoingTarget(g.bpmn_id, e.target.value)}
+                             style={{ background: "transparent", border: "1px solid var(--line-ink)", color: "var(--inv-muted)", borderRadius: 4, padding: "2px 4px", fontSize: 11, maxWidth: 120 }}
+                             onClick={(e) => e.stopPropagation()}
+                          >
+                             <option value="">(Desconectado)</option>
+                             <option value="end">🏁 Fin</option>
+                             {tasks.map(tk => <option key={tk.bpmnId} value={tk.bpmnId}>Hacia {tk.name}</option>)}
+                             {gateways.filter(gx => gx.bpmn_id !== g.bpmn_id).map(gx => <option key={gx.bpmn_id} value={gx.bpmn_id}>Hacia {gx.name}</option>)}
+                          </select>
                           <button onClick={(e) => { e.stopPropagation(); if (window.confirm("\u00bfEliminar esta compuerta?")) deleteGateway(g.bpmn_id); }} title="Eliminar compuerta" aria-label="Eliminar compuerta" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
                         </div>
                       ))}

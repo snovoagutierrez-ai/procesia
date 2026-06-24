@@ -288,7 +288,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         target_ref: params.target.replace("task-", "").replace("gw-", ""),
         condition: "",
       };
-      setEdges((eds) => addEdge({ ...params, type: "smoothstep", markerEnd: { type: MarkerType.ArrowClosed, color: "#9AA8A8", width: 16, height: 16 }, style: { stroke: "#9AA8A8", strokeWidth: 1.8 } }, eds));
+      setEdges((eds) => addEdge({ ...params, type: "deletable", markerEnd: { type: MarkerType.ArrowClosed, color: "#9AA8A8", width: 16, height: 16 }, style: { stroke: "#9AA8A8", strokeWidth: 1.8 } }, eds));
       if (onGraphChange) {
         onGraphChange(gateways, [...(sequenceFlows||[]), newFlow]);
       }
@@ -317,6 +317,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         nodesDraggable={true}

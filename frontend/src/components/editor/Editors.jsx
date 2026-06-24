@@ -183,35 +183,6 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
     }, 800);
   };
 
-  const outgoingFlows = sequenceFlows.filter(f => f.source_ref === task?.bpmnId);
-
-  const getTargetName = (targetRef) => {
-    if (targetRef === 'end') return "Fin del Proceso";
-    const tTask = tasks.find(t => t.bpmnId === targetRef);
-    if (tTask) return tTask.name;
-    const tGw = gateways.find(g => g.bpmn_id === targetRef);
-    if (tGw) return `${tGw.name} (Compuerta)`;
-    return targetRef;
-  };
-
-  const deleteFlow = (flowId) => {
-    if (onFlowsChange) {
-      onFlowsChange(sequenceFlows.filter(f => f.id !== flowId && f.bpmn_id !== flowId));
-    }
-  };
-
-  const addFlow = (targetRef) => {
-    if (!targetRef || !onFlowsChange) return;
-    if (outgoingFlows.some(f => f.target_ref === targetRef)) return;
-    const newFlow = {
-      bpmn_id: "Flow_" + Math.random().toString(36).slice(2, 8).toUpperCase(),
-      source_ref: task.bpmnId,
-      target_ref: targetRef,
-      name: ""
-    };
-    onFlowsChange([...sequenceFlows, newFlow]);
-  };
-
   if (!task)
     return <div className="pa-empty">Selecciona un paso en el diagrama o en la lista para ver y editar sus datos.</div>;
   const set = (patch) => onChange(task.id, patch);
@@ -277,30 +248,6 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
       <Field label="Sistemas / Herramientas" tooltip="Aplicaciones, ERPs o herramientas usadas en esta tarea.">
         <input className="pa-input" value={task.systems} onChange={(e) => set({ systems: e.target.value })} placeholder="Ej: SAP, Excel, Jira..." />
       </Field>
-
-      <div className="pa-divider"><span>Dependencias Lógicas (Salidas)</span></div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {outgoingFlows.map(f => (
-           <div key={f.id || f.bpmn_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8F9FA', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line)' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text)' }}>
-                 Hacia: <strong>{getTargetName(f.target_ref)}</strong>
-              </span>
-              <button className="pa-btn pa-btn-ghost" style={{ color: 'var(--danger)', padding: '4px' }} onClick={() => deleteFlow(f.id || f.bpmn_id)}>
-                 <Trash2 size={14} />
-              </button>
-           </div>
-        ))}
-        <select 
-          className="pa-input" 
-          value="" 
-          onChange={(e) => addFlow(e.target.value)}
-        >
-           <option value="">+ Añadir nueva conexión hacia...</option>
-           <option value="end">🏁 Fin del Proceso</option>
-           {tasks.filter(t => t.id !== task.id).map(t => <option key={t.bpmnId} value={t.bpmnId}>📋 {t.name}</option>)}
-           {gateways.map(g => <option key={g.bpmn_id} value={g.bpmn_id}>🔀 {g.name} (Compuerta)</option>)}
-        </select>
-      </div>
 
       <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '12px', color: '#0E9F9F', flex: 1, minWidth: '150px' }}>Guardado automático activado</span>
