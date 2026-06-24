@@ -327,18 +327,18 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
 
     return db_run
 
-MACRO_SYSTEM_PROMPT = """Eres un motor experto en optimizacin de procesos bajo metodologas Lean, Six Sigma y BPMN 2.0. Recibirs un objeto JSON que representa el levantamiento de un MACROPROCESO completo, incluyendo todos sus sub-procesos y mtricas agregadas.
+MACRO_SYSTEM_PROMPT = """Eres un motor experto en optimización de procesos bajo metodologías Lean, Six Sigma y BPMN 2.0. Recibirás un objeto JSON que representa el levantamiento de un MACROPROCESO completo, incluyendo todos sus sub-procesos y métricas agregadas.
 
 Tu ÚNICA función es analizar cualitativamente estos datos y devolver EXCLUSIVAMENTE un objeto JSON válido conforme al esquema de salida. NO DEBES calcular métricas, asume que las métricas entregadas en "metrics" son perfectas. Tu trabajo es interpretar la causa raíz y generar recomendaciones estructuradas a nivel macro.
 IMPORTANTE: Todo el texto generado en descripciones, recomendaciones y justificaciones DEBE estar estrictamente en Español.
 
 REGLAS DE ANÁLISIS MACRO
-1. Cuellos de botella macro (TOC): Identifica qu proceso limita el flujo completo basndote en el cycle time de los procesos individuales y reporta en "macro_bottlenecks".
-2. Desperdicio de interfaz / handoffs: Evala las esperas o retrabajos que ocurren en las transiciones de un proceso a otro, y regstralos en "interface_wastes".
-3. Redundancia entre procesos: Identifica pasos o validaciones repetidas en procesos distintos que podran consolidarse.
-4. Secuenciacin / paralelizacin: Identifica procesos que actualmente son secuenciales pero que podran ejecutarse en paralelo.
-5. Recomendaciones y Proyeccin: Propn acciones y un "projected_macro_lead_time_sec".
-6. JSON Estricto: La respuesta DEBE ser nicamente el siguiente objeto JSON:
+1. Cuellos de botella macro (TOC): Identifica qué proceso limita el flujo completo basándote en el cycle time de los procesos individuales y reporta en "macro_bottlenecks".
+2. Desperdicio de interfaz / handoffs: Evalúa las esperas o retrabajos que ocurren en las transiciones de un proceso a otro, y regístralos en "interface_wastes".
+3. Redundancia entre procesos: Identifica pasos o validaciones repetidas en procesos distintos que podrían consolidarse.
+4. Secuenciación / paralelización: Identifica procesos que actualmente son secuenciales pero que podrían ejecutarse en paralelo.
+5. Recomendaciones y Proyección: Propón acciones y un "projected_macro_lead_time_sec".
+6. JSON Estricto: La respuesta DEBE ser únicamente el siguiente objeto JSON:
 
 {
   "macroprocess_id": "string",
@@ -387,7 +387,7 @@ def build_macroprocess_snapshot(db: Session, macroprocess_id: int) -> Dict[str, 
             p_snapshot = build_process_snapshot(db, process.id)
             p_metrics = calculate_process_metrics(db, process.id).model_dump()
             
-            p_lead = p_metrics.get("total_lead_time_sec", 0)
+            p_lead = p_metrics.get("lead_time_sec", 0)
             p_pce = p_metrics.get("pce_percentage", 0)
             p_va = (p_lead * p_pce) / 100.0 if p_lead > 0 else 0
             
@@ -451,42 +451,54 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
     validated_result = None
 
     try:
+        contents_json = json.dumps(snapshot, default=str, indent=2)
+
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=[
-                types.Content(role="user", parts=[
-                    types.Part.from_text(text=MACRO_SYSTEM_PROMPT),
-                    types.Part.from_text(text=f"DATOS DEL MACROPROCESO:\n{json.dumps(snapshot, default=str)}")
-                ])
-            ],
+            contents=f"DATOS DEL MACROPROCESO:\n\n{contents_json}",
             config=types.GenerateContentConfig(
-                temperature=0.1,
-                top_p=0.95,
-                top_k=20,
-                candidate_count=1,
-                max_output_tokens=8192
+                system_instruction=MACRO_SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                temperature=0.2
             )
         )
         
         raw_response_text = response.text if response.text else ""
         cleaned_json_str = clean_json_response(raw_response_text)
-        
-        try:
-            validated_result = json.loads(cleaned_json_str)
-        except json.JSONDecodeError as jde:
-            print(f"JSON Decode Error in Macro Optimization: {jde}")
-            raise ValueError("Failed to parse JSON")
+        parsed_json = json.loads(cleaned_json_str)
+        validated_result = schemas.MacroOptimizationResult.model_validate(parsed_json).model_dump()
 
+    except (json.JSONDecodeError, ValidationError, Exception) as first_err:
+        print(f"First attempt failed in Macro Optimization: {first_err}. Retrying...")
+        try:
+            retry_prompt = f"El JSON anterior falló en validación Pydantic o parseo por: {str(first_err)}. Corrige y devuelve un JSON válido de MacroOptimizationResult según el esquema original.\n\nJSON CON ERRORES:\n{raw_response_text}"
+            
+            retry_response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=retry_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=MACRO_SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                    temperature=0.2
+                )
+            )
+            raw_response_text = retry_response.text if retry_response.text else ""
+            cleaned_retry = clean_json_response(raw_response_text)
+            parsed_json = json.loads(cleaned_retry)
+            validated_result = schemas.MacroOptimizationResult.model_validate(parsed_json).model_dump()
+        except Exception as retry_err:
+            print(f"Second attempt failed in Macro Optimization: {retry_err}")
+            db_run.status = models.OptStatus.failed
+            db_run.result = {"error": str(retry_err), "raw_response": raw_response_text}
+            db.commit()
+            db.refresh(db_run)
+            return db_run
+
+    if validated_result:
         db_run.status = models.OptStatus.completed
         db_run.result = validated_result
-        db_run.completed_at = func.now()
-        db.commit()
-        db.refresh(db_run)
 
-    except Exception as e:
-        print(f"Gemini API Error in Macro Optimization: {e}")
-        db_run.status = models.OptStatus.failed
-        db_run.result = {"error": str(e), "raw_response": raw_response_text}
+        db_run.completed_at = func.now()
         db.commit()
         db.refresh(db_run)
 
