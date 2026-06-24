@@ -446,37 +446,37 @@ function mapBackendProcessToFrontend(p) {
 
 
 
-  function GatewayNode({ data }) {
-    const isExclusive = data.gatewayType === "exclusive";
-    return (
-      <div
-        className={`rf-task-node ${data.selected ? "selected" : ""}`}
-        onClick={() => data.onSelect && data.onSelect(data.gatewayId)}
-        style={{
-          width: 60, height: 60, padding: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-          background: 'transparent', border: 'none', boxShadow: 'none'
-        }}
-      >
-        <svg viewBox="0 0 100 100" style={{position:'absolute', width:'100%', height:'100%', pointerEvents: 'none'}}>
-          <polygon points="50,5 95,50 50,95 5,50" fill="white" stroke={data.selected ? '#0E9F9F' : '#9AA8A8'} strokeWidth="4" />
-          <text x="50" y="62" textAnchor="middle" fontSize="40" fontWeight="bold" fill="#0E9F9F">{isExclusive ? 'X' : '+'}</text>
-        </svg>
-        <div style={{
-          position: 'absolute', bottom: -20, left: '50%', transform: 'translateX(-50%)', 
-          fontSize: 10, whiteSpace: 'nowrap', color: '#666', background: 'rgba(255,255,255,0.8)', padding: '2px 4px', borderRadius: 4
-        }}>
-          {data.label}
-        </div>
-        <Handle type="target" position={Position.Left} className="rf-handle" id="left" />
-        <Handle type="source" position={Position.Right} className="rf-handle" id="right" />
-        <Handle type="source" position={Position.Bottom} className="rf-handle" id="bottom" />
-        <Handle type="target" position={Position.Top} className="rf-handle" id="top" />
-      </div>
-    );
-  }
+  
 
-const nodeTypes = { startNode: StartNode, endNode: EndNode, taskNode: TaskNode, gatewayNode: GatewayNode };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* ---------- Dagre layout ---------- */
 
