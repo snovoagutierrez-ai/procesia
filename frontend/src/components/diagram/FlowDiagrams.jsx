@@ -221,11 +221,13 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   if (sequenceFlows && sequenceFlows.length > 0) {
     sequenceFlows.forEach((sf) => {
       let sourceId = sf.source_ref;
-      if (tasks.some(t => t.id.toString() === sf.source_ref)) sourceId = `task-${sf.source_ref}`;
+      const sTask = tasks.find(t => t.id.toString() === sf.source_ref || t.bpmnId === sf.source_ref);
+      if (sTask) sourceId = `task-${sTask.id}`;
       else if ((gateways || []).some(g => g.bpmn_id === sf.source_ref)) sourceId = `gw-${sf.source_ref}`;
       
       let targetId = sf.target_ref;
-      if (tasks.some(t => t.id.toString() === sf.target_ref)) targetId = `task-${sf.target_ref}`;
+      const tTask = tasks.find(t => t.id.toString() === sf.target_ref || t.bpmnId === sf.target_ref);
+      if (tTask) targetId = `task-${tTask.id}`;
       else if ((gateways || []).some(g => g.bpmn_id === sf.target_ref)) targetId = `gw-${sf.target_ref}`;
 
       rfEdges.push({
@@ -239,20 +241,6 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         markerEnd: { type: MarkerType.ArrowClosed, color: "#9AA8A8", width: 16, height: 16 },
       });
     });
-  } else {
-    // Linear edges fallback if no sequence flows exist at all
-    const allIds = ["start", ...tasks.map((t) => `task-${t.id}`), "end"];
-    for (let i = 0; i < allIds.length - 1; i++) {
-      rfEdges.push({
-        id: `edge-${i}`,
-        source: allIds[i],
-        target: allIds[i + 1],
-        type: "smoothstep",
-        animated: true,
-        style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: "#9AA8A8", width: 16, height: 16 },
-      });
-    }
   }
 
   return getLayoutedElements(rfNodes, rfEdges);

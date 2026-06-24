@@ -1292,32 +1292,40 @@ export default function App() {
       const data = await res.json();
       const mapped = mapBackendTaskToFrontend(data);
 
-      let sourceNodeId = null;
+      let sourceNodeId = "start";
       if (selectedId) {
         const selTask = tasks.find(t => t.id === selectedId);
         if (selTask) sourceNodeId = selTask.bpmnId;
         else if (gateways.find(g => g.bpmn_id === selectedId)) sourceNodeId = selectedId;
       }
-      if (!sourceNodeId && tasks.length > 0) {
+      if (sourceNodeId === "start" && tasks.length > 0) {
         sourceNodeId = tasks[tasks.length - 1].bpmnId;
       }
 
-      let newFlows = sequenceFlows;
-      if (sourceNodeId) {
-        const newFlow = {
-          bpmn_id: "Flow_" + Math.random().toString(36).slice(2, 8).toUpperCase(),
-          source_ref: sourceNodeId,
-          target_ref: mapped.bpmnId,
-          name: ""
-        };
-        newFlows = [...sequenceFlows, newFlow];
-        setSequenceFlows(newFlows);
-        
-        apiFetch(`/processes/${proc.id}/graph`, {
-          method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ gateways, sequence_flows: newFlows })
-        }).catch(() => {});
-      }
+      // Filtrar la flecha vieja que iba de sourceNodeId a "end" para no duplicar salidas al final
+      let newFlows = (sequenceFlows || []).filter(f => !(f.source_ref === sourceNodeId && f.target_ref === "end"));
+      
+      const newFlowToTask = {
+        bpmn_id: "Flow_" + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        source_ref: sourceNodeId,
+        target_ref: mapped.bpmnId,
+        name: ""
+      };
+      
+      const newFlowToEnd = {
+        bpmn_id: "Flow_" + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        source_ref: mapped.bpmnId,
+        target_ref: "end",
+        name: ""
+      };
+
+      newFlows = [...newFlows, newFlowToTask, newFlowToEnd];
+      setSequenceFlows(newFlows);
+      
+      apiFetch(`/processes/${proc.id}/graph`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gateways, sequence_flows: newFlows })
+      }).catch(() => {});
 
       setTasks((ts) => [...ts, mapped]);
       setSelectedId(mapped.id);

@@ -1,4 +1,4 @@
-﻿.pa-root{
+.pa-root{
   --ink:#13202B; --ink2:#1B2D3A; --paper:#F5F7F5; --card:#fff;
   --line:#E2E7E3; --line-ink:rgba(255,255,255,.09);
   --teal:#0E9F9F; --teal-deep:#0B7E7E;
@@ -117,7 +117,8 @@ button{font-family:inherit}
 .rf-end-inner{width:16px;height:16px;border-radius:50%;background:#15232E}
 .rf-event-label{font-size:10px;color:var(--muted);font-family:var(--mono);white-space:nowrap;max-width:100px;
   overflow:hidden;text-overflow:ellipsis;text-align:center}
-.rf-handle{background:#9AA8A8 !important;width:8px !important;height:8px !important;border:2px solid #fff !important}
+.rf-handle{background:#9AA8A8 !important;width:12px !important;height:12px !important;border:2.5px solid #fff !important;cursor:crosshair !important;transition:all 0.2s ease !important;}
+.rf-handle:hover{background:#0E9F9F !important;transform:scale(1.4) !important;}
 
 .rf-task-node{background:#fff;border:1.5px solid #E2E7E3;border-left:5px solid #1FA463;border-radius:10px;
   padding:10px 14px;min-width:180px;max-width:220px;cursor:pointer;transition:.15s;font-family:var(--body)}
