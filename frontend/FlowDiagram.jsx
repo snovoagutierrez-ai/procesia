@@ -266,6 +266,7 @@ function buildFlowElements(proc, tasks, gateways, sequenceFlows, selectedId, onS
         target: sf.target_ref,
         label: sf.condition_expression || "",
         type: "smoothstep",
+        animated: true,
         style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
@@ -284,6 +285,7 @@ function buildFlowElements(proc, tasks, gateways, sequenceFlows, selectedId, onS
         source: orderedIds[i],
         target: orderedIds[i + 1],
         type: "smoothstep",
+        animated: true,
         style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
@@ -331,6 +333,7 @@ export default function FlowDiagram({ proc, tasks, gateways, sequenceFlows, sele
         ...params,
         id: `Flow_${Math.random().toString(36).slice(2, 8)}`,
         type: "smoothstep",
+        animated: true,
         style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
         markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18, color: "#9AA8A8" },
       };

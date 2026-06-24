@@ -30,6 +30,11 @@
   stroke-width: 2.4;
 }
 
+.flow-diagram-container .react-flow__node {
+  border-radius: 6px;
+  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1) !important;
+}
+
 .flow-diagram-container .react-flow__minimap {
   border-radius: 10px;
   overflow: hidden;

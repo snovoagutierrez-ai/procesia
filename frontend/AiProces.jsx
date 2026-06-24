@@ -1671,6 +1671,28 @@ export default function App() {
       node_type: "exclusiveGateway",
       name: "Nueva Decisión"
     };
+
+    let sourceNodeId = null;
+    if (selectedId) {
+      const selTask = tasks.find(t => t.id === selectedId);
+      if (selTask) sourceNodeId = selTask.bpmnId;
+      else if (gateways.find(g => g.bpmn_id === selectedId)) sourceNodeId = selectedId;
+    }
+    if (!sourceNodeId && tasks.length > 0) {
+      sourceNodeId = tasks[tasks.length - 1].bpmnId;
+    }
+
+    let newFlows = sequenceFlows;
+    if (sourceNodeId) {
+      const newFlow = {
+        bpmn_id: "Flow_" + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        source_ref: sourceNodeId,
+        target_ref: newGw.bpmn_id,
+        name: ""
+      };
+      newFlows = [...sequenceFlows, newFlow];
+      setSequenceFlows(newFlows);
+    }
     
     const newGateways = [...gateways, newGw];
     setGateways(newGateways);
@@ -1680,7 +1702,7 @@ export default function App() {
     try {
       await apiFetch(`/processes/${proc.id}/graph`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gateways: newGateways, sequence_flows: sequenceFlows })
+        body: JSON.stringify({ gateways: newGateways, sequence_flows: newFlows })
       });
     } catch (e) {
       console.error(e);
@@ -1739,6 +1761,34 @@ export default function App() {
       });
       const data = await res.json();
       const mapped = mapBackendTaskToFrontend(data);
+
+      let sourceNodeId = null;
+      if (selectedId) {
+        const selTask = tasks.find(t => t.id === selectedId);
+        if (selTask) sourceNodeId = selTask.bpmnId;
+        else if (gateways.find(g => g.bpmn_id === selectedId)) sourceNodeId = selectedId;
+      }
+      if (!sourceNodeId && tasks.length > 0) {
+        sourceNodeId = tasks[tasks.length - 1].bpmnId;
+      }
+
+      let newFlows = sequenceFlows;
+      if (sourceNodeId) {
+        const newFlow = {
+          bpmn_id: "Flow_" + Math.random().toString(36).slice(2, 8).toUpperCase(),
+          source_ref: sourceNodeId,
+          target_ref: mapped.bpmnId,
+          name: ""
+        };
+        newFlows = [...sequenceFlows, newFlow];
+        setSequenceFlows(newFlows);
+        
+        apiFetch(`/processes/${proc.id}/graph`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ gateways, sequence_flows: newFlows })
+        }).catch(() => {});
+      }
+
       setTasks((ts) => [...ts, mapped]);
       setSelectedId(mapped.id);
       setTab("detalle");
@@ -1758,6 +1808,25 @@ export default function App() {
       });
     } catch (e) {
       setError("Error al eliminar tarea.");
+    }
+  };
+
+  const deleteGateway = async (bpmn_id) => {
+    if (!proc) return;
+    try {
+      const newGateways = gateways.filter((g) => g.bpmn_id !== bpmn_id);
+      const newFlows = sequenceFlows.filter((f) => f.source_ref !== bpmn_id && f.target_ref !== bpmn_id);
+      
+      setGateways(newGateways);
+      setSequenceFlows(newFlows);
+      if (bpmn_id === selectedId) setSelectedId(null);
+      
+      await apiFetch(`/processes/${proc.id}/graph`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gateways: newGateways, sequence_flows: newFlows })
+      });
+    } catch (e) {
+      setError("Error al eliminar compuerta.");
     }
   };
 
@@ -1890,26 +1959,6 @@ export default function App() {
     }
   }
 
-  async function exportMermaid() {
-    if (!proc) return;
-    try {
-      const res = await apiFetch(`/processes/${proc.id}/mermaid`);
-      if (!res.ok) throw new Error("No se pudo generar la sintaxis Mermaid.");
-      const text = await res.text();
-      const blob = new Blob([text], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = (proc.code || "proceso") + ".mmd";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      alert("Error al exportar Mermaid: " + e.message);
-    }
-  }
-
   const onNodeSelect = useCallback((taskId) => {
     setSelectedId(taskId);
     setTab("detalle");
@@ -2024,9 +2073,6 @@ export default function App() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="pa-btn pa-btn-ghost" onClick={exportMermaid}>
-                <Download size={16} /> .mermaid
-              </button>
               <button className="pa-btn pa-btn-ghost" onClick={exportBpmn}>
                 <Download size={16} /> .bpmn
               </button>
@@ -2070,6 +2116,23 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+                {gateways && gateways.length > 0 && (
+                  <>
+                    <div className="pa-side-title" style={{ marginTop: '16px' }}>Compuertas <span className="pa-count">{gateways.length}</span></div>
+                    <div className="pa-steplist">
+                      {gateways.map((g) => (
+                        <div key={g.bpmn_id} className={"pa-step" + (g.bpmn_id === selectedId ? " sel" : "")} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                          <div onClick={() => { setSelectedId(g.bpmn_id); setTab("detalle"); setMobileStep(3); }} style={{ display: "flex", alignItems: "center", gap: 9, flex: 1, minWidth: 0, cursor: "pointer" }}>
+                            <span className="pa-step-bar" style={{ background: "#8C8C8C" }} />
+                            <span className="pa-step-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name || "Compuerta"}</span>
+                            <span className="pa-step-t mono">{g.node_type === "exclusiveGateway" ? "EXC" : "PAR"}</span>
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); if (window.confirm("\u00bfEliminar esta compuerta?")) deleteGateway(g.bpmn_id); }} title="Eliminar compuerta" aria-label="Eliminar compuerta" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                   <button className="pa-btn pa-btn-ghost" style={{ flex: 1 }} onClick={addTask}><Plus size={14} /> Tarea</button>
                   <button className="pa-btn pa-btn-ghost" style={{ flex: 1 }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
