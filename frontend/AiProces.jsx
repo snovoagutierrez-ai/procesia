@@ -9,9 +9,10 @@ import {
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import {
-  Plus, Trash2, ChevronUp, ChevronDown, Download, Sparkles, Loader2,
+  Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, Download, Sparkles, Loader2,
   AlertTriangle, User, Wrench, PenLine, Gauge, X, ArrowRight, Lightbulb,
-  ArrowLeft, FolderOpen, FileText, Copy, Clock, LogOut, Info, Check
+  ArrowLeft, FolderOpen, FolderPlus, FileText, Copy, Clock, LogOut, Info, Check,
+  RefreshCw, TrendingUp
 } from "lucide-react";
 import { useAuth } from './AuthContext';
 import MacroprocessDiagram from "./MacroprocessDiagram.jsx";
