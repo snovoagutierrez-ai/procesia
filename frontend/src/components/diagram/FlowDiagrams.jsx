@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Handle, Position, ReactFlow, Controls, MiniMap, Background, useNodesState, useEdgesState, MarkerType, addEdge } from '@xyflow/react';
+import { Handle, Position, ReactFlow, Controls, MiniMap, Background, useNodesState, useEdgesState, MarkerType, addEdge, BaseEdge, getSmoothStepPath, EdgeLabelRenderer } from '@xyflow/react';
 import dagre from 'dagre';
-import { User, PenLine, Wrench, Clock, RotateCcw, Info, ChevronUp, ChevronDown } from 'lucide-react';
+import { User, PenLine, Wrench, Clock, RotateCcw, Info, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { fmtShort, fmtLong } from '../editor/Editors.jsx';
 import { VALUE, TYPES } from '../../constants.js';
 
@@ -140,6 +140,25 @@ function TaskNode({ data }) {
   );
 }
 
+function DeletableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style, markerEnd }) {
+  const [edgePath, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+  return (
+    <>
+      <BaseEdge path={edgePath} style={style} markerEnd={markerEnd} id={id} />
+      <EdgeLabelRenderer>
+        <div 
+          style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`, pointerEvents: 'all' }} 
+          className="nodrag nopan"
+        >
+          <button className="edge-delete-btn" onClick={(e) => { e.stopPropagation(); if(data?.onDelete) data.onDelete(id); }}>
+            <Trash2 size={12} color="#D9503C" />
+          </button>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+}
+
 function getLayoutedElements(rfNodes, rfEdges, direction = "LR") {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
@@ -234,7 +253,8 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         id: sf.id || `sf-${sf.source_ref}-${sf.target_ref}`,
         source: sourceId,
         target: targetId,
-        type: "smoothstep",
+        type: "deletable",
+        data: { onDelete: sf.onDelete },
         label: sf.condition || "",
         animated: true,
         style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
@@ -344,5 +364,6 @@ function GatewayNode({ data }) {
   }
 
 const nodeTypes = { startNode: StartNode, endNode: EndNode, taskNode: TaskNode, gatewayNode: GatewayNode };
+const edgeTypes = { deletable: DeletableEdge };
 
-export { VSMLadder, StartNode, EndNode, TaskNode, GatewayNode, getLayoutedElements, buildFlowData, FlowDiagram, nodeTypes };
+export { VSMLadder, StartNode, EndNode, TaskNode, GatewayNode, getLayoutedElements, buildFlowData, FlowDiagram, nodeTypes, edgeTypes };

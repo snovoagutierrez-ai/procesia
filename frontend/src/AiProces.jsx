@@ -1743,6 +1743,14 @@ export default function App() {
                         isFirst={selectedTask ? tasks[0]?.id === selectedTask.id : true}
                         isLast={selectedTask ? tasks[tasks.length - 1]?.id === selectedTask.id : true} 
                         saveState={saveState} expertMode={expertMode} setExpertMode={setExpertMode}
+                        sequenceFlows={sequenceFlows} gateways={gateways} tasks={tasks}
+                        onFlowsChange={(newFlows) => {
+                          setSequenceFlows(newFlows);
+                          apiFetch(`/processes/${proc.id}/graph`, {
+                            method: "PUT", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ gateways, sequence_flows: newFlows })
+                          }).catch(() => {});
+                        }}
                         onDone={() => { if (isMobile) setMobileStep(2); else setSelectedId(null); }} />
                     ) : selectedGateway ? (
                       <GatewayEditor gateway={selectedGateway} onChange={updateGateway} onDelete={deleteGateway}
