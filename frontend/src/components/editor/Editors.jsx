@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Clock, Trash2, Check, ChevronUp, ChevronDown, Sparkles, Loader2, ArrowRight, AlertTriangle, X, Lightbulb, Info } from 'lucide-react';
 import { VALUE, WASTE, TYPES, ACTION, SEVERITY, WASTE_QUESTIONS } from '../../constants.js';
 import { Seg, Field, TimeField } from '../shared/uiAtoms.jsx';
+import Banner from '../shared/Banner.jsx';
 
 function ClickableTooltip({ content }) {
   const [open, setOpen] = useState(false);
@@ -371,9 +372,10 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
             <option value="parallelGateway">Paralela (+)</option>
           </select>
         </Field>
-        <div style={{ padding: '12px', background: '#F0F9F9', borderLeft: '3px solid #0E9F9F', borderRadius: '4px', fontSize: 13, color: '#3A4B4B', marginTop: 16 }}>
-          <strong><Info size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }}/> ¿Cómo conectar?</strong><br/>
-          Arrastra desde los puntos conectores de los nodos en el diagrama hacia esta compuerta para conectarla. Usa la tecla Retroceso (Backspace) para eliminar flechas erróneas.
+        <div style={{ marginTop: 16 }}>
+          <Banner variant="info" title="¿Cómo conectar?">
+            Arrastra desde los puntos conectores de los nodos en el diagrama hacia esta compuerta para conectarla. Usa la tecla Retroceso (Backspace) para eliminar flechas erróneas.
+          </Banner>
         </div>
         <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '12px', color: '#0E9F9F', flex: 1, minWidth: '150px' }}>Guardado automático activado</span>
@@ -389,8 +391,9 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
   );
 }
 
-function Optimization({ state, onRun, onApply, tasks }) {
+function Optimization({ state, onRun, onApply, onApplyRecommendation, tasks }) {
   const d = state.data;
+  const [appliedIndices, setAppliedIndices] = useState([]);
   const incompleteTasks = tasks?.filter(t => !t.responsible || !t.valueClass || t.cycleTime === undefined);
   const isReady = tasks?.length > 0 && incompleteTasks?.length === 0;
   return (
@@ -406,19 +409,19 @@ function Optimization({ state, onRun, onApply, tasks }) {
         </button>
       </div>
       {!isReady && (
-        <div style={{ background: '#FFF8E1', color: '#C98A12', padding: '12px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px', lineHeight: 1.5 }}>
-          <strong><AlertTriangle size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }}/> Faltan datos</strong><br/>
-          Para optimizar con IA, todas las tareas deben tener asignado un <b>Responsable</b>, un <b>Tiempo de ciclo</b> y una <b>Clasificación de valor</b>. Tienes {incompleteTasks?.length} tarea(s) incompleta(s).
+        <div style={{ marginBottom: '16px' }}>
+          <Banner variant="warning" title="Faltan datos">
+            Para optimizar con IA, todas las tareas deben tener asignado un <b>Responsable</b>, un <b>Tiempo de ciclo</b> y una <b>Clasificación de valor</b>. Tienes {incompleteTasks?.length} tarea(s) incompleta(s).
+          </Banner>
         </div>
       )}
 
       {state.status === "error" && (
-        <div className="pa-alert">
-          <AlertTriangle size={16} />
-          <div>
-            <strong>No se pudo completar el análisis.</strong> {state.error}
-            <div className="pa-alert-sub">Este paso llama a la API de Gemini desde el backend.</div>
-          </div>
+        <div style={{ marginBottom: '16px' }}>
+          <Banner variant="error" title="No se pudo completar el análisis">
+            {state.error}
+            <div style={{ marginTop: '4px', fontSize: '11px', opacity: 0.8 }}>Este paso llama a la API de Gemini desde el backend.</div>
+          </Banner>
         </div>
       )}
 
@@ -494,13 +497,26 @@ function Optimization({ state, onRun, onApply, tasks }) {
               {[...d.recommendations].sort((a, b) => (a.priority || 9) - (b.priority || 9)).map((r, i) => {
                 const ac = ACTION[r.action_type] || { label: r.action_type, color: "#0E9F9F" };
                 return (
-                  <div key={i} className="pa-card">
+                  <div key={i} className="pa-card" style={{ opacity: appliedIndices.includes(i) ? 0.6 : 1 }}>
                     <div className="pa-card-top">
                       <span className="pa-chip" style={{ borderColor: ac.color, color: ac.color }}>{ac.label}</span>
                       {r.estimated_time_saving_pct ? <span className="pa-save">↓{Math.round(r.estimated_time_saving_pct)}% tiempo</span> : null}
                     </div>
                     <p>{r.description}</p>
                     <div className="pa-meta">Complejidad: {r.implementation_complexity || "—"}</div>
+                    
+                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                      <button 
+                        className="pa-btn pa-btn-primary" 
+                        style={{ padding: '6px 12px', fontSize: 12 }}
+                        disabled={appliedIndices.includes(i)}
+                        onClick={() => {
+                          if (onApplyRecommendation) onApplyRecommendation(r, () => setAppliedIndices([...appliedIndices, i]));
+                        }}
+                      >
+                        {appliedIndices.includes(i) ? <><Check size={14} style={{ marginRight: 4 }} /> Aplicada</> : 'Aplicar recomendación'}
+                      </button>
+                    </div>
                   </div>
                 );
               })}

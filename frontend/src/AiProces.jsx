@@ -925,6 +925,9 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [gateways, setGateways] = useState([]);
   const [sequenceFlows, setSequenceFlows] = useState([]);
+  const [mergeData, setMergeData] = useState(null);
+  const [aiTip, setAiTip] = useState(null);
+  const [snapshotsModalOpen, setSnapshotsModalOpen] = useState(false);
   const [metricsData, setMetricsData] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState("detalle");
@@ -1564,6 +1567,48 @@ export default function App() {
     setMobileStep(3);
   }, []);
 
+  
+  const handleApplyRecommendation = async (rec, markAsApplied) => {
+    try {
+      await apiFetch(`/processes/${proc.id}/snapshots`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshot_json: { tasks, gateways, sequence_flows: sequenceFlows } })
+      });
+    } catch (err) { console.warn(err); }
+
+    const tBpmnId = rec.target_node_bpmn_id;
+    const task = tasks.find(t => t.bpmnId === tBpmnId || t.id.toString() === tBpmnId);
+
+    if (rec.action_type === 'ELIMINATE') {
+      if (task) {
+        await apiFetch(`/processes/${proc.id}/tasks/${task.id}`, { method: "DELETE" });
+        setTasks(ts => ts.filter(t => t.id !== task.id));
+        const incoming = sequenceFlows.find(f => f.target_ref === tBpmnId);
+        const outgoing = sequenceFlows.find(f => f.source_ref === tBpmnId);
+        let newFlows = sequenceFlows.filter(f => f.source_ref !== tBpmnId && f.target_ref !== tBpmnId);
+        if (incoming && outgoing) {
+          newFlows.push({ id: `edge-${Date.now()}`, source_ref: incoming.source_ref, target_ref: outgoing.target_ref });
+        }
+        setSequenceFlows(newFlows);
+        await apiFetch(`/processes/${proc.id}/graph`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gateways, sequence_flows: newFlows })
+        });
+        markAsApplied();
+      }
+    } else if (rec.action_type === 'MERGE') {
+      setMergeData({ rec, markAsApplied });
+    } else {
+      if (task) {
+        setSelectedId(task.id);
+        setTab("detalle");
+        if (isMobile) setMobileStep(3);
+        setAiTip({ rec, markAsApplied });
+      }
+    }
+  };
+
   // Loading screen
   if (loading && !proc && allProcesses.length === 0) {
     return (
@@ -1852,7 +1897,7 @@ export default function App() {
                     </div>
                   )
                 ) : (
-                  <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} />
+                  <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onApplyRecommendation={handleApplyRecommendation} />
                 )}
               </div>
             </div>
