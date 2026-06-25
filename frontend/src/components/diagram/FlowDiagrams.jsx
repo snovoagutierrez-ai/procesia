@@ -90,7 +90,7 @@ function VSMLadder({ metrics }) {
 
 function StartNode({ data }) {
   return (
-    <div className="rf-start-node">
+    <div className="rf-start-node" onClick={data.onSelect} style={{ cursor: data.onSelect ? 'pointer' : 'default' }}>
       <div className="rf-start-circle">
         <div className="rf-start-inner" />
       </div>
@@ -102,7 +102,7 @@ function StartNode({ data }) {
 
 function EndNode({ data }) {
   return (
-    <div className="rf-end-node">
+    <div className="rf-end-node" onClick={data.onSelect} style={{ cursor: data.onSelect ? 'pointer' : 'default' }}>
       <div className="rf-end-circle">
         <div className="rf-end-inner" />
       </div>
@@ -176,7 +176,25 @@ function getLayoutedElements(rfNodes, rfEdges, direction = "LR") {
     const pos = g.node(node.id);
     const w = node.type === "taskNode" ? 200 : 60;
     const h = node.type === "taskNode" ? 90 : 60;
-    return { ...node, position: { x: pos.x - w / 2, y: pos.y - h / 2 } };
+    
+    const WRAP_WIDTH = 1600; // Salto de carro a los ~6 nodos
+    const Y_SPACING = 300;   // Distancia vertical entre filas
+
+    let finalX = pos.x;
+    let finalY = pos.y;
+
+    if (finalX > WRAP_WIDTH) {
+      const row = Math.floor(finalX / WRAP_WIDTH);
+      finalX = finalX % WRAP_WIDTH;
+      finalY = finalY + (row * Y_SPACING);
+    }
+
+    return { 
+      ...node, 
+      position: { x: finalX - w / 2, y: finalY - h / 2 },
+      targetPosition: Position.Left,
+      sourcePosition: Position.Right
+    };
   });
   return { nodes: layouted, edges: rfEdges };
 }
@@ -224,7 +242,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   rfNodes.push({
     id: "start",
     type: "startNode",
-    data: { label: proc.trigger || "Inicio" },
+    data: { label: proc.trigger_event || proc.trigger || "Inicio", onSelect: () => onSelect && onSelect("start") },
     position: { x: 0, y: 0 },
   });
 
@@ -232,7 +250,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   rfNodes.push({
     id: "end",
     type: "endNode",
-    data: { label: proc.output || "Fin" },
+    data: { label: proc.output_result || proc.output || "Fin", onSelect: () => onSelect && onSelect("end") },
     position: { x: 0, y: 0 },
   });
 

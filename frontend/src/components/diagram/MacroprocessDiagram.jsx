@@ -13,14 +13,17 @@ import {
 } from "@xyflow/react";
 import dagre from "dagre";
 import { apiFetch } from "../../api.js";
+import { AlertCircle, Network } from 'lucide-react';
 import "@xyflow/react/dist/style.css";
 
 /* ---------- Custom Node: Process ---------- */
 function ProcessNode({ data }) {
+  const { process, isConnected } = data;
   return (
     <div style={{
+      position: 'relative',
       background: '#fff',
-      border: '1px solid #E2E7E3',
+      border: isConnected !== false ? '1px solid #E2E7E3' : '2px dashed #C98A12',
       borderRadius: '8px',
       padding: '12px 16px',
       minWidth: '220px',
@@ -29,7 +32,12 @@ function ProcessNode({ data }) {
       display: 'flex',
       flexDirection: 'column',
       gap: '8px'
-    }}>
+    }} title={isConnected === false ? "Sin conectar — arrastra desde aquí hacia otro proceso" : undefined}>
+      {isConnected === false && (
+        <div style={{ position: 'absolute', top: -8, right: -8, background: '#FFF8E1', color: '#C98A12', borderRadius: '50%', padding: '2px', border: '1px solid #F5DEB3', display: 'flex' }}>
+          <AlertCircle size={14} />
+        </div>
+      )}
       <Handle type="target" position={Position.Left} style={{ background: '#0E9F9F' }} />
       
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -99,10 +107,11 @@ function buildGraph(processes, sequenceFlows = []) {
 
   // Create nodes
   processes.forEach((p) => {
+    const isConnected = sequenceFlows.some(sf => sf.source_ref === String(p.id) || sf.target_ref === String(p.id));
     nodes.push({
       id: String(p.id),
       type: "processNode",
-      data: { process: p },
+      data: { process: p, isConnected },
       position: { x: 0, y: 0 }
     });
   });
@@ -224,8 +233,27 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
     [onProcessDoubleClick]
   );
 
+  const needsHelp = processes && processes.length >= 2 && (!sequenceFlows || sequenceFlows.length === 0);
+
   return (
-    <div style={{ width: "100%", height: "100%", background: "#F6F8FA", borderRadius: "8px", overflow: "hidden", border: "1px solid #E2E7E3" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", background: "#F6F8FA", borderRadius: "8px", overflow: "hidden", border: "1px solid #E2E7E3" }}>
+      {needsHelp && (
+        <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#FFF8E1', border: '1px solid #F5DEB3', color: '#C98A12', padding: '12px 24px', borderRadius: '8px', zIndex: 10, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          <AlertCircle size={18} />
+          <span>Arrastra desde el punto derecho de un proceso hacia el punto izquierdo de otro para conectarlos y formar el flujo end-to-end.</span>
+        </div>
+      )}
+      <button 
+        className="pa-btn"
+        onClick={() => {
+          const { nodes: newNodes, edges: newEdges } = buildGraph(processes, sequenceFlows);
+          setNodes([...newNodes]);
+        }}
+        style={{ position: 'absolute', bottom: 20, right: 20, zIndex: 10, display: 'flex', gap: '6px', alignItems: 'center', background: '#fff', color: '#13202B', border: '1px solid #E2E7E3' }}
+      >
+        <Network size={14} /> Organizar automáticamente
+      </button>
+      
       <ReactFlow
         nodes={nodes}
         edges={edges}

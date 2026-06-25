@@ -1546,6 +1546,19 @@ export default function App() {
   }
 
   const onNodeSelect = useCallback((taskId) => {
+    if (taskId === "start" || taskId === "end") {
+      setSelectedId(null);
+      setMobileStep(1);
+      setTimeout(() => {
+        const ph = taskId === "start" ? "Evento de inicio" : "Resultado final";
+        const input = document.querySelector(`input[placeholder^="${ph}"]`);
+        if (input) {
+          input.focus();
+          input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      return;
+    }
     setSelectedId(taskId);
     setTab("detalle");
     setMobileStep(3);
@@ -1685,6 +1698,9 @@ export default function App() {
                 <input className="pa-input ink" value={proc.name || ""} onChange={(e) => setProcField("name", e.target.value)} placeholder="Nombre del proceso" />
                 <input className="pa-input ink mono" value={proc.code || ""} onChange={(e) => setProcField("code", e.target.value)} placeholder="Código" />
                 <textarea className="pa-input ink" rows={2} value={proc.objective || ""} onChange={(e) => setProcField("objective", e.target.value)} placeholder="Objetivo" />
+                <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Límites del Proceso</div>
+                <input className="pa-input ink" value={proc.trigger_event || ""} onChange={(e) => setProcField("trigger_event", e.target.value)} placeholder="Evento de inicio (Ej: Recibe solicitud)" />
+                <input className="pa-input ink" value={proc.output_result || ""} onChange={(e) => setProcField("output_result", e.target.value)} placeholder="Resultado final (Ej: Cliente aprobado)" />
               </div>
 
               <div className="pa-side-sec grow">
