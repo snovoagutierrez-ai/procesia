@@ -13,7 +13,7 @@ import {
 } from "@xyflow/react";
 import dagre from "dagre";
 import { apiFetch } from "../../api.js";
-import { AlertCircle, Network } from 'lucide-react';
+import { AlertCircle, Network, Eye } from 'lucide-react';
 import "@xyflow/react/dist/style.css";
 
 /* ---------- Custom Node: Process ---------- */
@@ -60,6 +60,17 @@ function ProcessNode({ data }) {
         </div>
       </div>
       
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+        <button 
+          className="pa-btn pa-btn-ghost" 
+          style={{ fontSize: 11, padding: '4px 8px', color: 'var(--teal)', border: '1px solid var(--line)' }}
+          onClick={(e) => { e.stopPropagation(); if(data.onViewFlow) data.onViewFlow(data.process); }}
+          title="Ver flujo de proceso"
+        >
+          <Eye size={12} style={{ marginRight: 4 }} /> Ver Flujo
+        </button>
+      </div>
+
       <Handle type="source" position={Position.Right} style={{ background: '#0E9F9F' }} />
     </div>
   );
@@ -101,7 +112,7 @@ const getLayoutedElements = (nodes, edges) => {
 };
 
 /* ---------- Build nodes & edges ---------- */
-function buildGraph(processes, sequenceFlows = []) {
+function buildGraph(processes, sequenceFlows = [], onViewFlow) {
   const nodes = [];
   const edges = [];
 
@@ -111,7 +122,7 @@ function buildGraph(processes, sequenceFlows = []) {
     nodes.push({
       id: String(p.id),
       type: "processNode",
-      data: { process: p, isConnected },
+      data: { process: p, isConnected, onViewFlow },
       position: { x: 0, y: 0 }
     });
   });
@@ -138,7 +149,7 @@ function buildGraph(processes, sequenceFlows = []) {
 }
 
 /* ---------- Main Component ---------- */
-export default function MacroprocessDiagram({ macroprocessId, processes, onProcessDoubleClick }) {
+export default function MacroprocessDiagram({ macroprocessId, processes, onProcessDoubleClick, onViewFlow }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [sequenceFlows, setSequenceFlows] = useState([]);
@@ -163,10 +174,10 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
 
   // Update layout when processes or sequenceFlows change
   useEffect(() => {
-    const { nodes: newNodes, edges: newEdges } = buildGraph(processes, sequenceFlows);
+    const { nodes: newNodes, edges: newEdges } = buildGraph(processes, sequenceFlows, onViewFlow);
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [processes, sequenceFlows, setNodes, setEdges]);
+  }, [processes, sequenceFlows, setNodes, setEdges, onViewFlow]);
 
   // Save changes to backend
   const saveGraph = async (updatedEdges) => {
@@ -246,7 +257,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
       <button 
         className="pa-btn"
         onClick={() => {
-          const { nodes: newNodes, edges: newEdges } = buildGraph(processes, sequenceFlows);
+          const { nodes: newNodes, edges: newEdges } = buildGraph(processes, sequenceFlows, onViewFlow);
           setNodes([...newNodes]);
         }}
         style={{ position: 'absolute', bottom: 20, right: 20, zIndex: 10, display: 'flex', gap: '6px', alignItems: 'center', background: '#fff', color: '#13202B', border: '1px solid #E2E7E3' }}

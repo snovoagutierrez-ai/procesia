@@ -1,12 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Play, Trash2, Plus, PenLine, Network, ChevronUp, ChevronDown, ChevronRight, Layers, LayoutGrid, Bot, ArrowRight, Loader2, FileText, FolderOpen, AlertTriangle } from 'lucide-react';
+import { Sparkles, Play, Trash2, Plus, PenLine, Network, ChevronUp, ChevronDown, ChevronRight, Layers, LayoutGrid, Bot, ArrowRight, Loader2, FileText, FolderOpen, AlertTriangle, X } from 'lucide-react';
 import MacroprocessDiagram from '../diagram/MacroprocessDiagram.jsx';
+import { FlowDiagram } from '../diagram/FlowDiagrams.jsx';
+import { apiFetch } from '../../api.js';
 
 function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCreateMacro, onDeleteProcess, onDeleteMacro, macroOpts, runOptimizeMacro, onLoadDemo, openOpts, setOpenOpts, macroLongLoading }) {
   const [dashTab, setDashTab] = useState("jerarquia");
   const [expandedMacros, setExpandedMacros] = useState({});
   const [search, setSearch] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  const [previewProcess, setPreviewProcess] = useState(null);
+  const [previewData, setPreviewData] = useState({ tasks: [], gateways: [], sequenceFlows: [] });
+
+  const handleViewFlow = async (process) => {
+    setPreviewProcess(process);
+    try {
+      const res = await apiFetch(`/processes/${process.id}/details`);
+      if (res.ok) {
+        const data = await res.json();
+        setPreviewData({
+          tasks: data.tasks || [],
+          gateways: data.gateways || [],
+          sequenceFlows: data.sequence_flows || []
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load flow preview", err);
+    }
+  };
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -245,7 +267,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                       </div>
                     ) : (
                       <div style={{ width: '100%', height: '400px', marginTop: '16px' }}>
-                        <MacroprocessDiagram macroprocessId={m.id} processes={mProcs} onProcessDoubleClick={onSelect} />
+                        <MacroprocessDiagram macroprocessId={m.id} processes={mProcs} onProcessDoubleClick={onSelect} onViewFlow={handleViewFlow} />
                       </div>
                     )}
                       </>
@@ -317,6 +339,41 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                 ) : null}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {previewProcess && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setPreviewProcess(null)}>
+          <div style={{ background: '#fff', width: '90vw', height: '80vh', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8F9FA' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, color: '#13202B' }}>Flujo Interno: {previewProcess.name}</h3>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{previewProcess.code}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button className="pa-btn pa-btn-primary" onClick={() => { setPreviewProcess(null); onSelect(previewProcess); }}>
+                  <PenLine size={16} /> Editar Proceso
+                </button>
+                <button className="pa-icon" onClick={() => setPreviewProcess(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            <div style={{ flex: 1, position: 'relative' }}>
+              {previewData.tasks.length === 0 ? (
+                <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
+                  Este proceso no tiene tareas mapeadas aún.
+                </div>
+              ) : (
+                <FlowDiagram 
+                  proc={previewProcess} 
+                  tasks={previewData.tasks} 
+                  gateways={previewData.gateways} 
+                  sequenceFlows={previewData.sequenceFlows} 
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
