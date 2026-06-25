@@ -134,7 +134,7 @@ def optimize_macroprocess(request: Request, id: int, db: Session = Depends(get_d
         raise HTTPException(
             status_code=422, 
             detail={
-                "message": "Optimization failed to produce a valid JSON model structure.",
+                "message": "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos.",
                 "error": db_run.result
             }
         )
@@ -413,7 +413,7 @@ def optimize_process(request: Request, id: int, db: Session = Depends(get_db), c
         raise HTTPException(
             status_code=422, 
             detail={
-                "message": "Optimization failed to produce a valid JSON model structure.",
+                "message": "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos.",
                 "error": db_run.result
             }
         )
