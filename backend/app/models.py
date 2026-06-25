@@ -108,6 +108,18 @@ class Process(Base):
     sequence_flows = relationship("SequenceFlow", back_populates="process", cascade="all, delete-orphan", passive_deletes=True)
     optimization_runs = relationship("OptimizationRun", back_populates="process", cascade="all, delete-orphan", passive_deletes=True)
     bpmn_artifacts = relationship("BpmnArtifact", back_populates="process", cascade="all, delete-orphan", passive_deletes=True)
+    snapshots = relationship("ProcessSnapshot", back_populates="process", cascade="all, delete-orphan", passive_deletes=True)
+
+
+class ProcessSnapshot(Base):
+    __tablename__ = 'process_snapshots'
+
+    id = Column(BigInteger, primary_key=True)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False)
+    snapshot_json = Column(JSONB, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    process = relationship("Process", back_populates="snapshots")
 
 
 class Activity(Base):

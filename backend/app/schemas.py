@@ -426,6 +426,20 @@ class GraphResponse(BaseModel):
     gateways: List[FlowNodeResponse]
     sequence_flows: List[SequenceFlowResponse]
 
+# ========= PROCESS SNAPSHOT =========
+
+class ProcessSnapshotCreate(BaseModel):
+    snapshot_json: dict
+
+class ProcessSnapshotOut(BaseModel):
+    id: int
+    process_id: int
+    snapshot_json: dict
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 # ==========================================
 # 8. Optimization & Gemini Response Schemas
 # ==========================================
@@ -587,8 +601,8 @@ class MacroOptimizationResult(BaseModel):
     macroprocess_id: str
     analysis_confidence: float = Field(..., ge=0.0, le=1.0)
     summary: MacroOptimizationSummary
-    macro_bottlenecks: List[MacroBottleneck]
-    interface_wastes: List[InterfaceWaste]
-    redundancies: List[Redundancy]
-    recommendations: List[MacroRecommendation]
+    macro_bottlenecks: List[MacroBottleneck] = []
+    interface_wastes: List[InterfaceWaste] = []
+    redundancies: List[Redundancy] = []
+    recommendations: List[MacroRecommendation] = []
     projected_macro_lead_time_sec: float

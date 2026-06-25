@@ -426,6 +426,19 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
     except ValueError as e:
         raise ValueError(str(e))
 
+    if len(snapshot.get("processes", [])) < 2:
+        db_run = models.MacroOptimizationRun(
+            macroprocess_id=macroprocess_id,
+            status=models.OptStatus.failed,
+            model_used="gemini-2.5-flash",
+            input_snapshot=snapshot,
+            result={"error": "Se necesitan al menos 2 procesos con datos completos para optimizar el macroproceso."}
+        )
+        db.add(db_run)
+        db.commit()
+        db.refresh(db_run)
+        return db_run
+
     db_run = models.MacroOptimizationRun(
         macroprocess_id=macroprocess_id,
         status=models.OptStatus.pending,

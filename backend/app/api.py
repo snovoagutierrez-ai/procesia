@@ -536,3 +536,51 @@ def tutorial_chat_endpoint(chat_request: schemas.ChatRequest):
     from app.gemini import tutorial_chat
     reply = tutorial_chat(chat_request.message)
     return {"reply": reply}
+
+# ==========================================
+# 10. Process Snapshots Endpoints
+# ==========================================
+
+@router.post("/processes/{id}/snapshots", response_model=schemas.ProcessSnapshotOut)
+def create_process_snapshot(id: int, snapshot_data: schemas.ProcessSnapshotCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    process = db.query(models.Process).filter(models.Process.id == id).first()
+    if not process:
+        raise HTTPException(status_code=404, detail="Process not found")
+    if current_user.role != models.UserRole.admin and process.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this process")
+        
+    db_snapshot = models.ProcessSnapshot(
+        process_id=id,
+        snapshot_json=snapshot_data.snapshot_json
+    )
+    db.add(db_snapshot)
+    db.commit()
+    db.refresh(db_snapshot)
+    return db_snapshot
+
+@router.get("/processes/{id}/snapshots", response_model=List[schemas.ProcessSnapshotOut])
+def get_process_snapshots(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    process = db.query(models.Process).filter(models.Process.id == id).first()
+    if not process:
+        raise HTTPException(status_code=404, detail="Process not found")
+    if current_user.role != models.UserRole.admin and process.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this process")
+        
+    snapshots = db.query(models.ProcessSnapshot).filter(models.ProcessSnapshot.process_id == id).order_by(models.ProcessSnapshot.created_at.desc()).all()
+    return snapshots
+
+@router.post("/processes/{id}/snapshots/{snap_id}/restore")
+def restore_process_snapshot(id: int, snap_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    process = db.query(models.Process).filter(models.Process.id == id).first()
+    if not process:
+        raise HTTPException(status_code=404, detail="Process not found")
+    if current_user.role != models.UserRole.admin and process.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this process")
+        
+    snapshot = db.query(models.ProcessSnapshot).filter(models.ProcessSnapshot.id == snap_id, models.ProcessSnapshot.process_id == id).first()
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+        
+    opt_apply = schemas.ProcessOptimizationApply(**snapshot.snapshot_json)
+    crud.apply_optimization(db, id, opt_apply)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

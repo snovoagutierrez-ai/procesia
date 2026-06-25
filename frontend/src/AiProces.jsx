@@ -939,10 +939,47 @@ export default function App() {
   const [openOpts, setOpenOpts] = useState({});
   const [optLongLoading, setOptLongLoading] = useState(false);
   const [macroLongLoading, setMacroLongLoading] = useState({});
+  const [snapshotsModalOpen, setSnapshotsModalOpen] = useState(false);
+  const [metricsData, setMetricsData] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const [tab, setTab] = useState("detalle");
+  const [opt, setOpt] = useState({ status: "idle" });
+  const [macroOpts, setMacroOpts] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saveState, setSaveState] = useState({ status: 'idle' });
+  const [openOpts, setOpenOpts] = useState({});
+  const [optLongLoading, setOptLongLoading] = useState(false);
+  const [macroLongLoading, setMacroLongLoading] = useState({});
   const [expertMode, setExpertMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [mobileStep, setMobileStep] = useState(1);
   const [showTutorial, setShowTutorial] = useState(false);
+
+  const flushAllSaves = async () => {
+    const promises = [];
+    Object.keys(updateTaskTimeoutRefs.current).forEach(key => {
+      if (key.endsWith("_flush")) {
+        const baseId = key.replace("_flush", "");
+        if (updateTaskTimeoutRefs.current[baseId]) {
+          clearTimeout(updateTaskTimeoutRefs.current[baseId]);
+          delete updateTaskTimeoutRefs.current[baseId];
+        }
+        promises.push(updateTaskTimeoutRefs.current[key]());
+        delete updateTaskTimeoutRefs.current[key];
+      }
+    });
+    if (promises.length > 0) {
+      setSaveState({ status: 'saving' });
+      await Promise.all(promises);
+      setSaveState({ status: 'saved' });
+    }
+  };
+
+  const logout = async () => {
+    await flushAllSaves();
+    baseLogout();
+  };
 
   useEffect(() => {
     const tutorialSeen = localStorage.getItem('aiproces_tutorial_seen');
@@ -1196,7 +1233,8 @@ export default function App() {
       if (updateTaskTimeoutRefs.current[id]) clearTimeout(updateTaskTimeoutRefs.current[id]);
       
       setSaveState({ status: 'saving' });
-      updateTaskTimeoutRefs.current[id] = setTimeout(async () => {
+      
+      const doSave = async () => {
         const t = updatedTasks.find((x) => x.id === id);
         if (!t) return;
         try {
@@ -1217,7 +1255,11 @@ export default function App() {
         } catch (e) {
           setSaveState({ status: 'error' });
         }
-      }, 500);
+      };
+
+      updateTaskTimeoutRefs.current[id + "_flush"] = doSave;
+      updateTaskTimeoutRefs.current[id] = setTimeout(doSave, 500);
+
       return updatedTasks;
     });
   };
@@ -1609,284 +1651,6 @@ export default function App() {
     }
   };
 
-  // Loading screen
-  if (loading && !proc && allProcesses.length === 0) {
-    return (
-      <div className="pa-loading-screen" style={{
-        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        minHeight: "100vh", background: "#13202B", color: "#EAF1EF", fontFamily: "sans-serif",
-      }}>
-        <Loader2 size={40} className="spin" style={{ color: "#0E9F9F", marginBottom: "16px" }} />
-        <div>Iniciando y conectando con el backend...</div>
-      </div>
-    );
-  }
-
-  // Error screen
-  if (error && !proc && allProcesses.length === 0) {
-    return (
-      <div className="pa-loading-screen" style={{
-        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        minHeight: "100vh", background: "#13202B", color: "#EAF1EF", fontFamily: "sans-serif", gap: 16,
-      }}>
-        <AlertTriangle size={40} style={{ color: "#D9503C" }} />
-        <div style={{ maxWidth: 400, textAlign: "center" }}>{error}</div>
-        <button className="pa-btn pa-btn-primary" onClick={loadProcesses}>Reintentar</button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="pa-root">
-      <WelcomeModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
-
-      {view !== "editor" && (
-        <header className="pa-topbar">
-          <div className="pa-brand">
-            <Logo size={36} />
-            <div>
-              <div className="pa-brand-name">AiProces</div>
-              <div className="pa-brand-tag">Levanta · Optimiza · Exporta</div>
-            </div>
-          </div>
-          <div className="pa-topbar-actions">
-            <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.2)', margin: '0 8px' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontSize: '12px', lineHeight: '1.2' }}>
-                <span style={{ fontWeight: 600 }}>{user?.email}</span>
-                {user?.role === 'admin' && (
-                  <span style={{ color: '#0E9F9F', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase' }}>Admin</span>
-                )}
-              </div>
-              <button className="pa-btn pa-btn-ghost" onClick={() => setShowTutorial(true)} title="Ver Tutorial">
-                <Info size={16} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>Tutorial</span>
-              </button>
-              <button className="pa-btn pa-btn-ghost" onClick={logout} title="Cerrar sesion">
-                <LogOut size={16} />
-              </button>
-            </div>
-          </div>
-        </header>
-      )}
-
-      {error && (
-        <div className="pa-global-error">
-          <AlertTriangle size={14} /> {error}
-          <button onClick={() => setError(null)}><X size={14} /></button>
-        </div>
-      )}
-
-      {view === "dashboard" ? (
-        <Dashboard
-          macroprocesses={macroprocesses}
-          processes={allProcesses}
-          onSelect={selectProcess}
-          onCreateProcess={createNewProcess}
-          onCreateMacro={createNewMacroprocess}
-          onDeleteProcess={deleteProcess}
-          onDeleteMacro={deleteMacroprocess}
-          macroOpts={macroOpts}
-          runOptimizeMacro={runOptimizeMacro}
-          onLoadDemo={loadDemoData}
-          openOpts={openOpts}
-          setOpenOpts={setOpenOpts}
-          macroLongLoading={macroLongLoading}
-        />
-      ) : proc ? (
-        <div className="pa-editor-layout">
-          <div className="pa-topbar" style={{ maxWidth: '1320px', margin: '0 auto', width: '100%' }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button className="pa-btn pa-btn-ghost" style={{ padding: '6px' }} onClick={() => { setProc(null); setView("dashboard"); }} aria-label="Volver"><ArrowLeft size={16} /></button>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)' }}>
-                <span 
-                  style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500 }} 
-                  onClick={() => { setProc(null); setView("dashboard"); }}
-                >
-                  Mis procesos
-                </span>
-                <span style={{ opacity: 0.5 }}>/</span>
-                <span 
-                  style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500 }} 
-                  onClick={() => { setProc(null); setView("dashboard"); }}
-                >
-                  {macroprocesses.find(m => m.id === proc.macroprocess_id)?.name || "General"}
-                </span>
-                <span style={{ opacity: 0.5 }}>/</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <h2 style={{ margin: 0, fontSize: 16, color: 'var(--inv)' }}>{proc.name}</h2>
-                  <span className="pa-tag" style={{ margin: 0, color: 'var(--ink)' }}>{proc.code}</span>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="pa-btn pa-btn-ghost" onClick={exportBpmn}>
-                <Download size={16} /> .bpmn
-              </button>
-            </div>
-          </div>
-
-          {isMobile && (
-            <div className="pa-mobile-nav">
-              <button className={mobileStep === 1 ? 'on' : ''} onClick={() => setMobileStep(1)}>1. Tareas</button>
-              <button className={mobileStep === 2 ? 'on' : ''} onClick={() => setMobileStep(2)}>2. Diagrama</button>
-              <button className={mobileStep === 3 && tab === "detalle" ? 'on' : ''} onClick={() => { setMobileStep(3); setTab("detalle"); }}>3. Detalle</button>
-              <button className={mobileStep === 4 || (mobileStep === 3 && tab === "optim") ? 'on' : ''} onClick={() => { setMobileStep(4); setTab("optim"); }}>4. IA</button>
-            </div>
-          )}
-
-          <div className="pa-shell">
-            {(!isMobile || mobileStep === 1) && (
-            <aside className="pa-side">
-              <div className="pa-side-sec">
-                <div className="pa-side-title">Proceso</div>
-                <input className="pa-input ink" value={proc.name || ""} onChange={(e) => setProcField("name", e.target.value)} placeholder="Nombre del proceso" />
-                <input className="pa-input ink mono" value={proc.code || ""} onChange={(e) => setProcField("code", e.target.value)} placeholder="Código" />
-                <textarea className="pa-input ink" rows={2} value={proc.objective || ""} onChange={(e) => setProcField("objective", e.target.value)} placeholder="Objetivo" />
-                <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Límites del Proceso</div>
-                <input className="pa-input ink" value={proc.trigger_event || ""} onChange={(e) => setProcField("trigger_event", e.target.value)} placeholder="Evento de inicio (Ej: Recibe solicitud)" />
-                <input className="pa-input ink" value={proc.output_result || ""} onChange={(e) => setProcField("output_result", e.target.value)} placeholder="Resultado final (Ej: Cliente aprobado)" />
-              </div>
-
-              <div className="pa-side-sec grow">
-                <div className="pa-side-title">Tareas <span className="pa-count">{tasks.length}</span></div>
-                <div className="pa-steplist">
-                  {tasks.map((t, i) => (
-                    <div key={t.id} className={"pa-step" + (t.id === selectedId ? " sel" : "")} style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                      <div onClick={() => { setSelectedId(t.id); setTab("detalle"); setMobileStep(3); }} style={{ display: "flex", alignItems: "center", gap: 9, flex: 1, minWidth: 0, cursor: "pointer" }}>
-                        <span className="pa-step-bar" style={{ background: VALUE[t.valueClass]?.color || "#EEF3F0" }} />
-                        <span className="pa-step-n mono">{String(i + 1).padStart(2, "0")}</span>
-                        <span className="pa-step-name">{t.name}</span>
-                        <span className="pa-step-t mono">{fmtShort((Number(t.cycleTime) || 0) + (Number(t.waitTime) || 0))}</span>
-                      </div>
-                      <select 
-                         value={getOutgoingTarget(t.bpmnId)} 
-                         onChange={(e) => setOutgoingTarget(t.bpmnId, e.target.value)}
-                         style={{ background: "transparent", border: "1px solid var(--line-ink)", color: "var(--inv-muted)", borderRadius: 4, padding: "2px 4px", fontSize: 11, maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis" }}
-                         onClick={(e) => e.stopPropagation()}
-                      >
-                         <option value="">(Desconectado)</option>
-                         <option value="end">🏁 Fin</option>
-                         {tasks.filter(tk => tk.id !== t.id).map((tk) => {
-                           const tIdx = String(tasks.findIndex(x => x.id === tk.id) + 1).padStart(2, "0");
-                           return <option key={tk.bpmnId} value={tk.bpmnId}>Hacia {tIdx}. {tk.name}</option>
-                         })}
-                         {gateways.map(g => <option key={g.bpmn_id} value={g.bpmn_id}>Hacia {g.name}</option>)}
-                      </select>
-                      <button onClick={(e) => { e.stopPropagation(); if (window.confirm("\u00bfEliminar esta tarea?")) deleteTask(t.id); }} title="Eliminar tarea" aria-label="Eliminar tarea" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
-                    </div>
-                  ))}
-                </div>
-                {gateways && gateways.length > 0 && (
-                  <>
-                    <div className="pa-side-title" style={{ marginTop: '16px' }}>Compuertas <span className="pa-count">{gateways.length}</span></div>
-                    <div className="pa-steplist">
-                      {gateways.map((g) => (
-                        <div key={g.bpmn_id} className={"pa-step" + (g.bpmn_id === selectedId ? " sel" : "")} style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                          <div onClick={() => { setSelectedId(g.bpmn_id); setTab("detalle"); setMobileStep(3); }} style={{ display: "flex", alignItems: "center", gap: 9, flex: 1, minWidth: 0, cursor: "pointer" }}>
-                            <span className="pa-step-bar" style={{ background: "#8C8C8C" }} />
-                            <span className="pa-step-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name || "Compuerta"}</span>
-                            <span className="pa-step-t mono">{g.node_type === "exclusiveGateway" ? "EXC" : "PAR"}</span>
-                          </div>
-                          <select 
-                             value={getOutgoingTarget(g.bpmn_id)} 
-                             onChange={(e) => setOutgoingTarget(g.bpmn_id, e.target.value)}
-                             style={{ background: "transparent", border: "1px solid var(--line-ink)", color: "var(--inv-muted)", borderRadius: 4, padding: "2px 4px", fontSize: 11, maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis" }}
-                             onClick={(e) => e.stopPropagation()}
-                          >
-                             <option value="">(Desconectado)</option>
-                             <option value="end">🏁 Fin</option>
-                             {tasks.map(tk => {
-                               const tIdx = String(tasks.findIndex(x => x.id === tk.id) + 1).padStart(2, "0");
-                               return <option key={tk.bpmnId} value={tk.bpmnId}>Hacia {tIdx}. {tk.name}</option>
-                             })}
-                             {gateways.filter(gx => gx.bpmn_id !== g.bpmn_id).map(gx => <option key={gx.bpmn_id} value={gx.bpmn_id}>Hacia {gx.name}</option>)}
-                          </select>
-                          <button onClick={(e) => { e.stopPropagation(); if (window.confirm("\u00bfEliminar esta compuerta?")) deleteGateway(g.bpmn_id); }} title="Eliminar compuerta" aria-label="Eliminar compuerta" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                  <button className="pa-btn pa-btn-ghost" style={{ flex: 1 }} onClick={addTask}><Plus size={14} /> Tarea</button>
-                  <button className="pa-btn pa-btn-ghost" style={{ flex: 1 }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
-                </div>
-                <button className="pa-btn pa-btn-primary full" style={{ marginTop: 16 }} onClick={() => { setTab("optim"); if (isMobile) setMobileStep(4); }}>
-                  <Sparkles size={16} /> 4. Ir a Optimización IA
-                </button>
-              </div>
-            </aside>
-            )}
-
-            {(!isMobile || mobileStep === 2 || mobileStep === 3 || mobileStep === 4) && (
-            <main className="pa-main">
-              {(!isMobile || mobileStep === 2) && (
-              <div className="pa-diagram-wrapper">
-              <div className="pa-diagram-card" style={isMobile ? { minHeight: '60vh' } : {}}>
-                <div className="pa-diagram-head">
-                  <span>Flujo del proceso</span>
-                  <div className="pa-legend">
-                    {Object.values(VALUE).map((v) => (
-                      <span key={v.short}><i style={{ background: v.color }} />{v.label}</span>
-                    ))}
-                  </div>
-                </div>
-                <FlowDiagram 
-                  proc={proc} 
-                  tasks={tasks} 
-                  gateways={gateways}
-                  sequenceFlows={sequenceFlows}
-                  selectedId={selectedId} 
-                  onSelect={onNodeSelect}
-                  onGraphChange={async (newGateways, newFlows) => {
-                    setGateways(newGateways);
-                    setSequenceFlows(newFlows);
-                    await apiFetch(`/processes/${proc.id}/graph`, {
-                      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ gateways: newGateways, sequence_flows: newFlows })
-                    });
-                  }}
-                />
-              </div>
-
-              <div className="pa-metrics">
-                <div className="pa-metric"><span>Lead time</span><b className="mono">{metricsData ? fmtLong(metricsData.lead_time_sec) : '-'}</b></div>
-                <div className="pa-metric"><span>Tiempo de ciclo</span><b className="mono">{metricsData ? fmtLong(metricsData.total_cycle_time_sec) : '-'}</b></div>
-                <div className="pa-metric"><span>Tiempo de espera</span><b className="mono">{metricsData ? fmtLong(metricsData.total_wait_time_sec) : '-'}</b></div>
-                <div className="pa-metric"><span>Pasos NVA</span><b className="mono" style={{ color: localNvaCount ? VALUE.NVA.color : undefined }}>{localNvaCount}</b></div>
-                <div className="pa-metric wide">
-                  <span>Eficiencia de ciclo (VA) <b className="mono">{metricsData ? Math.round(metricsData.pce_percentage) : 0}%</b></span>
-                </div>
-              </div>
-              
-              <VSMLadder metrics={metricsData} />
-              </div>
-              )}
-
-              {(!isMobile || mobileStep === 3 || mobileStep === 4) && (
-              <div className="pa-panel" style={{ marginTop: 16 }}>
-                {!isMobile && (
-                  <div className="pa-tabs">
-                    <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
-                    <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> Optimización IA</button>
-                  </div>
-                )}
-                <div className="pa-panel-body">
-                  {tab === "detalle" ? (
-                    selectedTask ? (
-                      <Editor task={selectedTask} onChange={updateTask} onMove={moveTask} onDelete={deleteTask}
-                        isFirst={selectedTask ? tasks[0]?.id === selectedTask.id : true}
-                        isLast={selectedTask ? tasks[tasks.length - 1]?.id === selectedTask.id : true} 
-                        saveState={saveState} expertMode={expertMode} setExpertMode={setExpertMode}
-                        sequenceFlows={sequenceFlows} gateways={gateways} tasks={tasks}
-                        onFlowsChange={(newFlows) => {
-                          setSequenceFlows(newFlows);
-                          apiFetch(`/processes/${proc.id}/graph`, {
-                            method: "PUT", headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ gateways, sequence_flows: newFlows })
-                          }).catch(() => {});
-                        }}
                         onDone={() => { if (isMobile) setMobileStep(2); else setSelectedId(null); }} />
                     ) : selectedGateway ? (
                       <GatewayEditor gateway={selectedGateway} onChange={updateGateway} onDelete={deleteGateway}

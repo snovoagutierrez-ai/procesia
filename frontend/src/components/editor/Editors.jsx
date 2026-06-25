@@ -244,9 +244,10 @@ function ValueClassWizard({ valueClass, wasteType, onChange, expertMode, setExpe
   );
 }
 
-function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone, sequenceFlows = [], gateways = [], tasks = [], onFlowsChange }) {
+function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone, sequenceFlows = [], gateways = [], tasks = [], onFlowsChange, onForceSave }) {
   const [showSaved, setShowSaved] = useState(false);
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (onForceSave) await onForceSave();
     setShowSaved(true);
     setTimeout(() => {
       setShowSaved(false);

@@ -445,10 +445,10 @@ def delete_task_system(db: Session, task_id: int, system_id: int):
 
 def create_task_direct(db: Session, activity_id: int, task_in: schemas.TaskCreateDirect):
     # Enforce CHECK constraint
-    if task_in.value_classification != models.ValueClass.VA and task_in.waste_type is None:
+    if task_in.value_classification == models.ValueClass.NVA and task_in.waste_type is None:
         raise HTTPException(
             status_code=400,
-            detail="If task is not Value Added (VA), a waste_type must be specified"
+            detail="If task is pure waste (NVA), a waste_type must be specified"
         )
 
     db_task = models.Task(
