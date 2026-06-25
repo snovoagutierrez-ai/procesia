@@ -194,7 +194,7 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
     db_run = models.OptimizationRun(
         process_id=process_id,
         status=models.OptStatus.pending,
-        model_used="gemini-3.5-flash",
+        model_used="gemini-2.5-flash",
         input_snapshot=snapshot
     )
     db.add(db_run)
@@ -225,10 +225,12 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
 
 
         response = client.models.generate_content(
-            model='gemini-3.5-flash',
+            model='gemini-2.5-flash',
             contents=f"Aquí tienes el snapshot del proceso para optimizar:\n\n{contents_json}",
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=schemas.OptimizationResult,
                 temperature=0.2
             )
         )
@@ -260,10 +262,12 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
             )
 
             response_retry = client.models.generate_content(
-                model='gemini-3.5-flash',
+                model='gemini-2.5-flash',
                 contents=retry_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                    response_schema=schemas.OptimizationResult,
                     temperature=0.2
                 )
             )
@@ -431,7 +435,7 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
         db_run = models.MacroOptimizationRun(
             macroprocess_id=macroprocess_id,
             status=models.OptStatus.failed,
-            model_used="gemini-3.5-flash",
+            model_used="gemini-2.5-flash",
             input_snapshot=snapshot,
             result={"error": "Se necesitan al menos 2 procesos con datos completos para optimizar el macroproceso."}
         )
@@ -443,7 +447,7 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
     db_run = models.MacroOptimizationRun(
         macroprocess_id=macroprocess_id,
         status=models.OptStatus.pending,
-        model_used="gemini-3.5-flash",
+        model_used="gemini-2.5-flash",
         input_snapshot=snapshot
     )
     db.add(db_run)
@@ -468,10 +472,12 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
         contents_json = json.dumps(snapshot, default=str, indent=2)
 
         response = client.models.generate_content(
-            model="gemini-3.5-flash",
+            model="gemini-2.5-flash",
             contents=f"DATOS DEL MACROPROCESO:\n\n{contents_json}",
             config=types.GenerateContentConfig(
                 system_instruction=MACRO_SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=schemas.MacroOptimizationResult,
                 temperature=0.2
             )
         )
@@ -489,10 +495,12 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
             retry_prompt = f"El JSON anterior falló en validación Pydantic o parseo por: {str(first_err)}. Corrige y devuelve un JSON válido de MacroOptimizationResult según el esquema original.\n\nJSON CON ERRORES:\n{raw_response_text}"
             
             retry_response = client.models.generate_content(
-                model="gemini-3.5-flash",
+                model="gemini-2.5-flash",
                 contents=retry_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=MACRO_SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                    response_schema=schemas.MacroOptimizationResult,
                     temperature=0.2
                 )
             )
@@ -538,7 +546,7 @@ def tutorial_chat(message: str) -> str:
     
     try:
         response = client.models.generate_content(
-            model="gemini-3.5-flash",
+            model="gemini-2.5-flash",
             contents=message,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
