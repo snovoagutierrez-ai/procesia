@@ -229,6 +229,7 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
                 response_mime_type="application/json",
+                response_schema=schemas.OptimizationResult,
                 temperature=0.2
             )
         )
@@ -263,6 +264,7 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_PROMPT,
                     response_mime_type="application/json",
+                    response_schema=schemas.OptimizationResult,
                     temperature=0.2
                 )
             )
@@ -472,6 +474,7 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
             config=types.GenerateContentConfig(
                 system_instruction=MACRO_SYSTEM_PROMPT,
                 response_mime_type="application/json",
+                response_schema=schemas.MacroOptimizationResult,
                 temperature=0.2
             )
         )
@@ -492,6 +495,7 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
                 config=types.GenerateContentConfig(
                     system_instruction=MACRO_SYSTEM_PROMPT,
                     response_mime_type="application/json",
+                    response_schema=schemas.MacroOptimizationResult,
                     temperature=0.2
                 )
             )
