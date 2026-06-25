@@ -117,8 +117,8 @@ button{font-family:inherit}
 .rf-end-inner{width:16px;height:16px;border-radius:50%;background:#15232E}
 .rf-event-label{font-size:10px;color:var(--muted);font-family:var(--mono);white-space:nowrap;max-width:100px;
   overflow:hidden;text-overflow:ellipsis;text-align:center}
-.rf-handle{background:#9AA8A8 !important;width:12px !important;height:12px !important;border:2.5px solid #fff !important;cursor:crosshair !important;transition:all 0.2s ease !important;}
-.rf-handle:hover{background:#0E9F9F !important;transform:scale(1.4) !important;}
+.rf-handle{background:#9AA8A8 !important;width:20px !important;height:20px !important;border:3px solid #fff !important;cursor:crosshair !important;transition:all 0.2s ease !important;box-shadow: 0 0 0 4px rgba(14, 159, 159, 0) !important;}
+.rf-handle:hover{background:#0E9F9F !important;transform:scale(1.2) !important;box-shadow: 0 0 0 8px rgba(14, 159, 159, 0.25) !important;}
 
 .rf-task-node{background:#fff;border:1.5px solid #E2E7E3;border-left:5px solid #1FA463;border-radius:10px;
   padding:10px 14px;min-width:180px;max-width:220px;cursor:pointer;transition:.15s;font-family:var(--body)}

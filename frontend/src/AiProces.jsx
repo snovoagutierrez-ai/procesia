@@ -24,7 +24,28 @@ import './styles/main.css';
 import { Editor, GatewayEditor, Optimization, ValueClassWizard, fmtShort, fmtLong } from "./components/editor/Editors.jsx";
 import { VSMLadder, FlowDiagram } from "./components/diagram/FlowDiagrams.jsx";
 import WelcomeModal from "./components/shared/WelcomeModal.jsx";
+import SnapshotsModal from "./components/editor/SnapshotsModal.jsx";
 
+function Banner({ type, message, actionText, onAction, onClose }) {
+  const bg = type === 'success' ? '#E8F5E9' : type === 'warning' ? '#FFF8E1' : '#E8F4F8';
+  const color = type === 'success' ? '#1FA463' : type === 'warning' ? '#C98A12' : '#0E9F9F';
+  return (
+    <div style={{ background: bg, padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${color}30` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color, fontSize: 13, fontWeight: 500 }}>
+        <Sparkles size={16} />
+        {message}
+      </div>
+      <div style={{ display: 'flex', gap: 12 }}>
+        {actionText && onAction && (
+          <button className="pa-btn" onClick={onAction} style={{ padding: '4px 12px', fontSize: 12, minHeight: 28, background: '#fff', color, border: `1px solid ${color}` }}>
+            {actionText}
+          </button>
+        )}
+        {onClose && <button className="pa-btn-icon" onClick={onClose}><X size={16} style={{ color }} /></button>}
+      </div>
+    </div>
+  );
+}
 
 
 /* ============================================================================
@@ -928,6 +949,7 @@ export default function App() {
   const [mergeData, setMergeData] = useState(null);
   const [aiTip, setAiTip] = useState(null);
   const [snapshotsModalOpen, setSnapshotsModalOpen] = useState(false);
+  const [showUndoBanner, setShowUndoBanner] = useState(false);
   const [metricsData, setMetricsData] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState("detalle");
@@ -1434,9 +1456,37 @@ export default function App() {
     }
   };
 
+  const saveAutoSnapshot = async (label) => {
+    try {
+      const snapshot_json = {
+        label: label,
+        tasks: tasks,
+        gateways: gateways,
+        sequence_flows: sequenceFlows
+      };
+      const res = await apiFetch(`/processes/${proc?.id}/snapshots`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshot_json })
+      });
+      if (!res.ok) throw new Error("Status error");
+      return true;
+    } catch (e) {
+      alert("No se pudo guardar el punto de retorno, optimización cancelada por seguridad. Intenta de nuevo.");
+      return false;
+    }
+  };
+
   const applyOptimized = async (steps) => {
     if (!proc) return;
     setLoading(true);
+    
+    const saved = await saveAutoSnapshot("Antes de optimización masiva con IA");
+    if (!saved) {
+      setLoading(false);
+      return;
+    }
+
     try {
       await Promise.all(tasks.map((t) => apiFetch(`/processes/${proc.id}/tasks/${t.id}`, { method: "DELETE" })));
       const mapped = [];
@@ -1462,6 +1512,7 @@ export default function App() {
       setTasks(mapped);
       setSelectedId(mapped[0]?.id || null);
       setTab("detalle");
+      setShowUndoBanner(true);
     } catch (e) {
       alert("No se pudo aplicar el flujo optimizado por completo.");
     } finally {
@@ -1597,13 +1648,13 @@ export default function App() {
 
   
   const handleApplyRecommendation = async (rec, markAsApplied) => {
-    try {
-      await apiFetch(`/processes/${proc.id}/snapshots`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ snapshot_json: { tasks, gateways, sequence_flows: sequenceFlows } })
-      });
-    } catch (err) { console.warn(err); }
+    setLoading(true);
+    const saved = await saveAutoSnapshot(`Antes de aplicar: ${rec.title}`);
+    if (!saved) {
+      setLoading(false);
+      return;
+    }
+    setLoading(false);
 
     const tBpmnId = rec.target_node_bpmn_id;
     const task = tasks.find(t => t.bpmnId === tBpmnId || t.id.toString() === tBpmnId);
@@ -1667,6 +1718,15 @@ export default function App() {
   return (
     <div className="pa-root">
       <WelcomeModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
+      <SnapshotsModal 
+        isOpen={snapshotsModalOpen} 
+        onClose={() => setSnapshotsModalOpen(false)} 
+        processId={proc?.id} 
+        onRestoreComplete={() => {
+          setShowUndoBanner(false);
+          loadProcessTasks(proc);
+        }} 
+      />
 
       {view !== "editor" && (
         <header className="pa-topbar">
@@ -1748,11 +1808,24 @@ export default function App() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
+              <button className="pa-btn pa-btn-ghost" onClick={() => setSnapshotsModalOpen(true)}>
+                <Clock size={16} /> Versiones
+              </button>
               <button className="pa-btn pa-btn-ghost" onClick={exportBpmn}>
                 <Download size={16} /> .bpmn
               </button>
             </div>
           </div>
+
+          {showUndoBanner && (
+            <Banner
+              type="success"
+              message="Optimización aplicada con éxito."
+              actionText="Deshacer"
+              onAction={() => setSnapshotsModalOpen(true)}
+              onClose={() => setShowUndoBanner(false)}
+            />
+          )}
 
           {isMobile && (
             <div className="pa-mobile-nav">

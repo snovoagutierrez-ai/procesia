@@ -38,7 +38,7 @@ function ProcessNode({ data }) {
           <AlertCircle size={14} />
         </div>
       )}
-      <Handle type="target" position={Position.Left} style={{ background: '#0E9F9F' }} />
+      <Handle type="target" position={Position.Left} className="rf-handle" />
       
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <div style={{ background: '#0E9F9F', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
@@ -71,7 +71,7 @@ function ProcessNode({ data }) {
         </button>
       </div>
 
-      <Handle type="source" position={Position.Right} style={{ background: '#0E9F9F' }} />
+      <Handle type="source" position={Position.Right} className="rf-handle" />
     </div>
   );
 }
