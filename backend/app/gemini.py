@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict
@@ -246,6 +247,8 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
 
         
     except (json.JSONDecodeError, ValidationError, Exception) as first_err:
+        print(f"First attempt failed: {first_err}. Waiting 10 seconds for rate limits before retrying...")
+        time.sleep(10)
 
         # Attempt retry exactly once
         try:
@@ -479,7 +482,9 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
         validated_result = schemas.MacroOptimizationResult.model_validate(parsed_json).model_dump()
 
     except (json.JSONDecodeError, ValidationError, Exception) as first_err:
-        print(f"First attempt failed in Macro Optimization: {first_err}. Retrying...")
+        print(f"First attempt failed in Macro Optimization: {first_err}. Waiting 10 seconds for rate limits before retrying...")
+        time.sleep(10)
+        
         try:
             retry_prompt = f"El JSON anterior falló en validación Pydantic o parseo por: {str(first_err)}. Corrige y devuelve un JSON válido de MacroOptimizationResult según el esquema original.\n\nJSON CON ERRORES:\n{raw_response_text}"
             
