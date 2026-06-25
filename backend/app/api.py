@@ -131,14 +131,16 @@ def optimize_macroprocess(request: Request, id: int, db: Session = Depends(get_d
         raise HTTPException(status_code=404, detail=str(e))
 
     if db_run.status == models.OptStatus.failed:
+        error_msg = db_run.result.get("error", "") if isinstance(db_run.result, dict) else str(db_run.result)
+        display_msg = error_msg if "2 procesos" in error_msg else "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos."
+        
         raise HTTPException(
             status_code=422, 
             detail={
-                "message": "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos.",
+                "message": display_msg,
                 "error": db_run.result
             }
         )
-        
     return db_run.result
 
 # ==========================================
@@ -410,10 +412,13 @@ def optimize_process(request: Request, id: int, db: Session = Depends(get_db), c
     # Note: Exceptions are caught globally by our middleware in main.py to prevent leak
 
     if db_run.status == models.OptStatus.failed:
+        error_msg = db_run.result.get("error", "") if isinstance(db_run.result, dict) else str(db_run.result)
+        display_msg = error_msg if error_msg else "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos."
+        
         raise HTTPException(
             status_code=422, 
             detail={
-                "message": "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos.",
+                "message": display_msg,
                 "error": db_run.result
             }
         )
