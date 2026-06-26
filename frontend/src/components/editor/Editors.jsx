@@ -270,6 +270,7 @@ function TaskAssistant({ task, onChange }) {
       }
     } catch (e) {
       console.error(e);
+      setResponse({ reply: `Error de conexión: ${e.message}`, suggestions: {} });
     } finally {
       setLoading(false);
     }

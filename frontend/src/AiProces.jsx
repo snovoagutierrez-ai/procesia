@@ -1837,13 +1837,6 @@ export default function App() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button 
-                className="pa-btn pa-btn-ghost" 
-                onClick={() => { setFirstStepsActive(true); setGuideStep(tasks.length === 0 ? 1 : 2); localStorage.removeItem(`first_steps_${proc?.id}`); }} 
-                title="Reiniciar guía"
-              >
-                <Lightbulb size={16} /> Guía
-              </button>
               <button className="pa-btn pa-btn-ghost" onClick={() => setSnapshotsModalOpen(true)}>
                 <Clock size={16} /> Versiones
               </button>
