@@ -87,8 +87,12 @@ function ValueClassWizard({ valueClass, wasteType, onChange, expertMode, setExpe
   }, [valueClass, forceWizard]);
 
   useEffect(() => {
-    if (!valueClass) {
+    if (valueClass) {
+      setForceWizard(false);
+      setWizardCompleted(true);
+    } else {
       setWizardCompleted(false);
+      setForceWizard(true);
     }
   }, [valueClass]);
 
@@ -102,11 +106,6 @@ function ValueClassWizard({ valueClass, wasteType, onChange, expertMode, setExpe
             {Object.entries(WASTE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         )}
-        <div style={{ textAlign: 'right' }}>
-          <button className="pa-btn pa-btn-ghost" onClick={() => { setExpertMode(false); setForceWizard(!valueClass); }} style={{ fontSize: '11px', padding: '4px 8px' }}>
-            <Sparkles size={12} style={{marginRight: 4}} /> Usar asistente guiado
-          </button>
-        </div>
       </div>
     );
   }
@@ -277,13 +276,21 @@ function TaskAssistant({ task, onChange }) {
     }
   };
 
+  const TYPE_LABEL_TO_KEY = { "Persona": "user", "Manual": "manual", "Sistema": "service" };
+
   const handleApply = () => {
     if (!response || !response.suggestions) return;
     const { name, type, valueClass } = response.suggestions;
     const patch = {};
     if (name) patch.name = name;
-    if (type && ["Persona", "Manual", "Sistema"].includes(type)) patch.type = type;
-    if (valueClass && ["VA", "BVA", "NVA"].includes(valueClass)) patch.valueClass = valueClass;
+    if (type) {
+      const typeKey = TYPE_LABEL_TO_KEY[type] || (["user", "manual", "service"].includes(type) ? type : null);
+      if (typeKey) patch.type = typeKey;
+    }
+    if (valueClass) {
+      const vc = valueClass === "BVA" ? "NNVA" : valueClass;
+      if (["VA", "NNVA", "NVA"].includes(vc)) patch.valueClass = vc;
+    }
     onChange(patch);
     setOpen(false);
     setResponse(null);

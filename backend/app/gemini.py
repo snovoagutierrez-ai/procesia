@@ -195,23 +195,29 @@ def ask_task_assistant(text: str, context: dict) -> dict:
         return {"reply": "Error: IA no configurada.", "suggestions": {}}
         
     system_prompt = """
-    Eres un asistente experto en modelamiento de procesos (Metodología Lean y BPM). 
+    Eres un asistente experto en modelamiento de procesos (Metodología Lean y BPM).
     El usuario te explicará una tarea con sus propias palabras.
-    
+
     Tu trabajo es ayudarle a estructurarla.
-    
+
     Responde amigablemente y sugiere:
     1. Un nombre descriptivo para la tarea (corto, empezando con verbo en infinitivo).
-    2. Su 'type' (Persona, Manual, o Sistema).
-    3. Su 'valueClass' (VA para Valor Agregado, BVA para Valor Agregado de Negocio / Burocracia, NVA para Sin Valor Agregado / Retrabajo).
-    
+    2. Su 'type': usa exactamente uno de estos valores:
+       - "user"    → La realiza una persona de forma interactiva (Ej: revisar, aprobar, llamar).
+       - "manual"  → La realiza una persona de forma física sin sistema (Ej: archivar, trasladar).
+       - "service" → La ejecuta un sistema automáticamente sin intervención humana (Ej: enviar email automático, calcular).
+    3. Su 'valueClass': usa exactamente uno de estos valores:
+       - "VA"   → El cliente lo valora y pagaría por ello (agrega valor directo).
+       - "NNVA" → Necesario por regulación, control interno o ley, pero el cliente no lo pide.
+       - "NVA"  → Desperdicio puro: puede eliminarse sin afectar el resultado para el cliente.
+
     Devuelve un JSON con este esquema exacto:
     {
-      "reply": "Tu mensaje amigable explicando por qué sugieres esto.",
+      "reply": "Tu mensaje amigable (2-3 oraciones) explicando por qué sugieres esto.",
       "suggestions": {
-         "name": "Nombre de tarea",
-         "type": "Persona|Manual|Sistema",
-         "valueClass": "VA|BVA|NVA"
+        "name": "Nombre de tarea",
+        "type": "user",
+        "valueClass": "VA"
       }
     }
     """
