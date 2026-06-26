@@ -425,8 +425,14 @@ class MacroSequenceFlowSync(BaseModel):
     target_ref: str = Field(..., max_length=60)
     condition: Optional[str] = Field(None, max_length=200)
 
+    class Config:
+        from_attributes = True
+
 class MacroGraphSync(BaseModel):
     sequence_flows: List[MacroSequenceFlowSync]
+
+    class Config:
+        from_attributes = True
 
 class GraphResponse(BaseModel):
     gateways: List[FlowNodeResponse]

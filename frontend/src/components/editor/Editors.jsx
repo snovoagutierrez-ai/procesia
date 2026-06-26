@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Clock, Trash2, Check, ChevronUp, ChevronDown, Sparkles, Loader2, ArrowRight, AlertTriangle, X, Lightbulb, Info } from 'lucide-react';
+import { ArrowLeft, Clock, Trash2, Check, ChevronUp, ChevronDown, Sparkles, Loader2, ArrowRight, AlertTriangle, X, Lightbulb, Info, Send } from 'lucide-react';
 import { VALUE, WASTE, TYPES, ACTION, SEVERITY, WASTE_QUESTIONS } from '../../constants.js';
 import { Seg, Field, TimeField } from '../shared/uiAtoms.jsx';
 import Banner from '../shared/Banner.jsx';
