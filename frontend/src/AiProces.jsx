@@ -358,29 +358,47 @@ const GUIDE_STEPS = [
   { icon: "✨", text: <>¡Todo listo! Haz clic en <strong>4. Ir a Optimización IA</strong> para analizar el proceso.</> },
 ];
 
-function GuideTicket({ step, onDismiss }) {
+function GuideTicket({ step, onStep, onDismiss }) {
   if (!step || step < 1 || step > GUIDE_STEPS.length) return null;
   const { icon, text } = GUIDE_STEPS[step - 1];
+  const total = GUIDE_STEPS.length;
   return (
     <div style={{
       position: 'fixed', bottom: 28, left: 28, zIndex: 1000,
       background: '#0B7A7A', color: '#fff',
       borderRadius: 12, padding: '12px 14px 12px 16px',
       boxShadow: '0 6px 24px rgba(11,122,122,0.45)',
-      maxWidth: 248, display: 'flex', gap: 10, alignItems: 'flex-start',
+      maxWidth: 260, display: 'flex', flexDirection: 'column', gap: 10,
       animation: 'fadeInUp 0.3s ease',
     }}>
-      <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{icon}</span>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 4, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-          Paso {step} de {GUIDE_STEPS.length}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 4, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            Paso {step} de {total}
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.45 }}>{text}</div>
         </div>
-        <div style={{ fontSize: 13, lineHeight: 1.45 }}>{text}</div>
+        <button onClick={onDismiss} title="Cerrar guía"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.65)', padding: 2, flexShrink: 0, display: 'flex' }}>
+          <X size={15} />
+        </button>
       </div>
-      <button onClick={onDismiss} title="Cerrar guía"
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.65)', padding: 2, flexShrink: 0, display: 'flex' }}>
-        <X size={15} />
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button onClick={() => onStep(step - 1)} disabled={step === 1} title="Paso anterior"
+          style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 6, cursor: step === 1 ? 'default' : 'pointer', color: '#fff', opacity: step === 1 ? 0.35 : 1, padding: '4px 8px', display: 'flex', alignItems: 'center' }}>
+          <ArrowLeft size={14} />
+        </button>
+        <div style={{ flex: 1, display: 'flex', gap: 4, justifyContent: 'center' }}>
+          {GUIDE_STEPS.map((_, i) => (
+            <div key={i} onClick={() => onStep(i + 1)} style={{ width: i + 1 === step ? 18 : 6, height: 6, borderRadius: 3, background: i + 1 === step ? '#fff' : 'rgba(255,255,255,0.35)', cursor: 'pointer', transition: 'all 0.2s' }} />
+          ))}
+        </div>
+        <button onClick={() => step === total ? onDismiss() : onStep(step + 1)} title={step === total ? 'Finalizar guía' : 'Paso siguiente'}
+          style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 6, cursor: 'pointer', color: '#fff', padding: '4px 8px', display: 'flex', alignItems: 'center' }}>
+          {step === total ? <Check size={14} /> : <ArrowRight size={14} />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -1795,7 +1813,7 @@ export default function App() {
   return (
     <div className="pa-root">
       <WelcomeModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
-      {firstStepsActive && <GuideTicket step={guideStep} onDismiss={dismissGuide} />}
+      {firstStepsActive && <GuideTicket step={guideStep} onStep={setGuideStep} onDismiss={dismissGuide} />}
       <SnapshotsModal 
         isOpen={snapshotsModalOpen} 
         onClose={() => setSnapshotsModalOpen(false)} 
@@ -1886,6 +1904,9 @@ export default function App() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
+              <button className="pa-btn pa-btn-ghost" title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }}>
+                <Lightbulb size={16} /> Guía
+              </button>
               <button className="pa-btn pa-btn-ghost" onClick={() => setSnapshotsModalOpen(true)}>
                 <Clock size={16} /> Versiones
               </button>
