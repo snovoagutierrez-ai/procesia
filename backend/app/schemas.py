@@ -37,6 +37,12 @@ class Token(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(..., max_length=500)
+    
+class TaskAssistantRequest(BaseModel):
+    text: str = Field(..., max_length=1000)
+    current_name: Optional[str] = None
+    current_type: Optional[str] = None
+    current_value_class: Optional[str] = None
 # ==========================================
 
 class TaskRaciBase(BaseModel):

@@ -244,6 +244,107 @@ function ValueClassWizard({ valueClass, wasteType, onChange, expertMode, setExpe
   );
 }
 
+function TaskAssistant({ task, onChange, firstStepsActive, onGuideComplete }) {
+  const [open, setOpen] = useState(firstStepsActive);
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [response, setResponse] = useState(null);
+
+  useEffect(() => {
+    if (firstStepsActive) setOpen(true);
+  }, [firstStepsActive]);
+
+  const handleSend = async () => {
+    if (!text.trim()) return;
+    setLoading(true);
+    try {
+      const res = await apiFetch(`/tasks/assistant`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          current_name: task.name,
+          current_type: task.type,
+          current_value_class: task.valueClass
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setResponse(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApply = () => {
+    if (!response || !response.suggestions) return;
+    const { name, type, valueClass } = response.suggestions;
+    const patch = {};
+    if (name) patch.name = name;
+    if (type && ["Persona", "Manual", "Sistema"].includes(type)) patch.type = type;
+    if (valueClass && ["VA", "BVA", "NVA"].includes(valueClass)) patch.valueClass = valueClass;
+    onChange(patch);
+    if (onGuideComplete) onGuideComplete();
+    setOpen(false);
+    setResponse(null);
+    setText("");
+  };
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      {!open ? (
+        <button className="pa-btn pa-btn-ghost" onClick={() => setOpen(true)} style={{ color: "var(--teal)", background: "#F1FBFB", border: "1px solid #BFE6E6", width: "100%", justifyContent: "center" }}>
+          <Sparkles size={16} /> Asistente IA para modelar
+        </button>
+      ) : (
+        <div style={{ background: '#F1FBFB', border: '1px solid #0E9F9F', padding: '16px', borderRadius: '8px', animation: firstStepsActive ? 'pa-bounce 2s infinite' : 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0B7A7A', fontWeight: 600 }}>
+              <Sparkles size={16} />
+              <span>Asistente Guiado IA</span>
+            </div>
+            {!firstStepsActive && (
+              <button onClick={() => setOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={16} /></button>
+            )}
+          </div>
+          
+          <p style={{ fontSize: '12.5px', color: 'var(--text)', marginBottom: '12px', lineHeight: 1.5 }}>
+            Cuéntame con tus propias palabras qué ocurre en este paso y yo configuraré la metodología por ti.
+          </p>
+          
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+            <input 
+              className="pa-input" 
+              style={{ flex: 1, background: '#fff', borderColor: '#BFE6E6' }}
+              value={text} 
+              onChange={(e) => setText(e.target.value)} 
+              placeholder="Ej: Aquí el contador revisa el documento..."
+              onKeyDown={(e) => { if(e.key === 'Enter') handleSend() }}
+            />
+            <button className="pa-btn pa-btn-primary" onClick={handleSend} disabled={loading || !text.trim()}>
+              {loading ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
+            </button>
+          </div>
+
+          {response && (
+            <div style={{ background: '#fff', border: '1px solid #E2E7E3', padding: '12px', borderRadius: '6px', fontSize: '13px', marginTop: '12px' }}>
+              <p style={{ margin: '0 0 12px 0', lineHeight: 1.5 }}>{response.reply}</p>
+              {response.suggestions && Object.keys(response.suggestions).length > 0 && (
+                <button className="pa-btn pa-btn-primary" onClick={handleApply} style={{ width: '100%', justifyContent: 'center', marginTop: '12px' }}>
+                  <Check size={16} /> Aplicar sugerencias
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone, sequenceFlows = [], gateways = [], tasks = [], onFlowsChange, onForceSave, firstStepsActive, guideStep, onGuideComplete }) {
   const [showSaved, setShowSaved] = useState(false);
   const handleSave = async () => {
@@ -273,22 +374,12 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
         </div>
       </div>
 
-        {firstStepsActive && guideStep === 2 && (
-          <div style={{ background: '#F1FBFB', border: '1px solid #0E9F9F', color: '#0B7A7A', padding: '16px', borderRadius: '8px', marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 600 }}>
-              <Lightbulb size={18} />
-              <span>Paso 2: Define el Valor de tu Tarea</span>
-            </div>
-            <p style={{ fontSize: '13px', margin: '0 0 12px 0', lineHeight: 1.5 }}>
-              Para que nuestra Inteligencia Artificial pueda detectar cuellos de botella, necesita entender qué ocurre aquí. Modifica al menos estos campos:
-            </p>
-            <ul style={{ fontSize: '12.5px', margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <li><b>Nombre:</b> Sé descriptivo con la acción (ej: "Revisar formulario de solicitud").</li>
-              <li><b>Tiempo de ciclo:</b> ¿Cuánto tiempo de trabajo neto te toma completar esta acción?</li>
-              <li><b>Clasificación de valor:</b> Indica si esto agrega valor al cliente (<b>VA</b>), si es burocracia del negocio (<b>BVA</b>), o si es un paso que no aporta valor / retrabajo (<b>NVA</b>).</li>
-            </ul>
-          </div>
-        )}
+      <TaskAssistant 
+        task={task} 
+        onChange={set} 
+        firstStepsActive={firstStepsActive && guideStep === 2} 
+        onGuideComplete={() => { if (firstStepsActive && guideStep === 2 && onGuideComplete) onGuideComplete(3); }}
+      />
 
       <Field label="Nombre de la tarea" tooltip="Nombre corto y descriptivo de la acción (Ej: 'Revisar factura').">
         <input 

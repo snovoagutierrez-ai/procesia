@@ -181,6 +181,51 @@ def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
     }
     return snapshot
 
+def ask_task_assistant(text: str, context: dict) -> dict:
+    client = genai.Client(api_key=settings.gemini_api_key)
+    if not client:
+        return {"reply": "Error: IA no configurada.", "suggestions": {}}
+        
+    system_prompt = """
+    Eres un asistente experto en modelamiento de procesos (Metodología Lean y BPM). 
+    El usuario te explicará una tarea con sus propias palabras.
+    
+    Tu trabajo es ayudarle a estructurarla.
+    
+    Responde amigablemente y sugiere:
+    1. Un nombre descriptivo para la tarea (corto, empezando con verbo en infinitivo).
+    2. Su 'type' (Persona, Manual, o Sistema).
+    3. Su 'valueClass' (VA para Valor Agregado, BVA para Valor Agregado de Negocio / Burocracia, NVA para Sin Valor Agregado / Retrabajo).
+    
+    Devuelve un JSON con este esquema exacto:
+    {
+      "reply": "Tu mensaje amigable explicando por qué sugieres esto.",
+      "suggestions": {
+         "name": "Nombre de tarea",
+         "type": "Persona|Manual|Sistema",
+         "valueClass": "VA|BVA|NVA"
+      }
+    }
+    """
+    
+    user_prompt = f"Datos actuales de la tarea: {context}\n\nDescripción del usuario: {text}"
+    
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[user_prompt],
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                temperature=0.4
+            )
+        )
+        data = json.loads(response.text)
+        return data
+    except Exception as e:
+        print(f"Error en ask_task_assistant: {e}")
+        return {"reply": "Ocurrió un error al procesar tu consulta con la IA.", "suggestions": {}}
+
 def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
     # 1. Build Process Snapshot & Deterministic Metrics
     try:

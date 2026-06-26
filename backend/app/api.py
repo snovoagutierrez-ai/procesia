@@ -143,6 +143,11 @@ def optimize_macroprocess(request: Request, id: int, db: Session = Depends(get_d
         )
     return db_run.result
 
+@router.post("/tasks/assistant")
+@limiter.limit("5/minute")
+def task_assistant_endpoint(request: Request, data: schemas.TaskAssistantRequest, current_user: models.User = Depends(auth.get_current_user)):
+    return gemini.ask_task_assistant(data.text, data.model_dump())
+
 # ==========================================
 # 2. Processes Endpoints
 # ==========================================
