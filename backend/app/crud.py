@@ -570,7 +570,7 @@ def get_graph(db: Session, process_id: int) -> schemas.GraphResponse:
 
 def get_macro_graph(db: Session, macroprocess_id: int) -> schemas.MacroGraphSync:
     flows = db.query(models.MacroSequenceFlow).filter(models.MacroSequenceFlow.macroprocess_id == macroprocess_id).all()
-    return schemas.MacroGraphSync(sequence_flows=flows)
+    return schemas.MacroGraphSync.model_validate({"sequence_flows": flows})
 
 def sync_macro_graph(db: Session, macroprocess_id: int, graph_data: schemas.MacroGraphSync) -> schemas.MacroGraphSync:
     db.query(models.MacroSequenceFlow).filter(models.MacroSequenceFlow.macroprocess_id == macroprocess_id).delete(synchronize_session=False)
