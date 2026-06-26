@@ -267,6 +267,7 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* iOS Safari: dynamic viewport height excluye el chrome del browser */
   overflow: hidden;
 }
 
@@ -279,6 +280,11 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
   margin: 0;
 }
 
+/* Mobile nav tabs: must shrink-0 so pa-shell gets remaining height */
+.pa-editor-layout > .pa-mobile-nav {
+  flex-shrink: 0;
+}
+
 /* Inner content wrapper — aligns nav items with shell content */
 .pa-editor-topbar-inner {
   display: flex;
@@ -288,6 +294,23 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
   max-width: 1320px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* Mobile topbar: breadcrumbs collapse, only show process name + compact actions */
+@media (max-width: 768px) {
+  .pa-editor-topbar-inner {
+    gap: 8px;
+    padding: 0;
+  }
+  .pa-editor-breadcrumb-trail {
+    display: none; /* Ocultar "Mis procesos / Macroproceso /" en móvil */
+  }
+  .pa-editor-action-label {
+    display: none; /* Solo ícono en botones de acción en móvil */
+  }
+  .pa-editor-layout > .pa-topbar {
+    padding: 8px 12px;
+  }
 }
 
 /* Shell is the one scroll container for the editor */
@@ -306,7 +329,17 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
 .pa-editor-layout .pa-side {
   position: sticky;
   top: 0;
-  max-height: calc(100vh - 56px);
+  max-height: calc(100dvh - 56px);
+}
+
+/* FIX: specificity override — en móvil el sidebar debe ser static, no sticky.
+   Necesita mayor especificidad que .pa-editor-layout .pa-side para ganar. */
+@media (max-width: 880px) {
+  .pa-editor-layout .pa-side {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
 }
 
 /* ---- onboarding guide ---- */

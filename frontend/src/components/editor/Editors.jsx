@@ -520,23 +520,34 @@ function Optimization({ state, onRun, onApply, onApplyRecommendation, tasks }) {
   const d = state.data;
   const [appliedIds, setAppliedIds] = useState(new Set());
   const incompleteTasks = tasks?.filter(t => !t.responsible || !t.valueClass || t.cycleTime === undefined);
-  const isReady = tasks?.length > 0 && incompleteTasks?.length === 0;
+  const hasAnyTask = tasks?.length > 0;
+  const isReady = hasAnyTask && incompleteTasks?.length === 0;
+  const canRunPartial = hasAnyTask && incompleteTasks?.length > 0 && incompleteTasks.length < tasks.length;
+  // Analiza TODO el proceso — no solo una tarea. El motor evalúa el flujo completo.
   return (
     <div className="pa-opt">
       <div className="pa-opt-head">
         <div>
           <h3>Optimización con IA</h3>
-          <p>El motor analiza tiempos, RACI, sistemas y valor para detectar cuellos de botella y desperdicios.</p>
+          <p>El motor analiza el proceso completo: tiempos de ciclo, RACI, sistemas y valor para detectar cuellos de botella y desperdicios en el flujo.</p>
         </div>
-        <button className="pa-btn pa-btn-primary" onClick={onRun} disabled={state.status === "loading" || !isReady}>
+        <button
+          className="pa-btn pa-btn-primary"
+          onClick={onRun}
+          disabled={state.status === "loading" || !hasAnyTask}
+          title={!isReady ? `Análisis con confianza reducida — ${incompleteTasks?.length} tarea(s) sin datos completos` : "Analizar el proceso completo"}
+        >
           {state.status === "loading" ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
           {state.status === "loading" ? "Analizando…" : "Optimizar proceso"}
         </button>
       </div>
-      {!isReady && (
+      {!isReady && hasAnyTask && (
         <div style={{ marginBottom: '16px' }}>
-          <Banner variant="warning" title="Faltan datos">
-            Para optimizar con IA, todas las tareas deben tener asignado un <b>Responsable</b>, un <b>Tiempo de ciclo</b> y una <b>Clasificación de valor</b>. Tienes {incompleteTasks?.length} tarea(s) incompleta(s).
+          <Banner variant="warning" title={canRunPartial ? "Datos incompletos — confianza reducida" : "Sin datos para analizar"}>
+            {canRunPartial
+              ? <><b>{incompleteTasks.length}</b> de {tasks.length} tarea(s) sin <b>Responsable</b>, <b>Tiempo de ciclo</b> o <b>Clasificación de valor</b>. Puedes optimizar igual pero el análisis será menos preciso.</>
+              : <>Completa al menos una tarea con <b>Responsable</b>, <b>Tiempo de ciclo</b> y <b>Clasificación de valor</b> para obtener recomendaciones útiles.</>
+            }
           </Banner>
         </div>
       )}

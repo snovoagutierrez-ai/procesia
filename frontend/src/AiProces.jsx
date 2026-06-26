@@ -1915,39 +1915,33 @@ export default function App() {
         <div className="pa-editor-layout">
           <div className="pa-topbar">
             <div className="pa-editor-topbar-inner">
-              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <button className="pa-btn pa-btn-ghost" style={{ padding: '6px' }} onClick={goBackToDashboard} aria-label="Volver"><ArrowLeft size={16} /></button>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <button className="pa-btn pa-btn-ghost" style={{ padding: '6px', flexShrink: 0 }} onClick={goBackToDashboard} aria-label="Volver"><ArrowLeft size={16} /></button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)' }}>
-                  <span
-                    style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500 }}
-                    onClick={goBackToDashboard}
-                  >
-                    Mis procesos
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)', minWidth: 0 }}>
+                  <span className="pa-editor-breadcrumb-trail" style={{ display: 'contents' }}>
+                    <span style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500, whiteSpace: 'nowrap' }} onClick={goBackToDashboard}>Mis procesos</span>
+                    <span style={{ opacity: 0.5, flexShrink: 0 }}>/</span>
+                    <span style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500, whiteSpace: 'nowrap' }} onClick={goBackToDashboard}>
+                      {macroprocesses.find(m => m.id === proc.macroprocess_id)?.name || "General"}
+                    </span>
+                    <span style={{ opacity: 0.5, flexShrink: 0 }}>/</span>
                   </span>
-                  <span style={{ opacity: 0.5 }}>/</span>
-                  <span
-                    style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500 }}
-                    onClick={goBackToDashboard}
-                  >
-                    {macroprocesses.find(m => m.id === proc.macroprocess_id)?.name || "General"}
-                  </span>
-                  <span style={{ opacity: 0.5 }}>/</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <h2 style={{ margin: 0, fontSize: 16, color: 'var(--inv)' }}>{proc.name}</h2>
-                    <span className="pa-tag" style={{ margin: 0, color: 'var(--ink)' }}>{proc.code}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <h2 style={{ margin: 0, fontSize: 16, color: 'var(--inv)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }}>{proc.name}</h2>
+                    {proc.code && <span className="pa-tag" style={{ margin: 0, color: 'var(--ink)', flexShrink: 0 }}>{proc.code}</span>}
                   </div>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="pa-btn pa-btn-ghost" title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }}>
-                  <Lightbulb size={16} /> Guía
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button className="pa-btn pa-btn-ghost" style={{ padding: '6px 10px' }} title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }} aria-label="Guía">
+                  <Lightbulb size={16} /><span className="pa-editor-action-label"> Guía</span>
                 </button>
-                <button className="pa-btn pa-btn-ghost" onClick={() => setSnapshotsModalOpen(true)}>
-                  <Clock size={16} /> Versiones
+                <button className="pa-btn pa-btn-ghost" style={{ padding: '6px 10px' }} onClick={() => setSnapshotsModalOpen(true)} aria-label="Versiones">
+                  <Clock size={16} /><span className="pa-editor-action-label"> Versiones</span>
                 </button>
-                <button className="pa-btn pa-btn-ghost" onClick={exportBpmn}>
-                  <Download size={16} /> .bpmn
+                <button className="pa-btn pa-btn-ghost" style={{ padding: '6px 10px' }} onClick={exportBpmn} aria-label="Exportar BPMN">
+                  <Download size={16} /><span className="pa-editor-action-label"> .bpmn</span>
                 </button>
               </div>
             </div>
