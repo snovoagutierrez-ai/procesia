@@ -1605,44 +1605,82 @@ export default function App() {
     }
   };
 
-  const applyOptimized = async (steps) => {
+  const applyOptimized = async (optimizedFlow) => {
     if (!proc) return;
+    const steps = optimizedFlow.nodes || optimizedFlow.steps || [];
+    const aiFlows = optimizedFlow.flows || [];
+    if (!steps.length) return;
+
+    const ok = await confirm(
+      "Aplicar flujo optimizado",
+      `Esta acción eliminará las ${tasks.length} tarea(s) actuales y las reemplazará con las ${steps.length} propuestas por la IA. Los datos de RACI y sistemas deberán reasignarse. Se guardará una versión de respaldo.`,
+      { confirmLabel: "Aplicar igual", danger: true }
+    );
+    if (!ok) return;
+
     setLoading(true);
-    
-    const saved = await saveAutoSnapshot("Antes de optimización masiva con IA");
-    if (!saved) {
-      setLoading(false);
-      return;
-    }
+    const saved = await saveAutoSnapshot("Antes de aplicar flujo optimizado IA");
+    if (!saved) { setLoading(false); return; }
+
+    const processId = procRef.current?.id;
+    if (!processId) { setLoading(false); return; }
 
     try {
-      await Promise.all(tasks.map((t) => apiFetch(`/processes/${proc.id}/tasks/${t.id}`, { method: "DELETE" })));
+      // Eliminar tareas secuencialmente para evitar conflictos de FK
+      for (const t of tasks) {
+        await apiFetch(`/processes/${processId}/tasks/${t.id}`, { method: "DELETE" });
+      }
+
+      // Crear tareas del flujo optimizado
       const mapped = [];
+      const bpmnIdMap = {}; // old bpmn_id → new task bpmn_id (por si Gemini reutiliza IDs)
       for (let idx = 0; idx < steps.length; idx++) {
         const s = steps[idx];
         const valClass = s.value_classification || s.valueClass || "VA";
         const wType = valClass === "NVA" ? s.waste_type || "waiting" : null;
-        const res = await apiFetch(`/processes/${proc.id}/tasks`, {
+        const newBpmn = s.bpmn_id || s.bpmnId || newBpmnId();
+        bpmnIdMap[s.bpmn_id || s.bpmnId] = newBpmn;
+        const res = await apiFetch(`/processes/${processId}/tasks`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            bpmn_id: s.bpmn_id || s.bpmnId || newBpmnId(), name: s.name || s.node_name || "Paso",
-            description: "", position_order: idx + 1,
+            bpmn_id: newBpmn,
+            name: s.name || s.node_name || "Paso",
+            description: s.description || "",
+            position_order: idx + 1,
             task_type: s.type && TYPES[s.type] ? s.type : "user",
-            value_classification: valClass, waste_type: wType,
+            value_classification: valClass,
+            waste_type: wType,
             std_cycle_time_sec: Number(s.cycle_time_sec) || Number(s.cycleTime) || 60,
             std_wait_time_sec: Number(s.wait_time_sec) || Number(s.waitTime) || 0,
-            responsible: "", accountable: "", consulted: "", informed: "", systems: "",
           }),
         });
         const data = await res.json();
         mapped.push(mapBackendTaskToFrontend(data));
       }
+
+      // Aplicar las conexiones del flujo optimizado (antes se descartaban)
+      const mappedFlows = aiFlows.map((f, i) => ({
+        bpmn_id: f.bpmn_id || `Flow_AI_${i}_${Date.now()}`,
+        source_ref: bpmnIdMap[f.source_ref] || f.source_ref,
+        target_ref: bpmnIdMap[f.target_ref] || f.target_ref,
+        name: f.name || "",
+        condition_expression: f.condition || null,
+      }));
+
       setTasks(mapped);
+      setSequenceFlows(mappedFlows);
+      setGateways([]); // gateways del flujo original ya no aplican
+
+      await apiFetch(`/processes/${processId}/graph`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gateways: [], sequence_flows: mappedFlows }),
+      });
+
       setSelectedId(mapped[0]?.id || null);
       setTab("detalle");
       setShowUndoBanner(true);
     } catch (e) {
-      alert("No se pudo aplicar el flujo optimizado por completo.");
+      setSaveState({ status: "error", message: "No se pudo aplicar el flujo optimizado por completo." });
     } finally {
       setLoading(false);
     }
@@ -1776,43 +1814,64 @@ export default function App() {
 
   
   const handleApplyRecommendation = async (rec, markAsApplied) => {
-    setLoading(true);
-    const saved = await saveAutoSnapshot(`Antes de aplicar: ${rec.title}`);
-    if (!saved) {
-      setLoading(false);
-      return;
-    }
-    setLoading(false);
-
     const tBpmnId = rec.target_node_bpmn_id;
     const task = tasks.find(t => t.bpmnId === tBpmnId || t.id.toString() === tBpmnId);
+    const processId = procRef.current?.id;
+    if (!processId) return;
 
     if (rec.action_type === 'ELIMINATE') {
-      if (task) {
-        await apiFetch(`/processes/${proc.id}/tasks/${task.id}`, { method: "DELETE" });
+      if (!task) return;
+      const ok = await confirm(
+        "Eliminar tarea",
+        `¿Eliminar "${task.name}" del flujo? Se intentará reconectar el paso anterior con el siguiente.`,
+        { danger: true, confirmLabel: "Eliminar" }
+      );
+      if (!ok) return;
+
+      setLoading(true);
+      const saved = await saveAutoSnapshot(`Antes de eliminar: ${task.name}`);
+      if (!saved) { setLoading(false); return; }
+
+      try {
+        await apiFetch(`/processes/${processId}/tasks/${task.id}`, { method: "DELETE" });
         setTasks(ts => ts.filter(t => t.id !== task.id));
-        const incoming = sequenceFlows.find(f => f.target_ref === tBpmnId);
-        const outgoing = sequenceFlows.find(f => f.source_ref === tBpmnId);
-        let newFlows = sequenceFlows.filter(f => f.source_ref !== tBpmnId && f.target_ref !== tBpmnId);
+
+        const currentFlows = sequenceFlowsRef.current;
+        const incoming = currentFlows.find(f => f.target_ref === tBpmnId);
+        const outgoing = currentFlows.find(f => f.source_ref === tBpmnId);
+        let newFlows = currentFlows.filter(f => f.source_ref !== tBpmnId && f.target_ref !== tBpmnId);
         if (incoming && outgoing) {
-          newFlows.push({ id: `edge-${Date.now()}`, source_ref: incoming.source_ref, target_ref: outgoing.target_ref });
+          // Fix: usar bpmn_id, no id — el backend PUT /graph lo requiere
+          newFlows.push({
+            bpmn_id: `Flow_${Date.now()}`,
+            source_ref: incoming.source_ref,
+            target_ref: outgoing.target_ref,
+            name: "",
+          });
         }
         setSequenceFlows(newFlows);
-        await apiFetch(`/processes/${proc.id}/graph`, {
+        await apiFetch(`/processes/${processId}/graph`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ gateways, sequence_flows: newFlows })
         });
         markAsApplied();
+        setShowUndoBanner(true);
+      } catch (e) {
+        setSaveState({ status: "error", message: "No se pudo eliminar la tarea." });
+      } finally {
+        setLoading(false);
       }
+
     } else if (rec.action_type === 'MERGE') {
-      setMergeData({ rec, markAsApplied });
+      // MERGE requiere decisión del usuario: mostrar guía, no ejecutar ciegamente
+      setAiTip({ rec, markAsApplied });
+      if (task) { setSelectedId(task.id); setTab("detalle"); if (isMobile) setMobileStep(3); }
+
     } else {
-      if (task) {
-        setSelectedId(task.id);
-        setTab("detalle");
-        if (isMobile) setMobileStep(3);
-        setAiTip({ rec, markAsApplied });
-      }
+      // AUTOMATE, SIMPLIFY, PARALLELIZE, REASSIGN, STANDARDIZE
+      // Son instrucciones cualitativas — guiar al usuario en el panel de detalle
+      if (task) { setSelectedId(task.id); setTab("detalle"); if (isMobile) setMobileStep(3); }
+      setAiTip({ rec, markAsApplied });
     }
   };
 
@@ -2113,6 +2172,41 @@ export default function App() {
                   </div>
                 )}
                 <div className="pa-panel-body">
+                  {tab === "detalle" && aiTip && selectedTask &&
+                    (selectedTask.bpmnId === aiTip.rec.target_node_bpmn_id || selectedTask.id.toString() === aiTip.rec.target_node_bpmn_id) && (
+                    <div style={{ marginBottom: 16, padding: '12px 14px', background: '#F0FAFA', border: '1px solid var(--teal)', borderRadius: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--teal)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                            Recomendación IA — {ACTION[aiTip.rec.action_type]?.label || aiTip.rec.action_type}
+                          </div>
+                          <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--ink)' }}>{aiTip.rec.description}</p>
+                          {aiTip.rec.expected_benefit && (
+                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Beneficio: {aiTip.rec.expected_benefit}</div>
+                          )}
+                          {aiTip.rec.action_type === 'MERGE' && (
+                            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                              Para fusionar: edita esta tarea incorporando las actividades de la tarea a eliminar, luego elimina esa tarea desde la lista.
+                            </div>
+                          )}
+                        </div>
+                        <button onClick={() => setAiTip(null)} aria-label="Descartar sugerencia"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2, flexShrink: 0 }}>
+                          <X size={15} />
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        <button className="pa-btn pa-btn-primary" style={{ fontSize: 12, padding: '5px 12px' }}
+                          onClick={() => { aiTip.markAsApplied(); setAiTip(null); }}>
+                          <Check size={13} /> Marcar como aplicada
+                        </button>
+                        <button className="pa-btn pa-btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }}
+                          onClick={() => setAiTip(null)}>
+                          Descartar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {tab === "detalle" ? (
                     selectedTask ? (
                       <Editor task={selectedTask} onChange={updateTask} onMove={moveTask} onDelete={deleteTask}

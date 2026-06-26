@@ -660,9 +660,15 @@ function Optimization({ state, onRun, onApply, onApplyRecommendation, tasks }) {
           )}
 
           {d.optimized_flow?.applies && !!(d.optimized_flow.nodes || d.optimized_flow.steps || []).length && (
-            <button className="pa-btn pa-btn-ghost full" onClick={() => onApply(d.optimized_flow.nodes || d.optimized_flow.steps)}>
-              <ArrowRight size={16} /> Aplicar flujo optimizado al diagrama
-            </button>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8, padding: '8px 12px', background: '#FFF8EC', borderRadius: 8, border: '1px solid #F0C040' }}>
+                <strong>⚠ Atención:</strong> Esta acción reemplaza todas las tareas actuales con las {(d.optimized_flow.nodes || d.optimized_flow.steps).length} propuestas por la IA.
+                Los datos de RACI y sistemas deberán reasignarse en el nuevo flujo. Se guarda una versión de respaldo automáticamente.
+              </div>
+              <button className="pa-btn pa-btn-ghost full" onClick={() => onApply(d.optimized_flow)}>
+                <ArrowRight size={16} /> Aplicar flujo optimizado al diagrama
+              </button>
+            </div>
           )}
         </div>
       )}
