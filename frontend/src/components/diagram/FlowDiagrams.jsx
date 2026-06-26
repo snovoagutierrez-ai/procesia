@@ -199,7 +199,7 @@ function getLayoutedElements(rfNodes, rfEdges, direction = "LR") {
   return { nodes: layouted, edges: rfEdges };
 }
 
-function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onEdgesDelete) {
+function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete) {
   const rfNodes = [];
   const rfEdges = [];
 
@@ -215,7 +215,6 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         valueClass: t.valueClass,
         cycleTime: t.cycleTime,
         waitTime: t.waitTime,
-        selected: t.id === selectedId,
         onSelect,
       },
       position: { x: 0, y: 0 },
@@ -231,7 +230,6 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         label: gw.name,
         gatewayType: gw.gateway_type,
         gatewayId: gw.bpmn_id,
-        selected: gw.bpmn_id === selectedId,
         onSelect,
       },
       position: { x: 0, y: 0 },
@@ -300,17 +298,25 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   );
 
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
-    () => buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onEdgesDelete),
-    [proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onEdgesDelete]
+    () => buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete),
+    [proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete]
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(layoutedNodes);
+  const nodesWithSelection = useMemo(
+    () => layoutedNodes.map(n => ({
+      ...n,
+      selected: n.id === selectedId || n.data?.bpmnId === selectedId
+    })),
+    [layoutedNodes, selectedId]
+  );
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(nodesWithSelection);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutedEdges);
 
   useEffect(() => {
-    setNodes(layoutedNodes);
+    setNodes(nodesWithSelection);
     setEdges(layoutedEdges);
-  }, [layoutedNodes, layoutedEdges, setNodes, setEdges]);
+  }, [nodesWithSelection, layoutedEdges, setNodes, setEdges]);
 
   const onConnect = useCallback(
     (params) => {

@@ -1,9 +1,23 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload, joinedload
 from app import models, schemas
 from decimal import Decimal
 
 def calculate_process_metrics(db: Session, process_id: int) -> schemas.ProcessMetricsResponse:
-    process = db.query(models.Process).filter(models.Process.id == process_id).first()
+    process = (
+        db.query(models.Process)
+        .options(
+            selectinload(models.Process.activities)
+            .selectinload(models.Activity.tasks)
+            .selectinload(models.Task.raci)
+            .selectinload(models.TaskRaci.role),
+            selectinload(models.Process.activities)
+            .selectinload(models.Activity.tasks)
+            .selectinload(models.Task.systems)
+            .selectinload(models.TaskSystem.system),
+        )
+        .filter(models.Process.id == process_id)
+        .first()
+    )
     if not process:
         raise ValueError(f"Process {process_id} not found")
 
@@ -58,6 +72,7 @@ def calculate_process_metrics(db: Session, process_id: int) -> schemas.ProcessMe
     total_cost = 0.0
     nva_cost = 0.0
     
+    # N+1 mitigado con selectinload en el caller — ver eager loading arriba
     for i, t in enumerate(tasks):
         # Systems
         task_sys = [ts.system for ts in t.systems if ts.system]

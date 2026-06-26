@@ -8,6 +8,35 @@
   --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace;
   font-family:var(--body); color:var(--text); background:var(--paper);
   min-height:100vh; -webkit-font-smoothing:antialiased;
+
+  /* Semantic colors */
+  --success: #1FA463;
+  --warning: #C98A12;
+  --danger: #D9503C;
+  --neutral: #8C8C8C;
+  --surface-teal: #F6FAFA;
+  --border-teal: #DCECEC;
+
+  /* Z-index scale */
+  --z-base: 1;
+  --z-sticky: 5;
+  --z-dropdown: 100;
+  --z-overlay: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+
+  /* Border radius scale */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Typography scale */
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
 }
 .pa-root *{box-sizing:border-box}
 .mono{font-family:var(--mono)}
@@ -17,7 +46,7 @@ button{font-family:inherit}
 @media (prefers-reduced-motion:reduce){.spin{animation:none}}
 
 /* ---- topbar ---- */
-.pa-topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;
+.pa-topbar{position:sticky;top:0;z-index:var(--z-sticky);display:flex;align-items:center;justify-content:space-between;
   gap:16px;padding:12px 20px;background:var(--ink);border-bottom:1px solid var(--line-ink)}
 .pa-brand{display:flex;align-items:center;gap:11px}
 .pa-brand-name{font-family:var(--disp);font-weight:700;font-size:19px;color:var(--inv);letter-spacing:-.01em;line-height:1}
@@ -72,6 +101,7 @@ button{font-family:inherit}
 /* ---- shell ---- */
 .pa-shell{display:grid;grid-template-columns:296px 1fr;gap:18px;padding:18px;max-width:1320px;margin:0 auto;align-items:start}
 @media (max-width:880px){.pa-shell{grid-template-columns:1fr;padding:12px;gap:12px}}
+@media (min-width:769px) and (max-width:880px){.pa-mobile-nav{display:flex}}
 @media (max-width:768px){.pa-shell{display:flex;flex-direction:column-reverse;padding:12px;gap:16px}}
 
 /* ---- sidebar ---- */
@@ -141,7 +171,7 @@ button{font-family:inherit}
 .pa-metric>b{font-size:18px;font-weight:600}
 .pa-metric.wide{justify-content:center}
 .pa-effbar{height:8px;background:#EBF0EC;border-radius:6px;overflow:hidden}
-.pa-effbar i{display:block;height:100%;background:linear-gradient(90deg,#1FA463,#2CC07A);border-radius:6px;transition:width .3s}
+.pa-effbar i{display:block;height:100%;background:linear-gradient(90deg,var(--success),#2CC07A);border-radius:6px;transition:width .3s}
 
 /* ---- panel ---- */
 .pa-panel{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
@@ -199,7 +229,7 @@ textarea.pa-input{resize:vertical;line-height:1.45}
 .pa-meta{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
 .pa-badge{color:#fff;font-size:10.5px;font-weight:700;border-radius:20px;padding:2px 9px;letter-spacing:.03em}
 .pa-chip{border:1.4px solid;border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:700;letter-spacing:.02em}
-.pa-save{margin-left:auto;font-size:11.5px;font-weight:700;color:#1FA463;font-family:var(--mono)}
+.pa-save{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--success);font-family:var(--mono)}
 
 .pa-alert{display:flex;gap:10px;background:#FCF3E8;border:1px solid #F0D6AE;border-radius:10px;padding:12px 13px;color:#7A5A12;font-size:13px;line-height:1.5}
 .pa-alert svg{flex:0 0 auto;margin-top:1px;color:#C98A12}
@@ -231,6 +261,54 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
   .react-flow__handle { width: 32px !important; height: 32px !important; border-width: 2px !important; }
 }
 
+/* ---- editor layout (viewport shell) ---- */
+/* html/body overflow is locked via JS in AiProces.jsx when view=editor */
+.pa-editor-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Topbar inside editor: full-width, no sticky needed (page scroll is locked) */
+.pa-editor-layout > .pa-topbar {
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+
+/* Inner content wrapper — aligns nav items with shell content */
+.pa-editor-topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1320px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Shell is the one scroll container for the editor */
+.pa-editor-layout > .pa-shell {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Sidebar sticks relative to pa-shell scroll (top:0 = top of the scroll viewport) */
+.pa-editor-layout .pa-side {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 56px);
+}
+
 /* ---- onboarding guide ---- */
 @keyframes pa-bounce {
   0%, 100% { transform: translateY(0); }
@@ -249,4 +327,21 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
   box-shadow: 0 0 0 4px rgba(14, 159, 159, 0.2);
   padding: 4px;
   transition: all 0.3s ease;
+}
+
+@keyframes pa-fade-in {
+  from { opacity: 0; transform: scale(0.97) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border-width: 0;
 }

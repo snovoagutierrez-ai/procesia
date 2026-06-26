@@ -36,10 +36,13 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const filteredProcesses = processes.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) || 
-    p.code.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredProcesses = processes.filter(p => {
+    const searchLower = search.toLowerCase();
+    return (
+      (p.name || '').toLowerCase().includes(searchLower) ||
+      (p.code || '').toLowerCase().includes(searchLower)
+    );
+  });
 
   if (macroprocesses.length === 0 && processes.length === 0) {
     return (
@@ -114,11 +117,11 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
         </div>
       </div>
       
-      <div className="pa-tabs" style={{ marginBottom: '24px', borderBottom: '1px solid var(--line)' }}>
-        <button className={dashTab === "jerarquia" ? "on" : ""} onClick={() => setDashTab("jerarquia")}>
+      <div className="pa-tabs" role="tablist" style={{ marginBottom: '24px', borderBottom: '1px solid var(--line)' }}>
+        <button role="tab" aria-selected={dashTab === "jerarquia"} className={dashTab === "jerarquia" ? "on" : ""} onClick={() => setDashTab("jerarquia")}>
           <FolderOpen size={16} /> Vista Jerárquica
         </button>
-        <button className={dashTab === "unitaria" ? "on" : ""} onClick={() => setDashTab("unitaria")}>
+        <button role="tab" aria-selected={dashTab === "unitaria"} className={dashTab === "unitaria" ? "on" : ""} onClick={() => setDashTab("unitaria")}>
           <FileText size={16} /> Biblioteca Unitaria
         </button>
       </div>

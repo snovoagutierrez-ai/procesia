@@ -187,7 +187,7 @@ def ask_task_assistant(text: str, context: dict) -> dict:
     http_opts = None
     if not settings.gemini_ssl_verify and os.environ.get("ENVIRONMENT", "development") != "production":
         import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # Removido: suprimía warnings globalmente
         http_opts = types.HttpOptions(httpx_client=httpx.Client(verify=False))
 
     client = genai.Client(api_key=settings.gemini_api_key, http_options=http_opts)
@@ -267,8 +267,8 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
     # Only allow bypassing SSL in non-production environments
     if not settings.gemini_ssl_verify and os.environ.get("ENVIRONMENT", "development") != "production":
         import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        
+        # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # Removido: suprimía warnings globalmente
+
         h_client = httpx.Client(verify=False)
         http_opts = types.HttpOptions(httpx_client=h_client)
 
@@ -308,8 +308,9 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
 
         
     except (json.JSONDecodeError, ValidationError, Exception) as first_err:
-        print(f"First attempt failed: {first_err}. Waiting 10 seconds for rate limits before retrying...")
-        time.sleep(10)
+        print(f"First attempt failed: {first_err}. Waiting 2 seconds for rate limits before retrying...")
+        # TODO: migrar a asyncio.sleep cuando el endpoint sea async
+        time.sleep(2)
 
         # Attempt retry exactly once
         try:
@@ -518,7 +519,7 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
     http_opts = None
     if not settings.gemini_ssl_verify and os.environ.get("ENVIRONMENT", "development") != "production":
         import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # Removido: suprimía warnings globalmente
         h_client = httpx.Client(verify=False)
         http_opts = types.HttpOptions(httpx_client=h_client)
 
@@ -547,8 +548,9 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
         validated_result = schemas.MacroOptimizationResult.model_validate(parsed_json).model_dump()
 
     except (json.JSONDecodeError, ValidationError, Exception) as first_err:
-        print(f"First attempt failed in Macro Optimization: {first_err}. Waiting 10 seconds for rate limits before retrying...")
-        time.sleep(10)
+        print(f"First attempt failed in Macro Optimization: {first_err}. Waiting 2 seconds for rate limits before retrying...")
+        # TODO: migrar a asyncio.sleep cuando el endpoint sea async
+        time.sleep(2)
         
         try:
             retry_prompt = f"El JSON anterior falló en validación Pydantic o parseo por: {str(first_err)}. Corrige y devuelve un JSON válido de MacroOptimizationResult según el esquema original.\n\nJSON CON ERRORES:\n{raw_response_text}"
@@ -590,12 +592,12 @@ def tutorial_chat(message: str) -> str:
     http_opts = None
     if not settings.gemini_ssl_verify and os.environ.get("ENVIRONMENT", "development") != "production":
         import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # Removido: suprimía warnings globalmente
         h_client = httpx.Client(verify=False)
         http_opts = types.HttpOptions(httpx_client=h_client)
 
     client = genai.Client(api_key=settings.gemini_api_key, http_options=http_opts)
-    
+
     system_prompt = (
         "Eres el asistente amigable de AiProces. Tu objetivo es ayudar a los usuarios a entender la plataforma. "
         "Responde de forma MUY breve (1-3 oraciones), directa y con tono motivador. "

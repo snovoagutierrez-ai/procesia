@@ -81,10 +81,9 @@ const nodeTypes = {
 };
 
 /* ---------- Dagre layout ---------- */
-const dagreGraph = new dagre.graphlib.Graph();
-dagreGraph.setDefaultEdgeLabel(() => ({}));
-
 const getLayoutedElements = (nodes, edges) => {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
   dagreGraph.setGraph({ rankdir: "LR", ranksep: 100, nodesep: 60 });
 
   nodes.forEach((node) => {

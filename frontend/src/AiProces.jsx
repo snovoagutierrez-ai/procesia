@@ -17,6 +17,7 @@ import {
   RefreshCw, TrendingUp
 } from "lucide-react";
 import { useAuth } from './components/auth/AuthContext.jsx';
+import { useConfirm, useInputDialog } from './components/shared/ConfirmDialog.jsx';
 import MacroprocessDiagram from "./components/diagram/MacroprocessDiagram.jsx";
 import Logo from "./components/shared/Logo.jsx";
 import Dashboard from "./components/dashboard/Dashboard.jsx";
@@ -1021,6 +1022,9 @@ export default function App() {
   const [mobileStep, setMobileStep] = useState(1);
   const [showTutorial, setShowTutorial] = useState(false);
 
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const { showInput, inputDialog } = useInputDialog();
+
   useEffect(() => {
     const tutorialSeen = localStorage.getItem('aiproces_tutorial_seen');
     if (!tutorialSeen) {
@@ -1039,7 +1043,7 @@ export default function App() {
       const dismissed = localStorage.getItem(`first_steps_${proc.id}`);
       if (!dismissed) {
         setFirstStepsActive(true);
-        if (tasks.length === 0) setGuideStep(1);
+        setGuideStep(1);
       }
     }
   }, [proc]);
@@ -1050,8 +1054,41 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Lock page scroll when in editor mode so pa-shell handles it internally
+  useEffect(() => {
+    if (view === 'editor') {
+      document.documentElement.style.overflow = 'hidden';
+      document.documentElement.style.height = '100%';
+      document.body.style.overflow = 'hidden';
+      document.body.style.height = '100%';
+    } else {
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.height = '';
+      document.body.style.overflow = '';
+      document.body.style.height = '';
+    }
+    return () => {
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.height = '';
+      document.body.style.overflow = '';
+      document.body.style.height = '';
+    };
+  }, [view]);
+
   const debounceTimeoutRef = useRef(null);
   const updateTaskTimeoutRefs = useRef({});
+
+  const procRef = useRef(proc);
+  useEffect(() => { procRef.current = proc; }, [proc]);
+
+  const sequenceFlowsRef = useRef(sequenceFlows);
+  useEffect(() => { sequenceFlowsRef.current = sequenceFlows; }, [sequenceFlows]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+    };
+  }, []);
 
   const flushAllSaves = async () => {
     const promises = [];
@@ -1088,14 +1125,6 @@ export default function App() {
     loadProcesses();
   };
 
-  // Load fonts
-  useEffect(() => {
-    const l = document.createElement("link");
-    l.rel = "stylesheet";
-    l.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap";
-    document.head.appendChild(l);
-    return () => { try { document.head.removeChild(l); } catch (e) {} };
-  }, []);
 
   // Load all processes on mount
   useEffect(() => { loadProcesses(); }, []);
@@ -1240,7 +1269,7 @@ export default function App() {
   };
 
   const createNewMacroprocess = async () => {
-    const name = prompt("Nombre del nuevo macroproceso:");
+    const name = await showInput("Nuevo macroproceso", { placeholder: "Nombre del macroproceso", confirmLabel: "Crear" });
     if (!name) return;
     try {
       const code = "MAC-" + Math.random().toString(36).slice(2, 5).toUpperCase();
@@ -1256,7 +1285,8 @@ export default function App() {
   };
 
   const deleteMacroprocess = async (id) => {
-    if (!confirm("¿Eliminar este macroproceso y TODOS los procesos dentro de él?")) return;
+    const ok = await confirm("Eliminar macroproceso", "¿Eliminar este macroproceso y TODOS los procesos dentro de él? Esta acción no se puede deshacer.", { danger: true, confirmLabel: "Eliminar" });
+    if (!ok) return;
     try {
       await apiFetch(`/macroprocesses/${id}`, { method: "DELETE" });
       setMacroprocesses((prev) => prev.filter((m) => m.id !== id));
@@ -1267,7 +1297,8 @@ export default function App() {
   };
 
   const deleteProcess = async (id) => {
-    if (!confirm("¿Eliminar este proceso y todas sus tareas?")) return;
+    const ok = await confirm("Eliminar proceso", "¿Eliminar este proceso y todas sus tareas? Esta acción no se puede deshacer.", { danger: true, confirmLabel: "Eliminar" });
+    if (!ok) return;
     try {
       await apiFetch(`/processes/${id}`, { method: "DELETE" });
       setAllProcesses((prev) => prev.filter((p) => p.id !== id));
@@ -1317,10 +1348,11 @@ export default function App() {
       
       setSaveState({ status: 'saving' });
       updateTaskTimeoutRefs.current[id] = setTimeout(async () => {
+        if (!procRef.current?.id) return;
         const t = updatedTasks.find((x) => x.id === id);
         if (!t) return;
         try {
-          await apiFetch(`/processes/${proc.id}/tasks/${id}`, {
+          await apiFetch(`/processes/${procRef.current.id}/tasks/${id}`, {
             method: "PUT", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               bpmn_id: t.bpmnId, name: t.name, description: t.description || "",
@@ -1331,7 +1363,7 @@ export default function App() {
               consulted: t.consulted, informed: t.informed, systems: t.systems,
             }),
           });
-          await loadMetrics(proc.id);
+          await loadMetrics(procRef.current.id);
           setSaveState({ status: 'saved' });
           setTimeout(() => setSaveState(s => s.status === 'saved' ? { status: 'idle' } : s), 2000);
         } catch (e) {
@@ -1398,9 +1430,9 @@ export default function App() {
       setSaveState({ status: 'saving' });
       updateTaskTimeoutRefs.current[id] = setTimeout(async () => {
         try {
-          await apiFetch(`/processes/${proc.id}/graph`, {
+          await apiFetch(`/processes/${procRef.current?.id}/graph`, {
             method: "PUT", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ gateways: updated, sequence_flows: sequenceFlows })
+            body: JSON.stringify({ gateways: updated, sequence_flows: sequenceFlowsRef.current })
           });
           setSaveState({ status: 'saved' });
           setTimeout(() => setSaveState(s => s.status === 'saved' ? { status: 'idle' } : s), 2000);
@@ -1552,6 +1584,7 @@ export default function App() {
   };
 
   const saveAutoSnapshot = async (label) => {
+    if (!proc?.id) return false;
     try {
       const snapshot_json = {
         label: label,
@@ -1679,7 +1712,7 @@ export default function App() {
     setMacroLongLoading(prev => ({ ...prev, [mId]: false }));
     const t = setTimeout(() => setMacroLongLoading(prev => ({ ...prev, [mId]: true })), 2500);
     try {
-      const res = await apiFetch(`/macroprocesses/${mId}/optimize`, { method: "POST", headers: { Authorization: `Bearer ${user.token}` } });
+      const res = await apiFetch(`/macroprocesses/${mId}/optimize`, { method: "POST" });
       clearTimeout(t);
       setMacroLongLoading(prev => ({ ...prev, [mId]: false }));
       if (!res.ok) {
@@ -1813,6 +1846,8 @@ export default function App() {
   return (
     <div className="pa-root">
       <WelcomeModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
+      {confirmDialog}
+      {inputDialog}
       {firstStepsActive && <GuideTicket step={guideStep} onStep={setGuideStep} onDismiss={dismissGuide} />}
       <SnapshotsModal 
         isOpen={snapshotsModalOpen} 
@@ -1878,41 +1913,43 @@ export default function App() {
         />
       ) : proc ? (
         <div className="pa-editor-layout">
-          <div className="pa-topbar" style={{ maxWidth: '1320px', margin: '0 auto', width: '100%' }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button className="pa-btn pa-btn-ghost" style={{ padding: '6px' }} onClick={goBackToDashboard} aria-label="Volver"><ArrowLeft size={16} /></button>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)' }}>
-                <span 
-                  style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500 }} 
-                  onClick={goBackToDashboard}
-                >
-                  Mis procesos
-                </span>
-                <span style={{ opacity: 0.5 }}>/</span>
-                <span 
-                  style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500 }} 
-                  onClick={goBackToDashboard}
-                >
-                  {macroprocesses.find(m => m.id === proc.macroprocess_id)?.name || "General"}
-                </span>
-                <span style={{ opacity: 0.5 }}>/</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <h2 style={{ margin: 0, fontSize: 16, color: 'var(--inv)' }}>{proc.name}</h2>
-                  <span className="pa-tag" style={{ margin: 0, color: 'var(--ink)' }}>{proc.code}</span>
+          <div className="pa-topbar">
+            <div className="pa-editor-topbar-inner">
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <button className="pa-btn pa-btn-ghost" style={{ padding: '6px' }} onClick={goBackToDashboard} aria-label="Volver"><ArrowLeft size={16} /></button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)' }}>
+                  <span
+                    style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500 }}
+                    onClick={goBackToDashboard}
+                  >
+                    Mis procesos
+                  </span>
+                  <span style={{ opacity: 0.5 }}>/</span>
+                  <span
+                    style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500 }}
+                    onClick={goBackToDashboard}
+                  >
+                    {macroprocesses.find(m => m.id === proc.macroprocess_id)?.name || "General"}
+                  </span>
+                  <span style={{ opacity: 0.5 }}>/</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <h2 style={{ margin: 0, fontSize: 16, color: 'var(--inv)' }}>{proc.name}</h2>
+                    <span className="pa-tag" style={{ margin: 0, color: 'var(--ink)' }}>{proc.code}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="pa-btn pa-btn-ghost" title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }}>
-                <Lightbulb size={16} /> Guía
-              </button>
-              <button className="pa-btn pa-btn-ghost" onClick={() => setSnapshotsModalOpen(true)}>
-                <Clock size={16} /> Versiones
-              </button>
-              <button className="pa-btn pa-btn-ghost" onClick={exportBpmn}>
-                <Download size={16} /> .bpmn
-              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="pa-btn pa-btn-ghost" title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }}>
+                  <Lightbulb size={16} /> Guía
+                </button>
+                <button className="pa-btn pa-btn-ghost" onClick={() => setSnapshotsModalOpen(true)}>
+                  <Clock size={16} /> Versiones
+                </button>
+                <button className="pa-btn pa-btn-ghost" onClick={exportBpmn}>
+                  <Download size={16} /> .bpmn
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1973,7 +2010,7 @@ export default function App() {
                          })}
                          {gateways.map(g => <option key={g.bpmn_id} value={g.bpmn_id}>Hacia {g.name}</option>)}
                       </select>
-                      <button onClick={(e) => { e.stopPropagation(); if (window.confirm("\u00bfEliminar esta tarea?")) deleteTask(t.id); }} title="Eliminar tarea" aria-label="Eliminar tarea" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
+                      <button onClick={async (e) => { e.stopPropagation(); const ok = await confirm("Eliminar tarea", `\u00bfEliminar "${t.name}"?`, { danger: true }); if (ok) deleteTask(t.id); }} title="Eliminar tarea" aria-label="Eliminar tarea" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
                     </div>
                   ))}
                 </div>
@@ -2002,7 +2039,7 @@ export default function App() {
                              })}
                              {gateways.filter(gx => gx.bpmn_id !== g.bpmn_id).map(gx => <option key={gx.bpmn_id} value={gx.bpmn_id}>Hacia {gx.name}</option>)}
                           </select>
-                          <button onClick={(e) => { e.stopPropagation(); if (window.confirm("\u00bfEliminar esta compuerta?")) deleteGateway(g.bpmn_id); }} title="Eliminar compuerta" aria-label="Eliminar compuerta" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
+                          <button onClick={async (e) => { e.stopPropagation(); const ok = await confirm("Eliminar compuerta", `\u00bfEliminar "${g.name || 'esta compuerta'}"?`, { danger: true }); if (ok) deleteGateway(g.bpmn_id); }} title="Eliminar compuerta" aria-label="Eliminar compuerta" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
                         </div>
                       ))}
                     </div>

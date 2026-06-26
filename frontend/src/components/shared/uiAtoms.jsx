@@ -51,7 +51,8 @@ export function Field({ label, tooltip, children }) {
             type="button"
             className="pa-icon pa-tooltip-btn"
             onClick={(e) => { e.preventDefault(); setOpen(!open); }}
-            aria-label="Ayuda"
+            aria-label="Más información"
+            aria-expanded={open}
             style={{
               background: 'none', border: 'none', padding: 0, margin: 0,
               color: '#0E9F9F', cursor: 'pointer', outline: 'none', display: 'inline-flex'

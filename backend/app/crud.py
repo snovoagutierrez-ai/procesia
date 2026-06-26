@@ -500,7 +500,7 @@ def update_task_direct(db: Session, db_task: models.Task, task_in: schemas.TaskU
         for r in db_task.raci:
             role = db.query(models.Role).filter(models.Role.id == r.role_id).first()
             if role:
-                existing_raci[r.raci_type] = role.name
+                existing_raci[r.raci_type.value] = role.name
         resp = task_in.responsible if task_in.responsible is not None else existing_raci['R']
         acc  = task_in.accountable if task_in.accountable is not None else existing_raci['A']
         cons = task_in.consulted   if task_in.consulted   is not None else existing_raci['C']
@@ -522,7 +522,7 @@ def _update_task_raci_direct(db: Session, task_id: int, R: str, A: str, C: str, 
     raci_map = {'R': R, 'A': A, 'C': C, 'I': I}
     for rtype, name in raci_map.items():
         if name and name.strip():
-            name_clean = name.strip()
+            name_clean = name.strip().title()
             # Find or create role
             role = db.query(models.Role).filter(models.Role.name == name_clean).first()
             if not role:

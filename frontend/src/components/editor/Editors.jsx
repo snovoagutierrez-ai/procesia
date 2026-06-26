@@ -267,6 +267,8 @@ function TaskAssistant({ task, onChange }) {
       if (res.ok) {
         const data = await res.json();
         setResponse(data);
+      } else {
+        setResponse({ error: true, message: "Error al consultar el asistente. Intenta de nuevo." });
       }
     } catch (e) {
       console.error(e);
@@ -335,11 +337,17 @@ function TaskAssistant({ task, onChange }) {
 
           {response && (
             <div style={{ background: '#fff', border: '1px solid #E2E7E3', padding: '12px', borderRadius: '6px', fontSize: '13px', marginTop: '12px' }}>
-              <p style={{ margin: '0 0 12px 0', lineHeight: 1.5 }}>{response.reply}</p>
-              {response.suggestions && Object.keys(response.suggestions).length > 0 && (
-                <button className="pa-btn pa-btn-primary" onClick={handleApply} style={{ width: '100%', justifyContent: 'center', marginTop: '12px' }}>
-                  <Check size={16} /> Aplicar sugerencias
-                </button>
+              {response.error ? (
+                <p style={{ margin: 0, lineHeight: 1.5, color: 'var(--danger)' }}>{response.message}</p>
+              ) : (
+                <>
+                  <p style={{ margin: '0 0 12px 0', lineHeight: 1.5 }}>{response.reply}</p>
+                  {response.suggestions && Object.keys(response.suggestions).length > 0 && (
+                    <button className="pa-btn pa-btn-primary" onClick={handleApply} style={{ width: '100%', justifyContent: 'center', marginTop: '12px' }}>
+                      <Check size={16} /> Aplicar sugerencias
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -510,7 +518,7 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
 
 function Optimization({ state, onRun, onApply, onApplyRecommendation, tasks }) {
   const d = state.data;
-  const [appliedIndices, setAppliedIndices] = useState([]);
+  const [appliedIds, setAppliedIds] = useState(new Set());
   const incompleteTasks = tasks?.filter(t => !t.responsible || !t.valueClass || t.cycleTime === undefined);
   const isReady = tasks?.length > 0 && incompleteTasks?.length === 0;
   return (
@@ -614,24 +622,24 @@ function Optimization({ state, onRun, onApply, onApplyRecommendation, tasks }) {
               {[...d.recommendations].sort((a, b) => (a.priority || 9) - (b.priority || 9)).map((r, i) => {
                 const ac = ACTION[r.action_type] || { label: r.action_type, color: "#0E9F9F" };
                 return (
-                  <div key={i} className="pa-card" style={{ opacity: appliedIndices.includes(i) ? 0.6 : 1 }}>
+                  <div key={i} className="pa-card" style={{ opacity: appliedIds.has(r.target_node_bpmn_id || r.title) ? 0.6 : 1 }}>
                     <div className="pa-card-top">
                       <span className="pa-chip" style={{ borderColor: ac.color, color: ac.color }}>{ac.label}</span>
                       {r.estimated_time_saving_pct ? <span className="pa-save">↓{Math.round(r.estimated_time_saving_pct)}% tiempo</span> : null}
                     </div>
                     <p>{r.description}</p>
                     <div className="pa-meta">Complejidad: {r.implementation_complexity || "—"}</div>
-                    
+
                     <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-                      <button 
-                        className="pa-btn pa-btn-primary" 
+                      <button
+                        className="pa-btn pa-btn-primary"
                         style={{ padding: '6px 12px', fontSize: 12 }}
-                        disabled={appliedIndices.includes(i)}
+                        disabled={appliedIds.has(r.target_node_bpmn_id || r.title)}
                         onClick={() => {
-                          if (onApplyRecommendation) onApplyRecommendation(r, () => setAppliedIndices([...appliedIndices, i]));
+                          if (onApplyRecommendation) onApplyRecommendation(r, () => setAppliedIds(prev => new Set([...prev, r.target_node_bpmn_id || r.title])));
                         }}
                       >
-                        {appliedIndices.includes(i) ? <><Check size={14} style={{ marginRight: 4 }} /> Aplicada</> : 'Aplicar recomendación'}
+                        {appliedIds.has(r.target_node_bpmn_id || r.title) ? <><Check size={14} style={{ marginRight: 4 }} /> Aplicada</> : 'Aplicar recomendación'}
                       </button>
                     </div>
                   </div>

@@ -55,10 +55,10 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestoreCo
 
   return (
     <div className="pa-modal-overlay">
-      <div className="pa-modal-content" style={{ maxWidth: 500 }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="snapshots-title" className="pa-modal-content" style={{ maxWidth: 500 }}>
         <div className="pa-modal-header">
-          <h2><Clock size={18} style={{ marginRight: 8, verticalAlign: 'text-bottom' }} /> Historial de Versiones</h2>
-          <button className="pa-btn-icon" onClick={onClose}><X size={18} /></button>
+          <h2 id="snapshots-title"><Clock size={18} style={{ marginRight: 8, verticalAlign: 'text-bottom' }} /> Historial de Versiones</h2>
+          <button className="pa-btn-icon" onClick={onClose} aria-label="Cerrar historial de versiones"><X size={18} /></button>
         </div>
         
         <div style={{ padding: 20 }}>
@@ -70,7 +70,7 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestoreCo
           {loading ? (
             <div style={{ textAlign: 'center', padding: 30, color: '#5C6B6B', fontSize: 13 }}>Cargando versiones...</div>
           ) : snapshots.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 30, color: '#5C6B6B', fontSize: 13 }}>No hay versiones guardadas para este proceso.</div>
+            <div style={{ textAlign: 'center', padding: 30, color: '#5C6B6B', fontSize: 13 }}>No hay versiones guardadas. Las versiones se crean automáticamente antes de cada optimización IA.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 400, overflowY: 'auto' }}>
               {snapshots.map(snap => {

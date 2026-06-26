@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List
@@ -88,7 +88,7 @@ def get_me(current_user: models.User = Depends(auth.get_current_user)):
 # ==========================================
 
 @router.get("/macroprocesses", response_model=List[schemas.MacroprocessResponse])
-def read_macroprocesses(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def read_macroprocesses(skip: int = 0, limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     user_id = None if current_user.role == models.UserRole.admin else current_user.id
     return crud.get_macroprocesses(db, skip=skip, limit=limit, user_id=user_id)
 
@@ -135,7 +135,7 @@ def optimize_macroprocess(request: Request, id: int, db: Session = Depends(get_d
         display_msg = error_msg if "2 procesos" in error_msg else "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos."
         
         raise HTTPException(
-            status_code=422, 
+            status_code=503,
             detail={
                 "message": display_msg,
                 "error": db_run.result
@@ -153,7 +153,7 @@ def task_assistant_endpoint(request: Request, data: schemas.TaskAssistantRequest
 # ==========================================
 
 @router.get("/processes", response_model=List[schemas.ProcessResponse])
-def read_processes(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def read_processes(skip: int = 0, limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     user_id = None if current_user.role == models.UserRole.admin else current_user.id
     return crud.get_processes(db, skip=skip, limit=limit, user_id=user_id)
 
@@ -194,7 +194,7 @@ def get_process_metrics(id: int, db: Session = Depends(get_db), current_user: mo
 # ==========================================
 
 @router.get("/activities", response_model=List[schemas.ActivityResponse])
-def read_activities(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def read_activities(skip: int = 0, limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     # Hard to filter globally, returning all is not great, but usually they are fetched via process
     if current_user.role == models.UserRole.admin:
         return crud.get_activities(db, skip=skip, limit=limit)
@@ -239,7 +239,7 @@ def delete_activity(id: int, db: Session = Depends(get_db), current_user: models
 # ==========================================
 
 @router.get("/tasks", response_model=List[schemas.TaskResponse])
-def read_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def read_tasks(skip: int = 0, limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.role == models.UserRole.admin:
         return crud.get_tasks(db, skip=skip, limit=limit)
     else:
@@ -290,7 +290,7 @@ def delete_task(id: int, db: Session = Depends(get_db), current_user: models.Use
 # We will protect them with authentication, but no owner_id check.
 
 @router.get("/roles", response_model=List[schemas.RoleResponse])
-def read_roles(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def read_roles(skip: int = 0, limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     return crud.get_roles(db, skip=skip, limit=limit)
 
 @router.get("/roles/{id}", response_model=schemas.RoleResponse)
@@ -306,6 +306,8 @@ def create_role(role: schemas.RoleCreate, db: Session = Depends(get_db), current
 
 @router.put("/roles/{id}", response_model=schemas.RoleResponse)
 def update_role(id: int, role: schemas.RoleUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    if current_user.role != models.UserRole.admin:
+        raise HTTPException(status_code=403, detail="Se requieren permisos de administrador")
     db_role = crud.get_role(db, id)
     if not db_role:
         raise HTTPException(status_code=404, detail="Role not found")
@@ -313,13 +315,15 @@ def update_role(id: int, role: schemas.RoleUpdate, db: Session = Depends(get_db)
 
 @router.delete("/roles/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_role(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    if current_user.role != models.UserRole.admin:
+        raise HTTPException(status_code=403, detail="Se requieren permisos de administrador")
     if not crud.delete_role(db, id):
         raise HTTPException(status_code=404, detail="Role not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/systems", response_model=List[schemas.SystemResponse])
-def read_systems(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def read_systems(skip: int = 0, limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     return crud.get_systems(db, skip=skip, limit=limit)
 
 @router.get("/systems/{id}", response_model=schemas.SystemResponse)
@@ -335,6 +339,8 @@ def create_system(system: schemas.SystemCreate, db: Session = Depends(get_db), c
 
 @router.put("/systems/{id}", response_model=schemas.SystemResponse)
 def update_system(id: int, system: schemas.SystemUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    if current_user.role != models.UserRole.admin:
+        raise HTTPException(status_code=403, detail="Se requieren permisos de administrador")
     db_system = crud.get_system(db, id)
     if not db_system:
         raise HTTPException(status_code=404, detail="System not found")
@@ -342,6 +348,8 @@ def update_system(id: int, system: schemas.SystemUpdate, db: Session = Depends(g
 
 @router.delete("/systems/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_system(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    if current_user.role != models.UserRole.admin:
+        raise HTTPException(status_code=403, detail="Se requieren permisos de administrador")
     if not crud.delete_system(db, id):
         raise HTTPException(status_code=404, detail="System not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -353,7 +361,7 @@ def delete_system(id: int, db: Session = Depends(get_db), current_user: models.U
 # They require modifying a task, so we check process ownership.
 
 @router.get("/task-racis", response_model=List[schemas.TaskRaciResponse])
-def read_task_racis(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def read_task_racis(skip: int = 0, limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.role == models.UserRole.admin:
         return crud.get_task_racis(db, skip=skip, limit=limit)
     else:
@@ -378,7 +386,7 @@ def delete_task_raci(task_id: int, role_id: int, raci_type: models.RaciType, db:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.get("/task-systems", response_model=List[schemas.TaskSystemResponse])
-def read_task_systems(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def read_task_systems(skip: int = 0, limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.role == models.UserRole.admin:
         return crud.get_task_systems(db, skip=skip, limit=limit)
     else:
@@ -421,13 +429,13 @@ def optimize_process(request: Request, id: int, db: Session = Depends(get_db), c
         display_msg = error_msg if error_msg else "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos."
         
         raise HTTPException(
-            status_code=422, 
+            status_code=503,
             detail={
                 "message": display_msg,
                 "error": db_run.result
             }
         )
-        
+
     return db_run.result
 
 # ==========================================
@@ -466,10 +474,7 @@ def read_process_tasks(process_id: int, db: Session = Depends(get_db), current_u
         models.Activity.name == "General"
     ).first()
     if not default_act:
-        default_act = models.Activity(process_id=process_id, name="General", position_order=1)
-        db.add(default_act)
-        db.commit()
-        db.refresh(default_act)
+        return []
 
     tasks = db.query(models.Task).filter(
         models.Task.activity_id == default_act.id
@@ -543,7 +548,8 @@ def sync_graph(id: int, graph_data: schemas.GraphSync, db: Session = Depends(get
 
 @router.post("/tutorial-chat")
 @limiter.limit("5/minute")
-def tutorial_chat_endpoint(request: Request, chat_request: schemas.ChatRequest):
+def tutorial_chat_endpoint(request: Request, chat_request: schemas.ChatRequest,
+        current_user: models.User = Depends(auth.get_current_user)):
     from app.gemini import tutorial_chat
     reply = tutorial_chat(chat_request.message)
     return {"reply": reply}
@@ -552,7 +558,7 @@ def tutorial_chat_endpoint(request: Request, chat_request: schemas.ChatRequest):
 # 10. Process Snapshots Endpoints
 # ==========================================
 
-@router.post("/processes/{id}/snapshots", response_model=schemas.ProcessSnapshotOut)
+@router.post("/processes/{id}/snapshots", response_model=schemas.ProcessSnapshotOut, status_code=status.HTTP_201_CREATED)
 def create_process_snapshot(id: int, snapshot_data: schemas.ProcessSnapshotCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     process = db.query(models.Process).filter(models.Process.id == id).first()
     if not process:

@@ -26,12 +26,12 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
 # Determinar regex base (vercel previews + localhost)
-cors_regex = r"^https://aiproces.*\.vercel\.app$|^http://(localhost|127\.0\.0\.1)(:\d+)?$"
+cors_regex = r"^https://aiproces(-[a-z0-9]+)?\.vercel\.app$|^http://(localhost|127\.0\.0\.1)(:\d+)?$"
 
 # Expandir para redes locales solo en desarrollo
 is_production = os.environ.get("ENV", "development").lower() == "production" or os.environ.get("RENDER") == "true"
 if not is_production:
-    cors_regex = r"^https://aiproces.*\.vercel\.app$|^http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$"
+    cors_regex = r"^https://aiproces(-[a-z0-9]+)?\.vercel\.app$|^http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$"
 
 # Configurar middleware de CORS
 app.add_middleware(
@@ -52,6 +52,8 @@ async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Security-Policy"] = "frame-ancestors 'none'"
     return response
 
 # Global Exception Handler (To prevent leaking stacktraces)

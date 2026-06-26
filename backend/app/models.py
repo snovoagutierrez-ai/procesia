@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy import (
-    Column, BigInteger, String, Text, Integer, Numeric, DateTime, ForeignKey, 
+    Column, BigInteger, String, Text, Integer, Numeric, DateTime, ForeignKey, Boolean,
     CheckConstraint, UniqueConstraint, func
 )
 from sqlalchemy.orm import relationship
@@ -66,7 +66,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     role = Column(ENUM(UserRole, name='user_role'), nullable=False, server_default='user')
-    is_active = Column(Integer, server_default='1')
+    is_active = Column(Boolean, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     macroprocesses = relationship("Macroprocess", back_populates="owner")
@@ -93,8 +93,8 @@ class Process(Base):
     __tablename__ = 'processes'
 
     id = Column(BigInteger, primary_key=True)
-    owner_id = Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    macroprocess_id = Column(BigInteger, ForeignKey('macroprocesses.id', ondelete='CASCADE'), nullable=False)
+    owner_id = Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    macroprocess_id = Column(BigInteger, ForeignKey('macroprocesses.id', ondelete='CASCADE'), nullable=False, index=True)
     code = Column(String(40), unique=True, nullable=False)
     name = Column(String(200), nullable=False)
     objective = Column(Text)
@@ -115,7 +115,7 @@ class ProcessSnapshot(Base):
     __tablename__ = 'process_snapshots'
 
     id = Column(BigInteger, primary_key=True)
-    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False, index=True)
     snapshot_json = Column(JSONB, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -126,7 +126,7 @@ class Activity(Base):
     __tablename__ = 'activities'
 
     id = Column(BigInteger, primary_key=True)
-    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False, index=True)
     name = Column(String(200), nullable=False)
     position_order = Column(Integer, nullable=False)
 
@@ -138,7 +138,7 @@ class Task(Base):
     __tablename__ = 'tasks'
 
     id = Column(BigInteger, primary_key=True)
-    activity_id = Column(BigInteger, ForeignKey('activities.id', ondelete='CASCADE'), nullable=False)
+    activity_id = Column(BigInteger, ForeignKey('activities.id', ondelete='CASCADE'), nullable=False, index=True)
     bpmn_id = Column(String(60), unique=True, nullable=False)
     name = Column(String(200), nullable=False)
     description = Column(Text)
@@ -260,7 +260,7 @@ class OptimizationRun(Base):
     __tablename__ = 'optimization_runs'
 
     id = Column(BigInteger, primary_key=True)
-    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False, index=True)
     status = Column(ENUM(OptStatus, name='opt_status'), nullable=False, server_default='pending')
     model_used = Column(String(80))
     input_snapshot = Column(JSONB, nullable=False)
@@ -276,7 +276,7 @@ class MacroOptimizationRun(Base):
     __tablename__ = 'macro_optimization_runs'
 
     id = Column(BigInteger, primary_key=True)
-    macroprocess_id = Column(BigInteger, ForeignKey('macroprocesses.id', ondelete='CASCADE'), nullable=False)
+    macroprocess_id = Column(BigInteger, ForeignKey('macroprocesses.id', ondelete='CASCADE'), nullable=False, index=True)
     status = Column(ENUM(OptStatus, name='opt_status'), nullable=False, server_default='pending')
     model_used = Column(String(80))
     input_snapshot = Column(JSONB, nullable=False)

@@ -85,12 +85,12 @@ export default function WelcomeModal({ isOpen, onClose }) {
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 99999, background: '#13202B', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div role="dialog" aria-modal="true" aria-labelledby="welcome-modal-title" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 99999, background: '#13202B', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        
+
         {/* Top Header */}
         <div style={{ padding: '24px 32px', display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="pa-btn pa-btn-ghost" onClick={onClose} style={{ color: 'var(--inv-muted)', fontSize: '14px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+          <button className="pa-btn pa-btn-ghost" onClick={onClose} aria-label="Cerrar tutorial" style={{ color: 'var(--inv-muted)', fontSize: '14px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
             Omitir <X size={16} style={{ marginLeft: 8 }} />
           </button>
         </div>
@@ -101,7 +101,7 @@ export default function WelcomeModal({ isOpen, onClose }) {
             <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'center' }}>
               {slides[step].icon}
             </div>
-            <h2 style={{ fontSize: '32px', color: 'var(--inv)', marginBottom: '16px', fontWeight: 700 }}>{slides[step].title}</h2>
+            <h2 id="welcome-modal-title" style={{ fontSize: '32px', color: 'var(--inv)', marginBottom: '16px', fontWeight: 700 }}>{slides[step].title}</h2>
             <p style={{ fontSize: '18px', color: 'var(--inv-muted)', lineHeight: '1.6', margin: 0, maxWidth: '500px', marginLeft: 'auto', marginRight: 'auto' }}>
               {slides[step].description}
             </p>
