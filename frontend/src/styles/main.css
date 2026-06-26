@@ -230,3 +230,23 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
   .pa-mobile-nav button { min-height: 44px; }
   .react-flow__handle { width: 32px !important; height: 32px !important; border-width: 2px !important; }
 }
+
+/* ---- onboarding guide ---- */
+@keyframes pa-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.pulse-border {
+  border: 2px solid var(--teal) !important;
+  box-shadow: 0 0 0 4px rgba(14, 159, 159, 0.2) !important;
+  transition: all 0.3s ease;
+}
+
+.pulse-border-container {
+  border: 2px solid var(--teal);
+  border-radius: 8px;
+  box-shadow: 0 0 0 4px rgba(14, 159, 159, 0.2);
+  padding: 4px;
+  transition: all 0.3s ease;
+}

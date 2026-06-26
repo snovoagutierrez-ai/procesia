@@ -244,7 +244,7 @@ function ValueClassWizard({ valueClass, wasteType, onChange, expertMode, setExpe
   );
 }
 
-function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone, sequenceFlows = [], gateways = [], tasks = [], onFlowsChange, onForceSave }) {
+function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone, sequenceFlows = [], gateways = [], tasks = [], onFlowsChange, onForceSave, firstStepsActive, guideStep, onGuideComplete }) {
   const [showSaved, setShowSaved] = useState(false);
   const handleSave = async () => {
     if (onForceSave) await onForceSave();
@@ -276,8 +276,22 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
         </div>
       </div>
 
+      {firstStepsActive && guideStep === 2 && (
+        <div style={{ background: '#FFF8E1', color: '#C98A12', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', display: 'flex', gap: 8, alignItems: 'center', border: '1px solid #FFE082', animation: 'pa-bounce 2s infinite' }}>
+          <Lightbulb size={18} />
+          <strong>¡Excelente! Ahora dale un nombre a la tarea y clasifica su valor.</strong>
+        </div>
+      )}
+
       <Field label="Nombre de la tarea" tooltip="Nombre corto y descriptivo de la acción (Ej: 'Revisar factura').">
-        <input className="pa-input" value={task.name} onChange={(e) => set({ name: e.target.value })} />
+        <input 
+          className={`pa-input ${firstStepsActive && guideStep === 2 ? 'pulse-border' : ''}`} 
+          value={task.name} 
+          onChange={(e) => { 
+            set({ name: e.target.value }); 
+            if(firstStepsActive && onGuideComplete) onGuideComplete(); 
+          }} 
+        />
       </Field>
 
       <div className="pa-row">
@@ -303,13 +317,18 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
             </>
           } />
         </div>
-        <ValueClassWizard 
-          valueClass={task.valueClass} 
-          wasteType={task.wasteType} 
-          onChange={(v, w) => set({ valueClass: v, wasteType: w })}
-          expertMode={expertMode}
-          setExpertMode={setExpertMode}
-        />
+        <div className={firstStepsActive && guideStep === 2 ? 'pulse-border-container' : ''}>
+          <ValueClassWizard 
+            valueClass={task.valueClass} 
+            wasteType={task.wasteType} 
+            onChange={(v, w) => {
+              set({ valueClass: v, wasteType: w });
+              if(firstStepsActive && onGuideComplete) onGuideComplete();
+            }}
+            expertMode={expertMode}
+            setExpertMode={setExpertMode}
+          />
+        </div>
       </div>
 
       <div className="pa-divider"><span>RACI</span></div>

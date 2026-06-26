@@ -537,7 +537,8 @@ def sync_graph(id: int, graph_data: schemas.GraphSync, db: Session = Depends(get
 # ==========================================
 
 @router.post("/tutorial-chat")
-def tutorial_chat_endpoint(chat_request: schemas.ChatRequest):
+@limiter.limit("5/minute")
+def tutorial_chat_endpoint(request: Request, chat_request: schemas.ChatRequest):
     from app.gemini import tutorial_chat
     reply = tutorial_chat(chat_request.message)
     return {"reply": reply}

@@ -950,6 +950,8 @@ export default function App() {
   const [aiTip, setAiTip] = useState(null);
   const [snapshotsModalOpen, setSnapshotsModalOpen] = useState(false);
   const [showUndoBanner, setShowUndoBanner] = useState(false);
+  const [firstStepsActive, setFirstStepsActive] = useState(false);
+  const [guideStep, setGuideStep] = useState(1);
   const [metricsData, setMetricsData] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState("detalle");
@@ -973,6 +975,22 @@ export default function App() {
       localStorage.setItem('aiproces_tutorial_seen', 'true');
     }
   }, []);
+
+  useEffect(() => {
+    if (proc) {
+      const dismissed = localStorage.getItem(`first_steps_${proc.id}`);
+      if (!dismissed && tasks.length === 0) {
+        setFirstStepsActive(true);
+        setGuideStep(1);
+      } else if (!dismissed && tasks.length === 1 && firstStepsActive) {
+        setGuideStep(2);
+      } else if (tasks.length >= 2 && firstStepsActive) {
+        // Auto-apagado de seguridad si crean la segunda tarea
+        setFirstStepsActive(false);
+        localStorage.setItem(`first_steps_${proc.id}`, 'true');
+      }
+    }
+  }, [proc, tasks.length]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -1385,6 +1403,9 @@ export default function App() {
       setTasks((ts) => [...ts, mapped]);
       setSelectedId(mapped.id);
       setTab("detalle");
+      if (tasks.length === 0 && isMobile) {
+        setMobileStep(3);
+      }
     } catch (e) {
       setError("Error al añadir tarea.");
     }
@@ -1808,6 +1829,13 @@ export default function App() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
+              <button 
+                className="pa-btn pa-btn-ghost" 
+                onClick={() => { setFirstStepsActive(true); setGuideStep(tasks.length === 0 ? 1 : 2); localStorage.removeItem(`first_steps_${proc?.id}`); }} 
+                title="Mostrar primeros pasos"
+              >
+                <Lightbulb size={16} /> Guía
+              </button>
               <button className="pa-btn pa-btn-ghost" onClick={() => setSnapshotsModalOpen(true)}>
                 <Clock size={16} /> Versiones
               </button>
@@ -1909,8 +1937,23 @@ export default function App() {
                     </div>
                   </>
                 )}
-                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                  <button className="pa-btn pa-btn-ghost" style={{ flex: 1 }} onClick={addTask}><Plus size={14} /> Tarea</button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ position: 'relative', flex: 1 }}>
+                    <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }} onClick={() => { addTask(); if(isMobile) setMobileStep(3); }}>
+                      <Plus size={14} /> Tarea
+                    </button>
+                    {firstStepsActive && guideStep === 1 && (
+                      <div className="pa-pulse-tooltip" style={{
+                        position: 'absolute', top: '120%', left: '0', width: '100%',
+                        background: 'var(--teal)', color: '#fff', padding: '6px',
+                        borderRadius: '6px', fontSize: '11px', textAlign: 'center', zIndex: 10,
+                        boxShadow: '0 4px 12px rgba(14, 159, 159, 0.3)', animation: 'pa-bounce 2s infinite'
+                      }}>
+                        Toca aquí para crear tu primera tarea
+                        <div style={{ position: 'absolute', top: '-4px', left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: 'var(--teal)' }} />
+                      </div>
+                    )}
+                  </div>
                   <button className="pa-btn pa-btn-ghost" style={{ flex: 1 }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
                 </div>
                 <button className="pa-btn pa-btn-primary full" style={{ marginTop: 16 }} onClick={() => { setTab("optim"); if (isMobile) setMobileStep(4); }}>
@@ -1981,6 +2024,11 @@ export default function App() {
                         isLast={selectedTask ? tasks[tasks.length - 1]?.id === selectedTask.id : true} 
                         saveState={saveState} expertMode={expertMode} setExpertMode={setExpertMode}
                         sequenceFlows={sequenceFlows} gateways={gateways} tasks={tasks} onForceSave={flushAllSaves}
+                        firstStepsActive={firstStepsActive} guideStep={guideStep}
+                        onGuideComplete={() => {
+                          setFirstStepsActive(false);
+                          localStorage.setItem(`first_steps_${proc.id}`, 'true');
+                        }}
                         onFlowsChange={(newFlows) => {
                           setSequenceFlows(newFlows);
                           apiFetch(`/processes/${proc.id}/graph`, {
