@@ -262,17 +262,14 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
     <div className="pa-editor">
       <div className="pa-editor-head">
         <span className="pa-tag" style={{ fontFamily: "var(--body)", background: "#E8F5E9", color: "#1FA463", padding: "4px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600 }}>Tarea</span>
-        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', marginRight: '16px', fontSize: '12px', color: saveState.status === 'error' ? 'var(--danger)' : 'var(--teal)', gap: '4px' }}>
-          {saveState.status === 'saving' && <><Loader2 size={12} className="spin" /> Guardando...</>}
-          {saveState.status === 'saved' && <><Check size={12} /> Guardado</>}
-          {saveState.status === 'error' && <><AlertTriangle size={12} /> Error al guardar</>}
-          {saveState.status === 'idle' && 'Guardado automático activado'}
+        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', marginRight: '16px', fontSize: '13px', gap: '6px' }}>
+          {saveState.status === 'saving' && <span style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Loader2 size={14} className="spin" /> Guardando...</span>}
+          {(saveState.status === 'saved' || showSaved) && <span style={{ color: 'var(--teal)', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 500 }}><Check size={14} /> ¡Guardado!</span>}
+          {saveState.status === 'error' && <span style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={14} /> Error</span>}
         </div>
         <div className="pa-editor-actions">
-          <button className="pa-icon" disabled={isFirst} onClick={() => onMove(task.id, -1)} title="Subir"><ChevronUp size={16} /></button>
-          <button className="pa-icon" disabled={isLast} onClick={() => onMove(task.id, 1)} title="Bajar"><ChevronDown size={16} /></button>
-
-          <button className="pa-icon danger" onClick={() => onDelete(task.id)} title="Eliminar"><Trash2 size={16} /></button>
+          <button className="pa-btn pa-btn-primary" onClick={handleSave} style={{ fontSize: '12px', padding: '4px 12px', minHeight: 'auto', height: '28px' }}>Guardar</button>
+          <button className="pa-icon danger" style={{ marginLeft: 8 }} onClick={() => onDelete(task.id)} title="Eliminar"><Trash2 size={16} /></button>
         </div>
       </div>
 

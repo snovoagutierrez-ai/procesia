@@ -180,7 +180,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
   }, [processes, sequenceFlows, setNodes, setEdges, onViewFlow]);
 
   // Save changes to backend
-  const saveGraph = async (updatedEdges) => {
+  const saveGraph = useCallback(async (updatedEdges) => {
     if (!macroprocessId) return;
     
     const payload = {
@@ -205,7 +205,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
     } catch (err) {
       console.error("Failed to save macro graph", err);
     }
-  };
+  }, [macroprocessId]);
 
   const onConnect = useCallback((params) => {
     setEdges((eds) => {
@@ -217,10 +217,11 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
         animated: true
       };
       const updatedEdges = addEdge(newEdge, eds);
-      saveGraph(updatedEdges);
+      // Ejecutar el guardado fuera del callback de React para evitar problemas de sincronía
+      setTimeout(() => saveGraph(updatedEdges), 0);
       return updatedEdges;
     });
-  }, [setEdges, macroprocessId]);
+  }, [setEdges, saveGraph]);
 
   const handleEdgesChange = useCallback((changes) => {
     onEdgesChange(changes);
@@ -244,14 +245,18 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
     [onProcessDoubleClick]
   );
 
+  const [hideBanner, setHideBanner] = useState(false);
   const needsHelp = processes && processes.length >= 2 && (!sequenceFlows || sequenceFlows.length === 0);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", background: "#F6F8FA", borderRadius: "8px", overflow: "hidden", border: "1px solid #E2E7E3" }}>
-      {needsHelp && (
-        <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#FFF8E1', border: '1px solid #F5DEB3', color: '#C98A12', padding: '12px 24px', borderRadius: '8px', zIndex: 10, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-          <AlertCircle size={18} />
-          <span>Arrastra desde el punto derecho de un proceso hacia el punto izquierdo de otro para conectarlos y formar el flujo end-to-end.</span>
+      {needsHelp && !hideBanner && (
+        <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#FFF8E1', border: '1px solid #F5DEB3', color: '#C98A12', padding: '8px 16px', borderRadius: '8px', zIndex: 10, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxWidth: '90%' }}>
+          <AlertCircle size={18} style={{ flexShrink: 0 }} />
+          <span>Une los puntos laterales de los procesos para armar tu flujo.</span>
+          <button onClick={() => setHideBanner(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#C98A12', padding: 4, marginLeft: 8 }} title="Ocultar">
+            <span style={{ fontSize: 16, fontWeight: 'bold' }}>×</span>
+          </button>
         </div>
       )}
       <button 
