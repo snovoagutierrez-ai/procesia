@@ -29,17 +29,18 @@ REGLAS DE ANÁLISIS
 1. Cuellos de botella y Summary: En tu respuesta, puedes devolver datos vacíos o replicar lo que 
    te enviamos. El sistema sobrescribirá esos campos con la matemática exacta, pero dedícate a 
    leer "metrics.bottlenecks" para fundamentar tus recomendaciones.
-2. Desperdicios (Inefficiencies): Por cada tarea NVA o cuello de botella encontrado en "metrics", 
-   clasifica su causa raíz según los 8 desperdicios Lean (DOWNTIME:
-   defects, overproduction, waiting, non_utilized_talent, transportation, inventory,
-   motion, excess_processing) y explica el motivo subyacente.
+2. Desperdicios (Inefficiencies): Por cada tarea NVA o cuello de botella encontrado en "metrics",
+   clasifica su causa raíz según los 8 desperdicios Lean. El campo waste_type DEBE ser exactamente
+   uno de: defects, overproduction, waiting, non_utilized_talent, transportation, inventory,
+   motion, excess_processing. El campo severity en bottlenecks DEBE ser exactamente uno de: low, medium, high, critical.
 3. RACI: detecta anomalías — más de un 'A' (Accountable) en una tarea, ausencia de 'A',
    o exceso de handoffs entre roles distintos en tareas consecutivas.
 4. Sistemas: detecta saltos innecesarios entre sistemas (context switching) y
    oportunidades de automatización o integración.
-5. Recomendaciones: por cada hallazgo cualitativo o matemático, propón una acción concreta usando UNO de estos
-   action_type: ELIMINATE, AUTOMATE, SIMPLIFY, MERGE, PARALLELIZE, REASSIGN, STANDARDIZE.
-   Estima estimated_time_saving_pct (0-100) e implementation_complexity.
+5. Recomendaciones: por cada hallazgo cualitativo o matemático, propón una acción concreta.
+   - action_type DEBE ser exactamente uno de: ELIMINATE, AUTOMATE, SIMPLIFY, MERGE, PARALLELIZE, REASSIGN, STANDARDIZE
+   - implementation_complexity DEBE ser exactamente uno de: low, medium, high
+   Estima estimated_time_saving_pct (0-100).
 6. optimized_flow: propón un grafo reestructurado que paralelice tareas o simplifique
    pasos de acuerdo a tus recomendaciones, manteniendo identificadores BPMN válidos.
 
@@ -55,28 +56,28 @@ La respuesta DEBE ser únicamente el siguiente objeto JSON:
   },
   "bottlenecks": [
     {"node_bpmn_id":"string","node_name":"string",
-     "metric":"cycle_time|wait_time|rework","value_sec":0,
-     "deviation_factor":0.0,"severity":"low|medium|high|critical",
+     "metric":"cycle_time","value_sec":0,
+     "deviation_factor":0.0,"severity":"high",
      "impact_description":"string"}
   ],
   "inefficiencies": [
     {"node_bpmn_id":"string",
-     "waste_type":"defects|overproduction|waiting|non_utilized_talent|transportation|inventory|motion|excess_processing",
+     "waste_type":"waiting",
      "description":"string","root_cause":"string"}
   ],
   "recommendations": [
-    {"id":"string","target_node_bpmn_id":"string|null",
-     "action_type":"ELIMINATE|AUTOMATE|SIMPLIFY|MERGE|PARALLELIZE|REASSIGN|STANDARDIZE",
+    {"id":"string","target_node_bpmn_id":null,
+     "action_type":"SIMPLIFY",
      "description":"string","expected_benefit":"string",
-     "estimated_time_saving_pct":0,"implementation_complexity":"low|medium|high",
+     "estimated_time_saving_pct":0,"implementation_complexity":"low",
      "priority":0}
   ],
   "optimized_flow": {
     "applies": false,
     "nodes": [
-      {"bpmn_id":"string","type":"task|gateway|event","subtype":"string",
+      {"bpmn_id":"string","type":"task","subtype":"string",
        "name":"string","cycle_time_sec":0,"wait_time_sec":0,
-       "value_classification":"VA|NNVA|NVA"}
+       "value_classification":"VA"}
     ],
     "flows": [
       {"bpmn_id":"string","source_ref":"string","target_ref":"string",
@@ -182,7 +183,14 @@ def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
     return snapshot
 
 def ask_task_assistant(text: str, context: dict) -> dict:
-    client = genai.Client(api_key=settings.gemini_api_key)
+    import httpx
+    http_opts = None
+    if not settings.gemini_ssl_verify and os.environ.get("ENVIRONMENT", "development") != "production":
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        http_opts = types.HttpOptions(httpx_client=httpx.Client(verify=False))
+
+    client = genai.Client(api_key=settings.gemini_api_key, http_options=http_opts)
     if not client:
         return {"reply": "Error: IA no configurada.", "suggestions": {}}
         
@@ -329,7 +337,7 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
             validated_result = schemas.OptimizationResult.model_validate(parsed_json_retry)
 
         except Exception as retry_err:
-
+            print(f"[Optimization] Retry also failed for process {process_id}: {retry_err}")
             # Second validation failure - mark status as failed
             db_run.status = models.OptStatus.failed
             db_run.result = {"error": f"First attempt failed: {str(first_err)}. Retry attempt failed: {str(retry_err)}"}

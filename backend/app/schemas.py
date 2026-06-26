@@ -472,6 +472,16 @@ class Bottleneck(BaseModel):
     severity: Literal["low", "medium", "high", "critical"]
     impact_description: str
 
+    @field_validator("metric", mode="before")
+    @classmethod
+    def coerce_metric(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def coerce_severity(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
+
 class Inefficiency(BaseModel):
     node_bpmn_id: str
     waste_type: Literal[
@@ -480,6 +490,11 @@ class Inefficiency(BaseModel):
     ]
     description: str
     root_cause: str
+
+    @field_validator("waste_type", mode="before")
+    @classmethod
+    def coerce_waste_type(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
 
 class Recommendation(BaseModel):
     id: str
@@ -491,6 +506,16 @@ class Recommendation(BaseModel):
     implementation_complexity: Literal["low", "medium", "high"]
     priority: int
 
+    @field_validator("action_type", mode="before")
+    @classmethod
+    def coerce_action_type(cls, v):
+        return str(v).upper() if isinstance(v, str) else v
+
+    @field_validator("implementation_complexity", mode="before")
+    @classmethod
+    def coerce_complexity(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
+
 class OptimizedNode(BaseModel):
     bpmn_id: str
     type: Literal["task", "gateway", "event"]
@@ -499,6 +524,16 @@ class OptimizedNode(BaseModel):
     cycle_time_sec: float
     wait_time_sec: float
     value_classification: Literal["VA", "NNVA", "NVA"]
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def coerce_type(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
+
+    @field_validator("value_classification", mode="before")
+    @classmethod
+    def coerce_vc(cls, v):
+        return str(v).upper() if isinstance(v, str) else v
 
 class OptimizedFlowConnection(BaseModel):
     bpmn_id: str
@@ -588,12 +623,22 @@ class MacroBottleneck(BaseModel):
     severity: Literal['low', 'medium', 'high', 'critical']
     impact_description: str
 
+    @field_validator("metric", "severity", mode="before")
+    @classmethod
+    def coerce_lower(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
+
 class InterfaceWaste(BaseModel):
     from_process_code: str
     to_process_code: str
     waste_type: Literal['waiting', 'rework', 'information_loss', 'motion']
     description: str
     estimated_delay_sec: float
+
+    @field_validator("waste_type", mode="before")
+    @classmethod
+    def coerce_waste_type(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
 
 class Redundancy(BaseModel):
     processes_involved: List[str]
@@ -608,6 +653,16 @@ class MacroRecommendation(BaseModel):
     expected_benefit: str
     implementation_complexity: Literal['low', 'medium', 'high']
     priority: int
+
+    @field_validator("action_type", mode="before")
+    @classmethod
+    def coerce_action_type(cls, v):
+        return str(v).upper() if isinstance(v, str) else v
+
+    @field_validator("implementation_complexity", mode="before")
+    @classmethod
+    def coerce_complexity(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
 
 class MacroOptimizationResult(BaseModel):
     macroprocess_id: str
