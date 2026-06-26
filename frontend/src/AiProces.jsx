@@ -976,21 +976,20 @@ export default function App() {
     }
   }, []);
 
+  const dismissGuide = useCallback(() => {
+    setFirstStepsActive(false);
+    if (proc) localStorage.setItem(`first_steps_${proc.id}`, 'true');
+  }, [proc]);
+
   useEffect(() => {
     if (proc) {
       const dismissed = localStorage.getItem(`first_steps_${proc.id}`);
-      if (!dismissed && tasks.length === 0) {
+      if (!dismissed) {
         setFirstStepsActive(true);
-        setGuideStep(1);
-      } else if (!dismissed && tasks.length === 1 && firstStepsActive) {
-        setGuideStep(2);
-      } else if (tasks.length >= 2 && firstStepsActive) {
-        // Auto-apagado de seguridad si crean la segunda tarea
-        setFirstStepsActive(false);
-        localStorage.setItem(`first_steps_${proc.id}`, 'true');
+        if (tasks.length === 0) setGuideStep(1);
       }
     }
-  }, [proc, tasks.length]);
+  }, [proc]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -1329,6 +1328,10 @@ export default function App() {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gateways: newGateways, sequence_flows: newFlows })
       });
+      if (firstStepsActive) {
+        if (guideStep === 3) setGuideStep(4);
+        else if (guideStep < 4 && gateways.length >= 1) dismissGuide();
+      }
     } catch (e) {
       console.error(e);
     }
@@ -1405,6 +1408,11 @@ export default function App() {
       setTab("detalle");
       if (tasks.length === 0 && isMobile) {
         setMobileStep(3);
+      }
+
+      if (firstStepsActive) {
+        if (guideStep === 1) setGuideStep(2);
+        else if (guideStep < 3 && tasks.length >= 1) dismissGuide();
       }
     } catch (e) {
       setError("Error al añadir tarea.");
@@ -1832,7 +1840,7 @@ export default function App() {
               <button 
                 className="pa-btn pa-btn-ghost" 
                 onClick={() => { setFirstStepsActive(true); setGuideStep(tasks.length === 0 ? 1 : 2); localStorage.removeItem(`first_steps_${proc?.id}`); }} 
-                title="Mostrar primeros pasos"
+                title="Reiniciar guía"
               >
                 <Lightbulb size={16} /> Guía
               </button>
@@ -1954,11 +1962,37 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  <button className="pa-btn pa-btn-ghost" style={{ flex: 1 }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
+                  <div style={{ position: 'relative', flex: 1 }}>
+                    <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
+                    {firstStepsActive && guideStep === 3 && (
+                      <div className="pa-pulse-tooltip" style={{
+                        position: 'absolute', top: '120%', left: '0', width: '100%',
+                        background: 'var(--teal)', color: '#fff', padding: '6px',
+                        borderRadius: '6px', fontSize: '11px', textAlign: 'center', zIndex: 10,
+                        boxShadow: '0 4px 12px rgba(14, 159, 159, 0.3)', animation: 'pa-bounce 2s infinite'
+                      }}>
+                        Añade una compuerta para caminos paralelos o alternativos
+                        <div style={{ position: 'absolute', top: '-4px', left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: 'var(--teal)' }} />
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <button className="pa-btn pa-btn-primary full" style={{ marginTop: 16 }} onClick={() => { setTab("optim"); if (isMobile) setMobileStep(4); }}>
-                  <Sparkles size={16} /> 4. Ir a Optimización IA
-                </button>
+                <div style={{ position: 'relative', marginTop: 16 }}>
+                  <button className="pa-btn pa-btn-primary full" onClick={() => { setTab("optim"); if (isMobile) setMobileStep(4); if(firstStepsActive && guideStep === 5) dismissGuide(); }}>
+                    <Sparkles size={16} /> 4. Ir a Optimización IA
+                  </button>
+                  {firstStepsActive && guideStep === 5 && (
+                    <div className="pa-pulse-tooltip" style={{
+                      position: 'absolute', top: '120%', left: '0', width: '100%',
+                      background: 'var(--teal)', color: '#fff', padding: '6px',
+                      borderRadius: '6px', fontSize: '11px', textAlign: 'center', zIndex: 10,
+                      boxShadow: '0 4px 12px rgba(14, 159, 159, 0.3)', animation: 'pa-bounce 2s infinite'
+                    }}>
+                      ¡Todo listo! Clickea aquí para que la IA mejore tu proceso.
+                      <div style={{ position: 'absolute', top: '-4px', left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: 'var(--teal)' }} />
+                    </div>
+                  )}
+                </div>
               </div>
             </aside>
             )}
@@ -1966,7 +2000,17 @@ export default function App() {
             {(!isMobile || mobileStep === 2 || mobileStep === 3 || mobileStep === 4) && (
             <main className="pa-main">
               {(!isMobile || mobileStep === 2) && (
-              <div className="pa-diagram-wrapper">
+              <div className="pa-diagram-wrapper" style={{ position: 'relative' }}>
+                {firstStepsActive && guideStep === 4 && (
+                  <div className="pa-pulse-tooltip" style={{
+                    position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+                    background: 'var(--teal)', color: '#fff', padding: '8px 16px',
+                    borderRadius: '6px', fontSize: '12px', textAlign: 'center', zIndex: 10,
+                    boxShadow: '0 4px 12px rgba(14, 159, 159, 0.3)', animation: 'pa-bounce 2s infinite'
+                  }}>
+                    Conecta las cajas arrastrando desde sus bordes laterales para armar el flujo
+                  </div>
+                )}
               <div className="pa-diagram-card" style={isMobile ? { minHeight: '60vh' } : {}}>
                 <div className="pa-diagram-head">
                   <span>Flujo del proceso</span>
@@ -1986,6 +2030,7 @@ export default function App() {
                   onGraphChange={async (newGateways, newFlows) => {
                     setGateways(newGateways);
                     setSequenceFlows(newFlows);
+                    if (firstStepsActive && guideStep === 4) setGuideStep(5);
                     await apiFetch(`/processes/${proc.id}/graph`, {
                       method: 'PUT', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ gateways: newGateways, sequence_flows: newFlows })
@@ -2026,8 +2071,9 @@ export default function App() {
                         sequenceFlows={sequenceFlows} gateways={gateways} tasks={tasks} onForceSave={flushAllSaves}
                         firstStepsActive={firstStepsActive} guideStep={guideStep}
                         onGuideComplete={() => {
-                          setFirstStepsActive(false);
-                          localStorage.setItem(`first_steps_${proc.id}`, 'true');
+                          if (firstStepsActive && guideStep === 2) {
+                            setGuideStep(3);
+                          }
                         }}
                         onFlowsChange={(newFlows) => {
                           setSequenceFlows(newFlows);
