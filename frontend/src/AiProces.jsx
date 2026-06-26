@@ -350,6 +350,41 @@ const newBpmnId = () => "Task_" + Math.random().toString(36).slice(2, 6);
 
 
 
+const GUIDE_STEPS = [
+  { icon: "➕", text: <>Haz clic en <strong>+ Tarea</strong> para crear tu primer paso del proceso.</> },
+  { icon: "✏️", text: <>Ponle nombre y elige la <strong>Clasificación de valor</strong> de la tarea.</> },
+  { icon: "🔀", text: <>¿Hay una decisión? Añade una <strong>+ Compuerta</strong> para ramificar el flujo.</> },
+  { icon: "🔗", text: <>Conecta los nodos en el diagrama <strong>arrastrando desde sus bordes</strong> laterales.</> },
+  { icon: "✨", text: <>¡Todo listo! Haz clic en <strong>4. Ir a Optimización IA</strong> para analizar el proceso.</> },
+];
+
+function GuideTicket({ step, onDismiss }) {
+  if (!step || step < 1 || step > GUIDE_STEPS.length) return null;
+  const { icon, text } = GUIDE_STEPS[step - 1];
+  return (
+    <div style={{
+      position: 'fixed', bottom: 28, left: 28, zIndex: 1000,
+      background: '#0B7A7A', color: '#fff',
+      borderRadius: 12, padding: '12px 14px 12px 16px',
+      boxShadow: '0 6px 24px rgba(11,122,122,0.45)',
+      maxWidth: 248, display: 'flex', gap: 10, alignItems: 'flex-start',
+      animation: 'fadeInUp 0.3s ease',
+    }}>
+      <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 4, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          Paso {step} de {GUIDE_STEPS.length}
+        </div>
+        <div style={{ fontSize: 13, lineHeight: 1.45 }}>{text}</div>
+      </div>
+      <button onClick={onDismiss} title="Cerrar guía"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.65)', padding: 2, flexShrink: 0, display: 'flex' }}>
+        <X size={15} />
+      </button>
+    </div>
+  );
+}
+
 function mapBackendTaskToFrontend(t) {
   return {
     id: t.id, bpmnId: t.bpmn_id, name: t.name, type: t.task_type,
@@ -1423,11 +1458,24 @@ export default function App() {
     if (!proc) return;
     try {
       await apiFetch(`/processes/${proc.id}/tasks/${id}`, { method: "DELETE" });
+      const deletedTask = tasks.find((t) => t.id === id);
       setTasks((ts) => {
         const r = ts.filter((t) => t.id !== id);
         if (id === selectedId) setSelectedId(r[0]?.id || null);
         return r;
       });
+      if (deletedTask) {
+        const bpmnId = deletedTask.bpmnId;
+        const newFlows = sequenceFlows.filter(
+          (f) => f.source_ref !== bpmnId && f.target_ref !== bpmnId &&
+                 f.source_ref !== String(id) && f.target_ref !== String(id)
+        );
+        setSequenceFlows(newFlows);
+        apiFetch(`/processes/${proc.id}/graph`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gateways, sequence_flows: newFlows })
+        }).catch(() => {});
+      }
     } catch (e) {
       setError("Error al eliminar tarea.");
     }
@@ -1747,6 +1795,7 @@ export default function App() {
   return (
     <div className="pa-root">
       <WelcomeModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
+      {firstStepsActive && <GuideTicket step={guideStep} onDismiss={dismissGuide} />}
       <SnapshotsModal 
         isOpen={snapshotsModalOpen} 
         onClose={() => setSnapshotsModalOpen(false)} 
@@ -1939,52 +1988,19 @@ export default function App() {
                   </>
                 )}
                 <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ position: 'relative', flex: 1 }}>
+                  <div style={{ flex: 1 }}>
                     <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }} onClick={() => { addTask(); if(isMobile) setMobileStep(3); }}>
                       <Plus size={14} /> Tarea
                     </button>
-                    {firstStepsActive && guideStep === 1 && (
-                      <div className="pa-pulse-tooltip" style={{
-                        position: 'absolute', top: '120%', left: '0', width: '100%',
-                        background: 'var(--teal)', color: '#fff', padding: '6px',
-                        borderRadius: '6px', fontSize: '11px', textAlign: 'center', zIndex: 10,
-                        boxShadow: '0 4px 12px rgba(14, 159, 159, 0.3)', animation: 'pa-bounce 2s infinite'
-                      }}>
-                        Toca aquí para crear tu primera tarea
-                        <div style={{ position: 'absolute', top: '-4px', left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: 'var(--teal)' }} />
-                      </div>
-                    )}
                   </div>
-                  <div style={{ position: 'relative', flex: 1 }}>
+                  <div style={{ flex: 1 }}>
                     <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
-                    {firstStepsActive && guideStep === 3 && (
-                      <div className="pa-pulse-tooltip" style={{
-                        position: 'absolute', top: '120%', left: '0', width: '100%',
-                        background: 'var(--teal)', color: '#fff', padding: '6px',
-                        borderRadius: '6px', fontSize: '11px', textAlign: 'center', zIndex: 10,
-                        boxShadow: '0 4px 12px rgba(14, 159, 159, 0.3)', animation: 'pa-bounce 2s infinite'
-                      }}>
-                        Añade una compuerta para caminos paralelos o alternativos
-                        <div style={{ position: 'absolute', top: '-4px', left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: 'var(--teal)' }} />
-                      </div>
-                    )}
                   </div>
                 </div>
-                <div style={{ position: 'relative', marginTop: 16 }}>
+                <div style={{ marginTop: 16 }}>
                   <button className="pa-btn pa-btn-primary full" onClick={() => { setTab("optim"); if (isMobile) setMobileStep(4); if(firstStepsActive && guideStep === 5) dismissGuide(); }}>
                     <Sparkles size={16} /> 4. Ir a Optimización IA
                   </button>
-                  {firstStepsActive && guideStep === 5 && (
-                    <div className="pa-pulse-tooltip" style={{
-                      position: 'absolute', top: '120%', left: '0', width: '100%',
-                      background: 'var(--teal)', color: '#fff', padding: '6px',
-                      borderRadius: '6px', fontSize: '11px', textAlign: 'center', zIndex: 10,
-                      boxShadow: '0 4px 12px rgba(14, 159, 159, 0.3)', animation: 'pa-bounce 2s infinite'
-                    }}>
-                      ¡Todo listo! Clickea aquí para que la IA mejore tu proceso.
-                      <div style={{ position: 'absolute', top: '-4px', left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: 'var(--teal)' }} />
-                    </div>
-                  )}
                 </div>
               </div>
             </aside>
@@ -1994,16 +2010,6 @@ export default function App() {
             <main className="pa-main">
               {(!isMobile || mobileStep === 2) && (
               <div className="pa-diagram-wrapper" style={{ position: 'relative' }}>
-                {firstStepsActive && guideStep === 4 && (
-                  <div className="pa-pulse-tooltip" style={{
-                    position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
-                    background: 'var(--teal)', color: '#fff', padding: '8px 16px',
-                    borderRadius: '6px', fontSize: '12px', textAlign: 'center', zIndex: 10,
-                    boxShadow: '0 4px 12px rgba(14, 159, 159, 0.3)', animation: 'pa-bounce 2s infinite'
-                  }}>
-                    Conecta las cajas arrastrando desde sus bordes laterales para armar el flujo
-                  </div>
-                )}
               <div className="pa-diagram-card" style={isMobile ? { minHeight: '60vh' } : {}}>
                 <div className="pa-diagram-head">
                   <span>Flujo del proceso</span>

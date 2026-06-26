@@ -287,8 +287,11 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, selectedId, onSelec
 function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange }) {
   const onEdgesDelete = useCallback(
     (deletedEdges) => {
-      const deletedIds = deletedEdges.map(e => e.id);
-      const newFlows = (sequenceFlows||[]).filter(f => !deletedIds.includes(f.id));
+      const deletedIds = new Set(deletedEdges.map(e => e.id));
+      const newFlows = (sequenceFlows || []).filter(f => {
+        const fId = f.id || f.bpmn_id || `sf-${f.source_ref}-${f.target_ref}`;
+        return !deletedIds.has(fId);
+      });
       if (onGraphChange) {
         onGraphChange(gateways, newFlows);
       }
