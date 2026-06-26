@@ -244,15 +244,11 @@ function ValueClassWizard({ valueClass, wasteType, onChange, expertMode, setExpe
   );
 }
 
-function TaskAssistant({ task, onChange, firstStepsActive, onGuideComplete }) {
-  const [open, setOpen] = useState(firstStepsActive);
+function TaskAssistant({ task, onChange }) {
+  const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
-
-  useEffect(() => {
-    if (firstStepsActive) setOpen(true);
-  }, [firstStepsActive]);
 
   const handleSend = async () => {
     if (!text.trim()) return;
@@ -287,28 +283,27 @@ function TaskAssistant({ task, onChange, firstStepsActive, onGuideComplete }) {
     if (type && ["Persona", "Manual", "Sistema"].includes(type)) patch.type = type;
     if (valueClass && ["VA", "BVA", "NVA"].includes(valueClass)) patch.valueClass = valueClass;
     onChange(patch);
-    if (onGuideComplete) onGuideComplete();
     setOpen(false);
     setResponse(null);
     setText("");
   };
 
   return (
-    <div style={{ marginBottom: 20 }}>
+    <div style={{ marginBottom: 16 }}>
       {!open ? (
-        <button className="pa-btn pa-btn-ghost" onClick={() => setOpen(true)} style={{ color: "var(--teal)", background: "#F1FBFB", border: "1px solid #BFE6E6", width: "100%", justifyContent: "center" }}>
-          <Sparkles size={16} /> Asistente IA para modelar
-        </button>
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <button className="pa-btn" onClick={() => setOpen(true)} style={{ color: "var(--teal)", background: "#fff", border: "1px solid #BFE6E6", borderRadius: '20px', fontSize: '12px', padding: '4px 12px', height: '28px', minHeight: 'auto', display: 'flex', gap: '6px' }}>
+            <Sparkles size={14} /> Usar asistente guiado
+          </button>
+        </div>
       ) : (
-        <div style={{ background: '#F1FBFB', border: '1px solid #0E9F9F', padding: '16px', borderRadius: '8px', animation: firstStepsActive ? 'pa-bounce 2s infinite' : 'none' }}>
+        <div style={{ background: '#F1FBFB', border: '1px solid #0E9F9F', padding: '16px', borderRadius: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0B7A7A', fontWeight: 600 }}>
               <Sparkles size={16} />
               <span>Asistente Guiado IA</span>
             </div>
-            {!firstStepsActive && (
-              <button onClick={() => setOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={16} /></button>
-            )}
+            <button onClick={() => setOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={16} /></button>
           </div>
           
           <p style={{ fontSize: '12.5px', color: 'var(--text)', marginBottom: '12px', lineHeight: 1.5 }}>
@@ -374,12 +369,7 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
         </div>
       </div>
 
-      <TaskAssistant 
-        task={task} 
-        onChange={set} 
-        firstStepsActive={firstStepsActive && guideStep === 2} 
-        onGuideComplete={() => { if (firstStepsActive && guideStep === 2 && onGuideComplete) onGuideComplete(3); }}
-      />
+      <TaskAssistant task={task} onChange={set} />
 
       <Field label="Nombre de la tarea" tooltip="Nombre corto y descriptivo de la acción (Ej: 'Revisar factura').">
         <input 
