@@ -273,12 +273,22 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
         </div>
       </div>
 
-      {firstStepsActive && guideStep === 2 && (
-        <div style={{ background: '#FFF8E1', color: '#C98A12', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', display: 'flex', gap: 8, alignItems: 'center', border: '1px solid #FFE082', animation: 'pa-bounce 2s infinite' }}>
-          <Lightbulb size={18} />
-          <strong>¡Excelente! Ahora dale un nombre a la tarea y clasifica su valor.</strong>
-        </div>
-      )}
+        {firstStepsActive && guideStep === 2 && (
+          <div style={{ background: '#F1FBFB', border: '1px solid #0E9F9F', color: '#0B7A7A', padding: '16px', borderRadius: '8px', marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 600 }}>
+              <Lightbulb size={18} />
+              <span>Paso 2: Define el Valor de tu Tarea</span>
+            </div>
+            <p style={{ fontSize: '13px', margin: '0 0 12px 0', lineHeight: 1.5 }}>
+              Para que nuestra Inteligencia Artificial pueda detectar cuellos de botella, necesita entender qué ocurre aquí. Modifica al menos estos campos:
+            </p>
+            <ul style={{ fontSize: '12.5px', margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <li><b>Nombre:</b> Sé descriptivo con la acción (ej: "Revisar formulario de solicitud").</li>
+              <li><b>Tiempo de ciclo:</b> ¿Cuánto tiempo de trabajo neto te toma completar esta acción?</li>
+              <li><b>Clasificación de valor:</b> Indica si esto agrega valor al cliente (<b>VA</b>), si es burocracia del negocio (<b>BVA</b>), o si es un paso que no aporta valor / retrabajo (<b>NVA</b>).</li>
+            </ul>
+          </div>
+        )}
 
       <Field label="Nombre de la tarea" tooltip="Nombre corto y descriptivo de la acción (Ej: 'Revisar factura').">
         <input 
