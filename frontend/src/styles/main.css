@@ -39,6 +39,22 @@
   --text-xl: 22px;
 }
 .pa-root *{box-sizing:border-box}
+
+/* Guarda global de overflow horizontal — evita el zoom-out en mobile.
+   El scroll horizontal a nivel de página nunca es intencional (las tablas
+   tienen su propio contenedor con overflow-x:auto). clip no rompe position:sticky. */
+html, body, #root {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+.pa-root {
+  width: 100%;
+  max-width: 100%;
+}
+
 .mono{font-family:var(--mono)}
 button{font-family:inherit}
 .spin{animation:pa-spin 1s linear infinite}
@@ -72,7 +88,8 @@ button{font-family:inherit}
 
 /* ---- dashboard ---- */
 .pa-dashboard{max-width:1100px;margin:0 auto;padding:32px 20px}
-.pa-dash-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px}
+@media (max-width:768px){.pa-dashboard{padding:20px 14px}}
+.pa-dash-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap}
 .pa-dash-header h2{font-family:var(--disp);font-size:22px;margin:0 0 4px;font-weight:700}
 .pa-dash-header p{margin:0;color:var(--muted);font-size:14px}
 .pa-dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
@@ -175,8 +192,9 @@ button{font-family:inherit}
 
 /* ---- panel ---- */
 .pa-panel{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-.pa-tabs{display:flex;border-bottom:1px solid var(--line)}
-.pa-tabs button{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;background:transparent;border:none;
+.pa-tabs{display:flex;border-bottom:1px solid var(--line);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.pa-tabs::-webkit-scrollbar{display:none}
+.pa-tabs button{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;background:transparent;border:none;white-space:nowrap;
   padding:13px 18px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
 .pa-tabs button.on{color:var(--teal-deep);border-bottom-color:var(--teal)}
 .pa-panel-body{padding:18px}
@@ -217,6 +235,7 @@ textarea.pa-input{resize:vertical;line-height:1.45}
 .pa-opt-head h3{font-family:var(--disp);font-size:16px;margin:0 0 3px}
 .pa-opt-head p{margin:0;font-size:12.5px;color:var(--muted);max-width:42ch;line-height:1.45}
 .pa-opt-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+@media (max-width:420px){.pa-opt-summary{grid-template-columns:1fr 1fr}}
 .pa-opt-summary>div{background:#F6FAFA;border:1px solid #DCECEC;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
 .pa-opt-summary span{font-size:11px;color:var(--muted)}
 .pa-opt-summary b{font-size:18px;font-family:var(--mono);color:var(--teal-deep)}
