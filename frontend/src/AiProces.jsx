@@ -1728,6 +1728,25 @@ export default function App() {
           }),
         });
         const data = await res.json();
+
+        // create_task (POST) ignora los campos planos de RACI/sistemas — solo los
+        // persiste update_task (PUT). Si el snapshot trae RACI/sistemas, los reponemos
+        // con un PUT reusando la traducción plano→relacional del backend.
+        const hasRaci = s.responsible || s.accountable || s.consulted || s.informed;
+        const hasSystems = s.systems;
+        if (data?.id && (hasRaci || hasSystems)) {
+          await apiFetch(`/processes/${processId}/tasks/${data.id}`, {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              responsible: s.responsible || "", accountable: s.accountable || "",
+              consulted: s.consulted || "", informed: s.informed || "",
+              systems: s.systems || "",
+            }),
+          });
+          data.responsible = s.responsible || ""; data.accountable = s.accountable || "";
+          data.consulted = s.consulted || ""; data.informed = s.informed || "";
+          data.systems = s.systems || "";
+        }
         mapped.push(mapBackendTaskToFrontend(data));
       }
 
