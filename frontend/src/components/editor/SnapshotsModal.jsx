@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { X, Clock, RotateCcw, AlertCircle } from 'lucide-react';
 import { apiFetch } from '../../api.js';
 
-export default function SnapshotsModal({ isOpen, onClose, processId, onRestoreComplete }) {
+export default function SnapshotsModal({ isOpen, onClose, processId, onRestore, confirm, onRestoreComplete }) {
   const [snapshots, setSnapshots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [restoringId, setRestoringId] = useState(null);
+  const [restoreError, setRestoreError] = useState(null);
 
   useEffect(() => {
     if (isOpen && processId) {
@@ -28,24 +29,29 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestoreCo
     }
   };
 
-  const handleRestore = async (snapId) => {
-    if (!window.confirm("Esto reemplazará el estado actual del proceso por esta versión. ¿Continuar?")) {
-      return;
-    }
-    setRestoringId(snapId);
+  const handleRestore = async (snap) => {
+    setRestoreError(null);
+    const ok = confirm
+      ? await confirm(
+          "Restaurar versión",
+          "Esto reemplazará todas las tareas y conexiones actuales del proceso por esta versión. Se guardará un respaldo del estado actual antes de restaurar.",
+          { danger: true, confirmLabel: "Restaurar" }
+        )
+      : window.confirm("Esto reemplazará el estado actual del proceso por esta versión. ¿Continuar?");
+    if (!ok) return;
+
+    setRestoringId(snap.id);
     try {
-      const res = await apiFetch(`/processes/${processId}/snapshots/${snapId}/restore`, {
-        method: "POST"
-      });
-      if (res.ok) {
+      const success = onRestore ? await onRestore(snap.snapshot_json) : false;
+      if (success) {
         if (onRestoreComplete) onRestoreComplete();
         onClose();
       } else {
-        alert("Error al restaurar la versión");
+        setRestoreError("No se pudo restaurar la versión. Intenta de nuevo.");
       }
     } catch (err) {
       console.error("Error restaurando", err);
-      alert("Error de red al restaurar");
+      setRestoreError("Error al restaurar la versión.");
     } finally {
       setRestoringId(null);
     }
@@ -67,10 +73,17 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestoreCo
             <span>Restaurar una versión sobrescribirá todas las tareas y conexiones actuales del proceso.</span>
           </div>
 
+          {restoreError && (
+            <div style={{ background: '#FCEDEA', color: '#A4271A', padding: 12, borderRadius: 8, fontSize: 12, display: 'flex', gap: 8, marginBottom: 16 }}>
+              <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+              <span>{restoreError}</span>
+            </div>
+          )}
+
           {loading ? (
             <div style={{ textAlign: 'center', padding: 30, color: '#5C6B6B', fontSize: 13 }}>Cargando versiones...</div>
           ) : snapshots.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 30, color: '#5C6B6B', fontSize: 13 }}>No hay versiones guardadas. Las versiones se crean automáticamente antes de cada optimización IA.</div>
+            <div style={{ textAlign: 'center', padding: 30, color: '#5C6B6B', fontSize: 13 }}>No hay versiones guardadas. Se crea una versión automáticamente antes de aplicar una optimización o eliminar tareas, para que puedas deshacer los cambios.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 400, overflowY: 'auto' }}>
               {snapshots.map(snap => {
@@ -86,7 +99,7 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestoreCo
                     </div>
                     <button 
                       className="pa-btn pa-btn-ghost" 
-                      onClick={() => handleRestore(snap.id)}
+                      onClick={() => handleRestore(snap)}
                       disabled={restoringId === snap.id}
                       style={{ fontSize: 12, padding: '6px 12px', color: '#0B7E7E', border: '1px solid #D7F0F0' }}
                     >

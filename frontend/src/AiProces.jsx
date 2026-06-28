@@ -1686,6 +1686,79 @@ export default function App() {
     }
   };
 
+  // Restaura una versión guardada: recrea tareas + grafo desde el snapshot frontend.
+  // El restore en sí es undoable (guarda un snapshot previo). Devuelve true/false.
+  const restoreSnapshot = async (snapshotJson) => {
+    const processId = procRef.current?.id;
+    if (!processId || !snapshotJson) return false;
+
+    const snapTasks = Array.isArray(snapshotJson.tasks) ? snapshotJson.tasks : [];
+    const snapGateways = Array.isArray(snapshotJson.gateways) ? snapshotJson.gateways : [];
+    const snapFlows = Array.isArray(snapshotJson.sequence_flows) ? snapshotJson.sequence_flows : [];
+
+    setLoading(true);
+    const saved = await saveAutoSnapshot("Antes de restaurar versión");
+    if (!saved) { setLoading(false); return false; }
+
+    try {
+      // Eliminar tareas actuales secuencialmente (evita conflictos de FK)
+      for (const t of tasks) {
+        await apiFetch(`/processes/${processId}/tasks/${t.id}`, { method: "DELETE" });
+      }
+
+      // Recrear tareas desde el snapshot (formato frontend → backend)
+      const mapped = [];
+      for (let idx = 0; idx < snapTasks.length; idx++) {
+        const s = snapTasks[idx];
+        const valClass = s.valueClass || s.value_classification || "VA";
+        const res = await apiFetch(`/processes/${processId}/tasks`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bpmn_id: s.bpmnId || s.bpmn_id || newBpmnId(),
+            name: s.name || "Paso",
+            description: s.description || "",
+            position_order: s.position_order || idx + 1,
+            task_type: (s.type || s.task_type) && TYPES[s.type || s.task_type] ? (s.type || s.task_type) : "user",
+            value_classification: valClass,
+            waste_type: valClass === "NVA" ? (s.wasteType || s.waste_type || "waiting") : null,
+            std_cycle_time_sec: Number(s.cycleTime ?? s.std_cycle_time_sec) || 0,
+            std_wait_time_sec: Number(s.waitTime ?? s.std_wait_time_sec) || 0,
+            responsible: s.responsible || "", accountable: s.accountable || "",
+            consulted: s.consulted || "", informed: s.informed || "", systems: s.systems || "",
+          }),
+        });
+        const data = await res.json();
+        mapped.push(mapBackendTaskToFrontend(data));
+      }
+
+      // Restaurar grafo (gateways + flows del snapshot)
+      const cleanFlows = snapFlows.map((f, i) => ({
+        bpmn_id: f.bpmn_id || `Flow_R_${i}_${Date.now()}`,
+        source_ref: f.source_ref,
+        target_ref: f.target_ref,
+        name: f.name || "",
+        condition_expression: f.condition_expression || f.condition || null,
+      }));
+
+      setTasks(mapped);
+      setGateways(snapGateways);
+      setSequenceFlows(cleanFlows);
+      await apiFetch(`/processes/${processId}/graph`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gateways: snapGateways, sequence_flows: cleanFlows }),
+      });
+
+      setSelectedId(mapped[0]?.id || null);
+      setTab("detalle");
+      return true;
+    } catch (e) {
+      setSaveState({ status: "error", message: "No se pudo restaurar la versión por completo." });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // local nva count calculation since metricsData might not have it explicitly as a simple count
   const localNvaCount = tasks.filter((t) => t.valueClass === "NVA").length;
 
@@ -1908,14 +1981,15 @@ export default function App() {
       {confirmDialog}
       {inputDialog}
       {firstStepsActive && <GuideTicket step={guideStep} onStep={setGuideStep} onDismiss={dismissGuide} />}
-      <SnapshotsModal 
-        isOpen={snapshotsModalOpen} 
-        onClose={() => setSnapshotsModalOpen(false)} 
-        processId={proc?.id} 
+      <SnapshotsModal
+        isOpen={snapshotsModalOpen}
+        onClose={() => setSnapshotsModalOpen(false)}
+        processId={proc?.id}
+        onRestore={restoreSnapshot}
+        confirm={confirm}
         onRestoreComplete={() => {
           setShowUndoBanner(false);
-          loadProcessTasks(proc);
-        }} 
+        }}
       />
 
       {view !== "editor" && (
