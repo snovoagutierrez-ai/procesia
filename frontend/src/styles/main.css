@@ -119,7 +119,10 @@ button{font-family:inherit}
 .pa-shell{display:grid;grid-template-columns:296px 1fr;gap:18px;padding:18px;max-width:1320px;margin:0 auto;align-items:start}
 @media (max-width:880px){.pa-shell{grid-template-columns:1fr;padding:12px;gap:12px}}
 @media (min-width:769px) and (max-width:880px){.pa-mobile-nav{display:flex}}
-@media (max-width:768px){.pa-shell{display:flex;flex-direction:column-reverse;padding:12px;gap:16px}}
+/* column (no reverse): en móvil solo se renderiza un hijo por paso (pa-side o pa-main),
+   por lo que column-reverse no aportaba orden y empaquetaba el contenido abajo,
+   dejando un gran espacio en blanco arriba (visible en la pestaña IA). */
+@media (max-width:768px){.pa-shell{display:flex;flex-direction:column;padding:12px;gap:16px}}
 
 /* ---- sidebar ---- */
 .pa-side{background:var(--ink);border-radius:14px;padding:6px;display:flex;flex-direction:column;gap:6px;
