@@ -432,13 +432,14 @@ class GraphSync(BaseModel):
     sequence_flows: List[SequenceFlowSync]
 
 class MacroSequenceFlowSync(BaseModel):
-    id: Optional[str] = None # Allows frontend IDs like sf-1234
+    id: Optional[str] = None # Acepta IDs del frontend ("sf-1234") y el id int de la BD
     source_ref: str = Field(..., max_length=60)
     target_ref: str = Field(..., max_length=60)
     condition: Optional[str] = Field(None, max_length=200)
 
     class Config:
         from_attributes = True
+        coerce_numbers_to_str = True  # el id en BD es BigInteger → coercionar a str al leer
 
 class MacroGraphSync(BaseModel):
     sequence_flows: List[MacroSequenceFlowSync]
