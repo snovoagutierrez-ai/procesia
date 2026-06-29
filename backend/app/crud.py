@@ -495,16 +495,18 @@ def update_task_direct(db: Session, db_task: models.Task, task_in: schemas.TaskU
     raci_fields = {'responsible', 'accountable', 'consulted', 'informed'}
     sent_fields = task_in.model_dump(exclude_unset=True).keys()
     if any(rf in sent_fields for rf in raci_fields):
-        # Query current RACI names from DB (db_task has no .responsible attribute — it's in TaskRaci)
-        existing_raci: dict[str, str | None] = {rt: None for rt in ('R', 'A', 'C', 'I')}
+        # Agrega los roles actuales por letra (puede haber varios en C/I) → texto con comas,
+        # para preservar las letras no enviadas en una actualización parcial.
+        existing_lists: dict[str, list] = {rt: [] for rt in ('R', 'A', 'C', 'I')}
         for r in db_task.raci:
             role = db.query(models.Role).filter(models.Role.id == r.role_id).first()
             if role:
-                existing_raci[r.raci_type.value] = role.name
-        resp = task_in.responsible if task_in.responsible is not None else existing_raci['R']
-        acc  = task_in.accountable if task_in.accountable is not None else existing_raci['A']
-        cons = task_in.consulted   if task_in.consulted   is not None else existing_raci['C']
-        inf  = task_in.informed    if task_in.informed    is not None else existing_raci['I']
+                existing_lists[r.raci_type.value].append(role.name)
+        existing = {k: (", ".join(v) if v else None) for k, v in existing_lists.items()}
+        resp = task_in.responsible if task_in.responsible is not None else existing['R']
+        acc  = task_in.accountable if task_in.accountable is not None else existing['A']
+        cons = task_in.consulted   if task_in.consulted   is not None else existing['C']
+        inf  = task_in.informed    if task_in.informed    is not None else existing['I']
         _update_task_raci_direct(db, db_task.id, resp, acc, cons, inf)
 
     # Update Systems if provided
@@ -519,18 +521,24 @@ def _update_task_raci_direct(db: Session, task_id: int, R: str, A: str, C: str, 
     # Delete existing
     db.query(models.TaskRaci).filter(models.TaskRaci.task_id == task_id).delete()
     
+    # Cada letra acepta múltiples roles separados por coma (típico en Consulted/Informed).
+    # La PK (task_id, role_id, raci_type) impide duplicar el mismo rol en la misma letra.
     raci_map = {'R': R, 'A': A, 'C': C, 'I': I}
-    for rtype, name in raci_map.items():
-        if name and name.strip():
-            name_clean = name.strip().title()
-            # Find or create role
+    for rtype, raw in raci_map.items():
+        if not raw or not raw.strip():
+            continue
+        seen = set()
+        for part in raw.split(','):
+            name_clean = part.strip().title()
+            if not name_clean or name_clean in seen:
+                continue
+            seen.add(name_clean)
             role = db.query(models.Role).filter(models.Role.name == name_clean).first()
             if not role:
                 role = models.Role(name=name_clean)
                 db.add(role)
                 db.flush()
-            db_raci = models.TaskRaci(task_id=task_id, role_id=role.id, raci_type=rtype)
-            db.add(db_raci)
+            db.add(models.TaskRaci(task_id=task_id, role_id=role.id, raci_type=rtype))
 
 def _update_task_systems_direct(db: Session, task_id: int, systems_str: str):
     # Delete existing

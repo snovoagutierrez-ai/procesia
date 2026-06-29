@@ -247,12 +247,14 @@ class TaskResponse(TaskBase):
     @classmethod
     def extract_relations(cls, data: Any) -> Any:
         if not isinstance(data, dict):
-            r_names = {}
+            # Agrega múltiples roles por letra (varios Consulted/Informed) → texto con comas
+            r_lists = {}
             if hasattr(data, 'raci') and data.raci:
                 for tr in data.raci:
                     if tr.role:
-                        r_names[tr.raci_type.value] = tr.role.name
-            
+                        r_lists.setdefault(tr.raci_type.value, []).append(tr.role.name)
+            r_names = {k: ", ".join(v) for k, v in r_lists.items()}
+
             sys_names = ""
             if hasattr(data, 'systems') and data.systems:
                 sys_list = []

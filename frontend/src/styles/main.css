@@ -224,6 +224,13 @@ textarea.pa-input{resize:vertical;line-height:1.45}
 .pa-row.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (max-width:520px){.pa-row.two{grid-template-columns:1fr}}
 
+/* ---- multi-rol (chips) para RACI Consultado/Informado ---- */
+.pa-multirole{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:6px 8px;background:#fff;min-height:40px}
+.pa-multirole:focus-within{border-color:var(--teal);box-shadow:0 0 0 3px rgba(14,159,159,.12)}
+.pa-chip-role{display:inline-flex;align-items:center;gap:5px;background:var(--surface-teal);color:var(--teal-deep);border:1px solid var(--border-teal);border-radius:14px;padding:2px 6px 2px 10px;font-size:12.5px;font-weight:600}
+.pa-chip-role button{background:none;border:none;cursor:pointer;color:var(--teal-deep);font-size:15px;line-height:1;padding:0 2px;display:flex;opacity:.7}
+.pa-chip-role button:hover{opacity:1}
+.pa-multirole-input{flex:1;min-width:90px;border:none;outline:none;font-size:13.5px;font-family:inherit;color:var(--text);background:transparent;padding:4px 2px}
 .pa-seg{display:inline-flex;flex-wrap:wrap;gap:6px}
 .pa-seg button{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:8px;padding:8px 13px;
   font-size:12.5px;font-weight:600;cursor:pointer;transition:.12s}

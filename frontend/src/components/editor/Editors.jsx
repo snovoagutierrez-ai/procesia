@@ -5,6 +5,42 @@ import { apiFetch } from '../../api.js';
 import { Seg, Field, TimeField } from '../shared/uiAtoms.jsx';
 import Banner from '../shared/Banner.jsx';
 
+// Entrada de múltiples roles (chips) para Consultado/Informado. Transporta un string
+// separado por comas, compatible con el backend (que crea N filas en task_raci por letra).
+function MultiRoleInput({ value, onChange, placeholder }) {
+  const roles = (value || "").split(",").map(s => s.trim()).filter(Boolean);
+  const [draft, setDraft] = useState("");
+  const commit = (name) => {
+    const n = (name || "").trim();
+    setDraft("");
+    if (!n) return;
+    if (roles.some(r => r.toLowerCase() === n.toLowerCase())) return;
+    onChange([...roles, n].join(", "));
+  };
+  const removeAt = (idx) => onChange(roles.filter((_, i) => i !== idx).join(", "));
+  return (
+    <div className="pa-multirole">
+      {roles.map((r, i) => (
+        <span key={i} className="pa-chip-role">
+          {r}
+          <button type="button" onClick={() => removeAt(i)} aria-label={`Quitar ${r}`}>×</button>
+        </span>
+      ))}
+      <input
+        className="pa-multirole-input"
+        value={draft}
+        onChange={(e) => { const v = e.target.value; if (v.includes(",")) commit(v.replace(/,/g, "")); else setDraft(v); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); commit(draft); }
+          else if (e.key === "Backspace" && !draft && roles.length) removeAt(roles.length - 1);
+        }}
+        onBlur={() => commit(draft)}
+        placeholder={roles.length ? "Añadir otro…" : (placeholder || "Escribe y Enter")}
+      />
+    </div>
+  );
+}
+
 function ClickableTooltip({ content }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
@@ -442,8 +478,8 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
         <Field label="Aprobador (A)" tooltip="Quien aprueba o responde por el éxito de la tarea."><input className="pa-input" value={task.accountable} onChange={(e) => set({ accountable: e.target.value })} /></Field>
       </div>
       <div className="pa-row two">
-        <Field label="Consultado (C)" tooltip="Quien aporta información necesaria."><input className="pa-input" value={task.consulted} onChange={(e) => set({ consulted: e.target.value })} /></Field>
-        <Field label="Informado (I)" tooltip="A quien se le notifica el resultado."><input className="pa-input" value={task.informed} onChange={(e) => set({ informed: e.target.value })} /></Field>
+        <Field label="Consultado (C)" tooltip="Quienes aportan información necesaria. Puedes añadir varios."><MultiRoleInput value={task.consulted} onChange={(v) => set({ consulted: v })} placeholder="Ej: Legal, Finanzas" /></Field>
+        <Field label="Informado (I)" tooltip="A quienes se notifica el resultado. Puedes añadir varios."><MultiRoleInput value={task.informed} onChange={(v) => set({ informed: v })} placeholder="Ej: Dirección" /></Field>
       </div>
 
       <div className="pa-divider"><span>Sistemas</span></div>
