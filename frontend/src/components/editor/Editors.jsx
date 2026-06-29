@@ -303,7 +303,7 @@ function TaskAssistant({ task, onChange }) {
     <div style={{ marginBottom: 16 }}>
       {!open ? (
         <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-          <button className="pa-btn" onClick={() => setOpen(true)} style={{ color: "var(--teal)", background: "#fff", border: "1px solid #BFE6E6", borderRadius: '20px', fontSize: '12px', padding: '4px 12px', height: '28px', minHeight: 'auto', display: 'flex', gap: '6px' }}>
+          <button className="pa-btn pa-btn-sm" onClick={() => setOpen(true)} style={{ color: "var(--teal)", background: "#fff", border: "1px solid var(--teal-border-strong)", borderRadius: '20px' }}>
             <Sparkles size={14} /> Usar asistente guiado
           </button>
         </div>
@@ -381,7 +381,7 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
           {saveState.status === 'error' && <span style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={14} /> Error</span>}
         </div>
         <div className="pa-editor-actions">
-          <button className="pa-btn pa-btn-primary" onClick={handleSave} style={{ fontSize: '12px', padding: '4px 12px', minHeight: 'auto', height: '28px' }}>Guardar</button>
+          <button className="pa-btn pa-btn-primary pa-btn-sm" onClick={handleSave}>Guardar</button>
           <button className="pa-icon danger" style={{ marginLeft: 8 }} onClick={() => onDelete(task.id)} title="Eliminar"><Trash2 size={16} /></button>
         </div>
       </div>

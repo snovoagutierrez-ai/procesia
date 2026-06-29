@@ -56,34 +56,34 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
         
         <div className="pa-panel" style={{ padding: '40px', textAlign: 'center', maxWidth: 800, margin: '40px auto' }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
-            <div style={{ background: '#EBF0EC', width: 64, height: 64, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0E9F9F' }}>
+            <div style={{ background: '#EBF0EC', width: 64, height: 64, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--teal)' }}>
               <Sparkles size={32} />
             </div>
           </div>
-          <h3 style={{ fontSize: 24, marginBottom: 12, color: '#13202B' }}>Comienza a mapear tus flujos</h3>
-          <p style={{ color: '#5C6B6B', fontSize: 15, marginBottom: 32, lineHeight: 1.6 }}>
+          <h3 style={{ fontSize: 24, marginBottom: 12, color: 'var(--ink)' }}>Comienza a mapear tus flujos</h3>
+          <p style={{ color: 'var(--muted)', fontSize: 15, marginBottom: 32, lineHeight: 1.6 }}>
             Sigue el flujo recomendado para optimizar operaciones:
           </p>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, textAlign: 'left', marginBottom: 40, background: '#F5F7F5', padding: 24, borderRadius: 12 }}>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <span style={{ background: '#0E9F9F', color: '#fff', width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>1</span>
+              <span style={{ background: 'var(--teal)', color: '#fff', width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>1</span>
               <span style={{ fontSize: 14, color: '#3A4B4B' }}><b>Define el macroproceso</b> y crea tu primer proceso SIPOC.</span>
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <span style={{ background: '#0E9F9F', color: '#fff', width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>2</span>
+              <span style={{ background: 'var(--teal)', color: '#fff', width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>2</span>
               <span style={{ fontSize: 14, color: '#3A4B4B' }}><b>Levanta los pasos</b> con sus responsables, sistemas y tiempos.</span>
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <span style={{ background: '#0E9F9F', color: '#fff', width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>3</span>
+              <span style={{ background: 'var(--teal)', color: '#fff', width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>3</span>
               <span style={{ fontSize: 14, color: '#3A4B4B' }}><b>Clasifica el valor</b> (VA, NNVA, NVA) de cada paso según principios Lean.</span>
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <span style={{ background: '#0E9F9F', color: '#fff', width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>4</span>
+              <span style={{ background: 'var(--teal)', color: '#fff', width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>4</span>
               <span style={{ fontSize: 14, color: '#3A4B4B' }}><b>Optimiza con IA</b> para identificar cuellos de botella y oportunidades.</span>
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <span style={{ background: '#0E9F9F', color: '#fff', width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>5</span>
+              <span style={{ background: 'var(--teal)', color: '#fff', width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>5</span>
               <span style={{ fontSize: 14, color: '#3A4B4B' }}><b>Exporta en BPMN 2.0</b> el diagrama optimizado.</span>
             </div>
           </div>
@@ -141,8 +141,8 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                   <div key={m.id} className="pa-dash-macro-sec">
                     <div className="pa-dash-macro-head" style={{ cursor: 'pointer' }} onClick={() => setExpandedMacros(prev => ({ ...prev, [m.id]: !prev[m.id] }))}>
                       <div className="pa-dash-macro-title">
-                        {expandedMacros[m.id] ? <ChevronDown size={20} style={{ color: "#0E9F9F" }} /> : <ChevronRight size={20} style={{ color: "#0E9F9F" }} />}
-                        <FolderOpen size={20} style={{ color: "#0E9F9F", marginLeft: 4 }} />
+                        {expandedMacros[m.id] ? <ChevronDown size={20} style={{ color: "var(--teal)" }} /> : <ChevronRight size={20} style={{ color: "var(--teal)" }} />}
+                        <FolderOpen size={20} style={{ color: "var(--teal)", marginLeft: 4 }} />
                         <h3>{m.name}</h3>
                         <span className="pa-dash-code">{m.code}</span>
                       </div>
@@ -153,7 +153,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                             {macroOpts[m.id]?.status === "loading" ? (macroLongLoading?.[m.id] ? "Analizando macroproceso..." : "Optimizando...") : "Optimizar End-to-End"}
                           </button>
                         )}
-                        <button className="pa-btn pa-btn-ghost" style={{ color: '#0E9F9F', border: '1px solid #E2E7E3' }} onClick={() => onCreateProcess(m.id)}>
+                        <button className="pa-btn pa-btn-ghost" style={{ color: 'var(--teal)', border: '1px solid #E2E7E3' }} onClick={() => onCreateProcess(m.id)}>
                           <Plus size={14} /> Añadir proceso
                         </button>
                         <button className="pa-icon danger" style={{position:"static", width:34, height:34, flexShrink: 0}} onClick={() => onDeleteMacro(m.id)} title="Eliminar macroproceso">
@@ -320,7 +320,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                       <td style={{ padding: '12px 16px' }}>{p.output_result || p.output || '—'}</td>
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                          <button className="pa-btn pa-btn-ghost" style={{ padding: '4px 8px' }} onClick={(e) => { e.stopPropagation(); onSelect(p); }}>Abrir</button>
+                          <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={(e) => { e.stopPropagation(); onSelect(p); }}>Abrir</button>
                           <button className="pa-icon danger small" onClick={(e) => { e.stopPropagation(); onDeleteProcess(p.id); }} title="Eliminar proceso"><Trash2 size={14} /></button>
                         </div>
                       </td>
@@ -351,7 +351,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
           <div style={{ background: '#fff', width: '90vw', height: '80vh', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8F9FA' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: 18, color: '#13202B' }}>Flujo Interno: {previewProcess.name}</h3>
+                <h3 style={{ margin: 0, fontSize: 18, color: 'var(--ink)' }}>Flujo Interno: {previewProcess.name}</h3>
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>{previewProcess.code}</span>
               </div>
               <div style={{ display: 'flex', gap: 12 }}>

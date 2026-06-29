@@ -29,7 +29,7 @@ import SnapshotsModal from "./components/editor/SnapshotsModal.jsx";
 
 function Banner({ type, message, actionText, onAction, onClose }) {
   const bg = type === 'success' ? '#E8F5E9' : type === 'warning' ? '#FFF8E1' : '#E8F4F8';
-  const color = type === 'success' ? '#1FA463' : type === 'warning' ? '#C98A12' : '#0E9F9F';
+  const color = type === 'success' ? '#1FA463' : type === 'warning' ? '#C98A12' : 'var(--teal)';
   return (
     <div style={{ background: bg, padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${color}30` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, color, fontSize: 13, fontWeight: 500 }}>
@@ -38,7 +38,7 @@ function Banner({ type, message, actionText, onAction, onClose }) {
       </div>
       <div style={{ display: 'flex', gap: 12 }}>
         {actionText && onAction && (
-          <button className="pa-btn" onClick={onAction} style={{ padding: '4px 12px', fontSize: 12, minHeight: 28, background: '#fff', color, border: `1px solid ${color}` }}>
+          <button className="pa-btn pa-btn-sm" onClick={onAction} style={{ background: '#fff', color, border: `1px solid ${color}` }}>
             {actionText}
           </button>
         )}
@@ -1972,9 +1972,9 @@ export default function App() {
     return (
       <div className="pa-loading-screen" style={{
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        minHeight: "100vh", background: "#13202B", color: "#EAF1EF", fontFamily: "sans-serif",
+        minHeight: "100vh", background: "var(--ink)", color: "#EAF1EF", fontFamily: "sans-serif",
       }}>
-        <Loader2 size={40} className="spin" style={{ color: "#0E9F9F", marginBottom: "16px" }} />
+        <Loader2 size={40} className="spin" style={{ color: "var(--teal)", marginBottom: "16px" }} />
         <div>Iniciando y conectando con el backend...</div>
       </div>
     );
@@ -1985,7 +1985,7 @@ export default function App() {
     return (
       <div className="pa-loading-screen" style={{
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        minHeight: "100vh", background: "#13202B", color: "#EAF1EF", fontFamily: "sans-serif", gap: 16,
+        minHeight: "100vh", background: "var(--ink)", color: "#EAF1EF", fontFamily: "sans-serif", gap: 16,
       }}>
         <AlertTriangle size={40} style={{ color: "#D9503C" }} />
         <div style={{ maxWidth: 400, textAlign: "center" }}>{error}</div>
@@ -2026,7 +2026,7 @@ export default function App() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontSize: '12px', lineHeight: '1.2' }}>
                 <span style={{ fontWeight: 600 }}>{user?.email}</span>
                 {user?.role === 'admin' && (
-                  <span style={{ color: '#0E9F9F', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase' }}>Admin</span>
+                  <span style={{ color: 'var(--teal)', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase' }}>Admin</span>
                 )}
               </div>
               <button className="pa-btn pa-btn-ghost" onClick={() => setShowTutorial(true)} title="Ver Tutorial">
@@ -2068,7 +2068,7 @@ export default function App() {
           <div className="pa-topbar">
             <div className="pa-editor-topbar-inner">
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                <button className="pa-btn pa-btn-ghost" style={{ padding: '6px', flexShrink: 0 }} onClick={goBackToDashboard} aria-label="Volver"><ArrowLeft size={16} /></button>
+                <button className="pa-btn pa-btn-ghost pa-btn-icon-only" onClick={goBackToDashboard} aria-label="Volver"><ArrowLeft size={16} /></button>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)', minWidth: 0 }}>
                   <span className="pa-editor-breadcrumb-trail" style={{ display: 'contents' }}>
@@ -2086,13 +2086,13 @@ export default function App() {
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                <button className="pa-btn pa-btn-ghost" style={{ padding: '6px 10px' }} title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }} aria-label="Guía">
+                <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }} aria-label="Guía">
                   <Lightbulb size={16} /><span className="pa-editor-action-label"> Guía</span>
                 </button>
-                <button className="pa-btn pa-btn-ghost" style={{ padding: '6px 10px' }} onClick={() => setSnapshotsModalOpen(true)} aria-label="Versiones">
+                <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => setSnapshotsModalOpen(true)} aria-label="Versiones">
                   <Clock size={16} /><span className="pa-editor-action-label"> Versiones</span>
                 </button>
-                <button className="pa-btn pa-btn-ghost" style={{ padding: '6px 10px' }} onClick={exportBpmn} aria-label="Exportar BPMN">
+                <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={exportBpmn} aria-label="Exportar BPMN">
                   <Download size={16} /><span className="pa-editor-action-label"> .bpmn</span>
                 </button>
               </div>
@@ -2289,11 +2289,11 @@ export default function App() {
                         </button>
                       </div>
                       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                        <button className="pa-btn pa-btn-primary" style={{ fontSize: 12, padding: '5px 12px' }}
+                        <button className="pa-btn pa-btn-primary pa-btn-sm"
                           onClick={() => { aiTip.markAsApplied(); setAiTip(null); }}>
                           <Check size={13} /> Marcar como aplicada
                         </button>
-                        <button className="pa-btn pa-btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }}
+                        <button className="pa-btn pa-btn-ghost pa-btn-sm"
                           onClick={() => setAiTip(null)}>
                           Descartar
                         </button>
@@ -2325,7 +2325,7 @@ export default function App() {
                       <GatewayEditor gateway={selectedGateway} onChange={updateGateway} onDelete={deleteGateway}
                         saveState={saveState} onDone={() => { if (isMobile) setMobileStep(2); else setSelectedId(null); }} />
                     ) : (
-                    <div style={{ padding: '24px', textAlign: 'center', color: '#5C6B6B' }}>
+                    <div style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)' }}>
                       Selecciona un nodo para ver sus detalles.
                     </div>
                   )
