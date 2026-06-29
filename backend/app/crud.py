@@ -659,3 +659,36 @@ def sync_graph(db: Session, process_id: int, graph_data: schemas.GraphSync) -> s
 
     db.commit()
     return get_graph(db, process_id)
+
+
+# ==========================================
+# 11. Time Measurements (#8 — tiempos observados)
+# ==========================================
+
+def create_time_measurement(db: Session, task_id: int, m_in: schemas.TimeMeasurementInput):
+    db_m = models.TimeMeasurement(
+        task_id=task_id,
+        observed_cycle_sec=m_in.observed_cycle_sec,
+        observed_wait_sec=m_in.observed_wait_sec,
+        case_ref=m_in.case_ref,
+    )
+    db.add(db_m)
+    db.commit()
+    db.refresh(db_m)
+    return db_m
+
+def get_task_measurements(db: Session, task_id: int):
+    return (
+        db.query(models.TimeMeasurement)
+        .filter(models.TimeMeasurement.task_id == task_id)
+        .order_by(models.TimeMeasurement.observed_at.desc())
+        .all()
+    )
+
+def delete_time_measurement(db: Session, measurement_id: int):
+    m = db.query(models.TimeMeasurement).filter(models.TimeMeasurement.id == measurement_id).first()
+    if not m:
+        return False
+    db.delete(m)
+    db.commit()
+    return True

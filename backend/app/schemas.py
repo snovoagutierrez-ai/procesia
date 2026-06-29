@@ -368,6 +368,12 @@ class TimeMeasurementBase(BaseModel):
 class TimeMeasurementCreate(TimeMeasurementBase):
     pass
 
+class TimeMeasurementInput(BaseModel):
+    # task_id viene del path en POST /tasks/{id}/measurements
+    observed_cycle_sec: Decimal = Field(..., ge=0)
+    observed_wait_sec: Decimal = Field(Decimal('0.00'), ge=0)
+    case_ref: Optional[str] = Field(None, max_length=80)
+
 class TimeMeasurementResponse(TimeMeasurementBase):
     id: int
     observed_at: datetime

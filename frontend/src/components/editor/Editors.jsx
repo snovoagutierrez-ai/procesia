@@ -393,7 +393,91 @@ function TaskAssistant({ task, onChange }) {
   );
 }
 
-function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone, sequenceFlows = [], gateways = [], tasks = [], onFlowsChange, onForceSave, firstStepsActive, guideStep, onGuideComplete }) {
+// #8 Tiempos observados: registrar mediciones reales por tarea y comparar
+// promedio observado vs estándar + variabilidad (CV). Infraestructura ya existía
+// (tabla time_measurements), faltaban endpoints + UI.
+function MeasurementsPanel({ processId, taskId, stdCycle }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState([]);
+  const [cycle, setCycle] = useState("");
+  const [wait, setWait] = useState("");
+  const [ref, setRef] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    if (!processId || !taskId) return;
+    try {
+      const res = await apiFetch(`/processes/${processId}/tasks/${taskId}/measurements`);
+      if (res.ok) setItems(await res.json());
+    } catch { /* silent */ }
+  };
+  useEffect(() => { if (open) load(); /* eslint-disable-next-line */ }, [open, processId, taskId]);
+
+  const add = async () => {
+    const c = Number(cycle);
+    if (!c || c <= 0) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/processes/${processId}/tasks/${taskId}/measurements`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ observed_cycle_sec: c, observed_wait_sec: Number(wait) || 0, case_ref: ref.trim() || null }),
+      });
+      if (res.ok) { setCycle(""); setWait(""); setRef(""); await load(); }
+    } finally { setBusy(false); }
+  };
+
+  const remove = async (id) => {
+    try {
+      const res = await apiFetch(`/processes/${processId}/tasks/${taskId}/measurements/${id}`, { method: "DELETE" });
+      if (res.ok) setItems(items.filter(m => m.id !== id));
+    } catch { /* silent */ }
+  };
+
+  const n = items.length;
+  const cycles = items.map(m => Number(m.observed_cycle_sec));
+  const avg = n ? cycles.reduce((a, b) => a + b, 0) / n : 0;
+  const sd = n ? Math.sqrt(cycles.reduce((a, b) => a + (b - avg) ** 2, 0) / n) : 0;
+  const cv = avg ? (sd / avg) * 100 : 0;
+  const devVsStd = (stdCycle && avg) ? ((avg - stdCycle) / stdCycle) * 100 : null;
+
+  return (
+    <div style={{ marginBottom: 16, border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} className="pa-btn pa-btn-ghost" style={{ width: '100%', justifyContent: 'space-between', borderRadius: 0, border: 'none', background: '#F8F9FA' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Clock size={15} /> Tiempos observados {n > 0 && <span className="pa-tag" style={{ margin: 0 }}>{n}</span>}</span>
+        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+      </button>
+      {open && (
+        <div style={{ padding: 14 }}>
+          {n > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 14, fontSize: 12.5 }}>
+              <div><span style={{ color: 'var(--muted)' }}>Promedio observado</span><br /><b className="mono">{fmtShort(avg)}</b> <span style={{ color: 'var(--muted)' }}>vs estándar {fmtShort(stdCycle)}</span></div>
+              {devVsStd != null && <div><span style={{ color: 'var(--muted)' }}>Desviación vs estándar</span><br /><b className="mono" style={{ color: Math.abs(devVsStd) > 20 ? 'var(--danger)' : 'var(--teal-deep)' }}>{devVsStd > 0 ? '+' : ''}{Math.round(devVsStd)}%</b></div>}
+              <div><span style={{ color: 'var(--muted)' }}>Variabilidad (CV)</span><br /><b className="mono" style={{ color: cv > 30 ? 'var(--warning)' : 'var(--teal-deep)' }}>{Math.round(cv)}%</b></div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 12 }}>Registra tiempos reales medidos en campo para comparar contra el estándar y detectar variabilidad.</div>
+          )}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
+            <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Ciclo (seg)</label><input className="pa-input" type="number" min="0" value={cycle} onChange={e => setCycle(e.target.value)} style={{ width: 90 }} /></div>
+            <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Espera (seg)</label><input className="pa-input" type="number" min="0" value={wait} onChange={e => setWait(e.target.value)} style={{ width: 90 }} /></div>
+            <div style={{ flex: 1, minWidth: 100 }}><label style={{ fontSize: 11, color: 'var(--muted)' }}>Caso / ref</label><input className="pa-input" value={ref} onChange={e => setRef(e.target.value)} placeholder="Ej: Caso #42" /></div>
+            <button type="button" className="pa-btn pa-btn-primary pa-btn-sm" onClick={add} disabled={busy || !Number(cycle)}>Añadir</button>
+          </div>
+          {items.map(m => (
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderTop: '1px solid var(--line)', fontSize: 12.5 }}>
+              <span className="mono">{fmtShort(Number(m.observed_cycle_sec))}</span>
+              {Number(m.observed_wait_sec) > 0 && <span style={{ color: 'var(--muted)' }}>+esp {fmtShort(Number(m.observed_wait_sec))}</span>}
+              {m.case_ref && <span style={{ color: 'var(--muted)' }}>· {m.case_ref}</span>}
+              <button type="button" onClick={() => remove(m.id)} aria-label="Eliminar medición" style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}><Trash2 size={13} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone, sequenceFlows = [], gateways = [], tasks = [], onFlowsChange, onForceSave, firstStepsActive, guideStep, onGuideComplete, processId }) {
   const [showSaved, setShowSaved] = useState(false);
   const handleSave = async () => {
     if (onForceSave) await onForceSave();
@@ -446,6 +530,8 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
         <TimeField label="Tiempo de ciclo" tooltip="Tiempo real trabajando en la tarea (Processing Time)." valueSec={task.cycleTime} onChangeSec={(v) => set({ cycleTime: v })} />
         <TimeField label="Tiempo de espera" tooltip="Tiempo inactivo antes de que esta tarea comience (Wait Time)." valueSec={task.waitTime} onChangeSec={(v) => set({ waitTime: v })} />
       </div>
+
+      {processId && task.id && <MeasurementsPanel processId={processId} taskId={task.id} stdCycle={task.cycleTime} />}
 
       <div style={{ marginBottom: '16px' }}>
         <div style={{ marginBottom: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--text)', display: 'flex', gap: '8px', alignItems: 'center' }}>

@@ -2391,6 +2391,7 @@ export default function App() {
                   {tab === "detalle" ? (
                     selectedTask ? (
                       <Editor task={selectedTask} onChange={updateTask} onMove={moveTask} onDelete={deleteTask}
+                        processId={proc?.id}
                         isFirst={selectedTask ? tasks[0]?.id === selectedTask.id : true}
                         isLast={selectedTask ? tasks[tasks.length - 1]?.id === selectedTask.id : true} 
                         saveState={saveState} expertMode={expertMode} setExpertMode={setExpertMode}

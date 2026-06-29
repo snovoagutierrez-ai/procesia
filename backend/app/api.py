@@ -517,6 +517,34 @@ def delete_process_task(process_id: int, task_id: int, db: Session = Depends(get
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # ==========================================
+# 7b. Time Measurements (#8 — tiempos observados)
+# ==========================================
+
+def _verify_task_in_process(db, process_id, task_id, current_user):
+    verify_process_access(db, process_id, current_user)
+    db_task = crud.get_task(db, task_id)
+    if not db_task or db_task.activity.process_id != process_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return db_task
+
+@router.get("/processes/{process_id}/tasks/{task_id}/measurements", response_model=List[schemas.TimeMeasurementResponse])
+def list_task_measurements(process_id: int, task_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    _verify_task_in_process(db, process_id, task_id, current_user)
+    return crud.get_task_measurements(db, task_id)
+
+@router.post("/processes/{process_id}/tasks/{task_id}/measurements", response_model=schemas.TimeMeasurementResponse, status_code=status.HTTP_201_CREATED)
+def add_task_measurement(process_id: int, task_id: int, measurement: schemas.TimeMeasurementInput, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    _verify_task_in_process(db, process_id, task_id, current_user)
+    return crud.create_time_measurement(db, task_id, measurement)
+
+@router.delete("/processes/{process_id}/tasks/{task_id}/measurements/{measurement_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_task_measurement(process_id: int, task_id: int, measurement_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    _verify_task_in_process(db, process_id, task_id, current_user)
+    if not crud.delete_time_measurement(db, measurement_id):
+        raise HTTPException(status_code=404, detail="Measurement not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+# ==========================================
 # 8. Graph (Nodes & Edges) Endpoints
 # ==========================================
 
