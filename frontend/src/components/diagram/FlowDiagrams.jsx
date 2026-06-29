@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Handle, Position, ReactFlow, Controls, MiniMap, Background, useNodesState, useEdgesState, MarkerType, addEdge, BaseEdge, getSmoothStepPath, EdgeLabelRenderer } from '@xyflow/react';
 import dagre from 'dagre';
-import { User, PenLine, Wrench, Clock, RotateCcw, Info, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
+import { User, PenLine, Wrench, Clock, RotateCcw, Info, ChevronUp, ChevronDown, Trash2, Rows3 } from 'lucide-react';
 import { fmtShort, fmtLong } from '../editor/Editors.jsx';
 import { VALUE, TYPES } from '../../constants.js';
 
@@ -205,7 +205,67 @@ function getLayoutedElements(rfNodes, rfEdges, direction = "LR", savedPositions 
   return { nodes: layouted, edges: rfEdges };
 }
 
-function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions = null) {
+// #6 Carriles (swimlanes): banda de fondo por rol Responsible
+function LaneNode({ data }) {
+  return (
+    <div style={{ width: data.width, height: data.height, background: data.shade ? 'rgba(14,159,159,0.045)' : 'rgba(14,159,159,0.015)', borderTop: '1px dashed #CFE0E0', borderBottom: '1px dashed #CFE0E0', pointerEvents: 'none', position: 'relative' }}>
+      <div style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, fontWeight: 700, color: 'var(--teal-deep)', textTransform: 'uppercase', letterSpacing: '.04em', background: 'rgba(255,255,255,0.82)', padding: '3px 9px', borderRadius: 6, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+        {data.label}
+      </div>
+    </div>
+  );
+}
+
+function laneFor(node) {
+  if (node.type === 'startNode' || node.type === 'endNode') return 'Inicio / Fin';
+  if (node.type === 'gatewayNode') return 'Decisiones';
+  const r = node.data?.responsible;
+  return (r && r.trim()) ? r.split(',')[0].trim() : 'Sin asignar';
+}
+
+const LANE_LABEL_PAD = 150; // espacio a la izquierda para etiquetas de carril
+
+function getSwimlaneLayout(rfNodes, rfEdges) {
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 90, marginx: 30, marginy: 30 });
+  rfNodes.forEach((n) => { const w = n.type === 'taskNode' ? 200 : 60; g.setNode(n.id, { width: w, height: 60 }); });
+  rfEdges.forEach((e) => g.setEdge(e.source, e.target));
+  dagre.layout(g);
+
+  // Orden de carriles: roles (primer aparición) y al final los especiales
+  const special = ['Sin asignar', 'Decisiones', 'Inicio / Fin'];
+  const seen = [];
+  rfNodes.forEach((n) => { const l = laneFor(n); if (!seen.includes(l)) seen.push(l); });
+  const roles = seen.filter((l) => !special.includes(l));
+  const lanes = [...roles, ...special.filter((l) => seen.includes(l))];
+  const laneIndex = Object.fromEntries(lanes.map((l, i) => [l, i]));
+
+  const LANE_H = 150;
+  let maxRight = 0;
+  rfNodes.forEach((n) => { const p = g.node(n.id); const w = n.type === 'taskNode' ? 200 : 60; maxRight = Math.max(maxRight, p.x + w / 2); });
+  const laneWidth = maxRight + LANE_LABEL_PAD + 60;
+
+  const laneNodes = lanes.map((name, i) => ({
+    id: `lane-${i}`, type: 'laneNode',
+    position: { x: -LANE_LABEL_PAD, y: i * LANE_H },
+    data: { label: name, width: laneWidth, height: LANE_H, shade: i % 2 === 0 },
+    draggable: false, selectable: false, zIndex: -1,
+  }));
+
+  const content = rfNodes.map((n) => {
+    const p = g.node(n.id);
+    const w = n.type === 'taskNode' ? 200 : 60;
+    const h = n.type === 'taskNode' ? 90 : 60;
+    const li = laneIndex[laneFor(n)];
+    const yCenter = li * LANE_H + LANE_H / 2;
+    return { ...n, position: { x: p.x - w / 2, y: yCenter - h / 2 }, targetPosition: Position.Left, sourcePosition: Position.Right };
+  });
+
+  return { nodes: [...laneNodes, ...content], edges: rfEdges };
+}
+
+function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions = null, laneMode = false) {
   const rfNodes = [];
   const rfEdges = [];
 
@@ -221,6 +281,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
         valueClass: t.valueClass,
         cycleTime: t.cycleTime,
         waitTime: t.waitTime,
+        responsible: t.responsible,
         onSelect,
       },
       position: { x: 0, y: 0 },
@@ -285,11 +346,13 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
     });
   }
 
+  if (laneMode) return getSwimlaneLayout(rfNodes, rfEdges);
   return getLayoutedElements(rfNodes, rfEdges, "LR", savedPositions);
 }
 
 function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange }) {
   const savedPositions = proc?.layout_json || null;
+  const [laneMode, setLaneMode] = useState(false);
   const onEdgesDelete = useCallback(
     (deletedEdges) => {
       const deletedIds = new Set(deletedEdges.map(e => e.id));
@@ -305,8 +368,8 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   );
 
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
-    () => buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions),
-    [proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions]
+    () => buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions, laneMode),
+    [proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions, laneMode]
   );
 
   const nodesWithSelection = useMemo(
@@ -344,14 +407,22 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   // #5 Persistir posiciones manuales: al soltar un nodo, guarda el mapa completo
   // de posiciones { node_id: {x,y} } para que el diagrama no vuelva al auto-layout.
   const onNodeDragStop = useCallback(() => {
-    if (!onLayoutChange) return;
+    if (!onLayoutChange || laneMode) return; // en modo carriles el layout es calculado, no se persiste
     const map = {};
-    nodes.forEach((n) => { map[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) }; });
+    nodes.forEach((n) => { if (n.type !== 'laneNode') map[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) }; });
     onLayoutChange(map);
-  }, [nodes, onLayoutChange]);
+  }, [nodes, onLayoutChange, laneMode]);
 
   return (
-    <div style={{ height: 280, width: "100%" }}>
+    <div style={{ height: 280, width: "100%", position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setLaneMode(m => !m)}
+        title={laneMode ? "Volver a vista de flujo" : "Ver por carriles de rol (Responsible)"}
+        style={{ position: 'absolute', top: 10, right: 10, zIndex: 20, display: 'inline-flex', alignItems: 'center', gap: 6, background: laneMode ? 'var(--teal)' : '#fff', color: laneMode ? '#fff' : 'var(--teal-deep)', border: '1px solid ' + (laneMode ? 'var(--teal)' : '#E2E7E3'), borderRadius: 8, padding: '6px 11px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+      >
+        <Rows3 size={14} /> Carriles
+      </button>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -364,7 +435,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         edgeTypes={edgeTypes}
         fitView
         fitViewOptions={{ padding: 0.2 }}
-        nodesDraggable={true}
+        nodesDraggable={!laneMode}
         nodesConnectable={true}
         panOnDrag
         zoomOnScroll
@@ -408,7 +479,7 @@ function GatewayNode({ data }) {
     );
   }
 
-const nodeTypes = { startNode: StartNode, endNode: EndNode, taskNode: TaskNode, gatewayNode: GatewayNode };
+const nodeTypes = { startNode: StartNode, endNode: EndNode, taskNode: TaskNode, gatewayNode: GatewayNode, laneNode: LaneNode };
 const edgeTypes = { deletable: DeletableEdge };
 
 export { VSMLadder, StartNode, EndNode, TaskNode, GatewayNode, getLayoutedElements, buildFlowData, FlowDiagram, nodeTypes, edgeTypes };
