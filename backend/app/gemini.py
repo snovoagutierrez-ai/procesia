@@ -41,6 +41,10 @@ REGLAS DE ANÁLISIS
    - action_type DEBE ser exactamente uno de: ELIMINATE, AUTOMATE, SIMPLIFY, MERGE, PARALLELIZE, REASSIGN, STANDARDIZE
    - implementation_complexity DEBE ser exactamente uno de: low, medium, high
    Estima estimated_time_saving_pct (0-100).
+   PRIORIZACIÓN POR IMPACTO ANUALIZADO: si "monthly_volume" está presente, prioriza
+   (campo priority, menor = más urgente) las recomendaciones por impacto = ahorro por
+   instancia × volumen mensual, no solo por % de ahorro. Un ahorro pequeño en un proceso
+   de alto volumen supera a un ahorro grande en uno de bajo volumen.
 6. optimized_flow: propón un grafo reestructurado que paralelice tareas o simplifique
    pasos de acuerdo a tus recomendaciones, manteniendo identificadores BPMN válidos.
 
@@ -176,6 +180,7 @@ def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
         "objective": process.objective,
         "trigger_event": process.trigger_event,
         "output_result": process.output_result,
+        "monthly_volume": float(process.monthly_volume) if process.monthly_volume is not None else None,
         "activities": activities_data,
         "flow_nodes": flow_nodes_data,
         "sequence_flows": sequence_flows_data

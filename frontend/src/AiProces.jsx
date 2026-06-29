@@ -420,6 +420,13 @@ function mapBackendProcessToFrontend(p) {
   return { ...p, trigger: p.trigger_event || "", output: p.output_result || "" };
 }
 
+function fmtMoney(v) {
+  const n = Number(v) || 0;
+  if (n >= 1000000) return "$" + (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1000) return "$" + (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+  return "$" + n.toFixed(0);
+}
+
 /* ============================================================================
    ReactFlow Custom Nodes
    ============================================================================ */
@@ -1324,6 +1331,8 @@ export default function App() {
             name: updatedProc.name, objective: updatedProc.objective,
             trigger_event: updatedProc.trigger_event || updatedProc.trigger,
             output_result: updatedProc.output_result || updatedProc.output,
+            monthly_volume: (updatedProc.monthly_volume === "" || updatedProc.monthly_volume == null)
+              ? null : Number(updatedProc.monthly_volume),
           }),
         });
       } catch (e) { /* silent */ }
@@ -2151,6 +2160,8 @@ export default function App() {
                 <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Límites del Proceso</div>
                 <input className="pa-input ink" value={proc.trigger_event || ""} onChange={(e) => setProcField("trigger_event", e.target.value)} placeholder="Evento de inicio (Ej: Recibe solicitud)" />
                 <input className="pa-input ink" value={proc.output_result || ""} onChange={(e) => setProcField("output_result", e.target.value)} placeholder="Resultado final (Ej: Cliente aprobado)" />
+                <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Volumen</div>
+                <input className="pa-input ink mono" type="number" min="0" value={proc.monthly_volume ?? ""} onChange={(e) => setProcField("monthly_volume", e.target.value)} placeholder="Ejecuciones por mes (Ej: 500)" />
               </div>
 
               <div className="pa-side-sec grow">
@@ -2296,7 +2307,22 @@ export default function App() {
                   <span>Eficiencia de ciclo (VA) <b className="mono">{metricsData ? Math.round(metricsData.pce_percentage) : 0}%</b></span>
                 </div>
               </div>
-              
+
+              {metricsData?.cost && (metricsData.cost.total_cost > 0 || metricsData.cost.monthly_cost) && (
+                <div className="pa-metrics">
+                  <div className="pa-metric"><span>Costo por ejecución</span><b className="mono">{fmtMoney(metricsData.cost.total_cost)}</b></div>
+                  {metricsData.cost.monthly_cost != null ? (
+                    <>
+                      <div className="pa-metric"><span>Costo mensual</span><b className="mono">{fmtMoney(metricsData.cost.monthly_cost)}</b></div>
+                      <div className="pa-metric"><span>Costo anual</span><b className="mono">{fmtMoney(metricsData.cost.annual_cost)}</b></div>
+                      <div className="pa-metric"><span>Desperdicio anual (NVA)</span><b className="mono" style={{ color: metricsData.cost.monthly_nva_cost ? VALUE.NVA.color : undefined }}>{fmtMoney((metricsData.cost.monthly_nva_cost || 0) * 12)}</b></div>
+                    </>
+                  ) : (
+                    <div className="pa-metric wide"><span>Define el <b>volumen mensual</b> del proceso para proyectar costo mensual y anual.</span></div>
+                  )}
+                </div>
+              )}
+
               <VSMLadder metrics={metricsData} />
               </div>
               )}

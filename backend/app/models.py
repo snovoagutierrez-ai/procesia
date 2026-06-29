@@ -100,6 +100,7 @@ class Process(Base):
     objective = Column(Text)
     trigger_event = Column(String(200))
     output_result = Column(String(200))
+    monthly_volume = Column(Numeric(12, 2), nullable=True)  # ejecuciones por mes → costo mensual/anualizado
 
     owner = relationship("User", back_populates="processes")
     macroprocess = relationship("Macroprocess", back_populates="processes")

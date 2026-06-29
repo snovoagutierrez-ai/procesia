@@ -112,6 +112,7 @@ class ProcessBase(BaseModel):
     objective: Optional[str] = None
     trigger_event: Optional[str] = Field(None, max_length=200)
     output_result: Optional[str] = Field(None, max_length=200)
+    monthly_volume: Optional[float] = Field(None, ge=0)  # ejecuciones/mes
 
 class ProcessCreate(ProcessBase):
     pass
@@ -123,6 +124,7 @@ class ProcessUpdate(BaseModel):
     objective: Optional[str] = None
     trigger_event: Optional[str] = Field(None, max_length=200)
     output_result: Optional[str] = Field(None, max_length=200)
+    monthly_volume: Optional[float] = Field(None, ge=0)
 
 class ProcessResponse(ProcessBase):
     id: int
@@ -583,8 +585,11 @@ class MetricBottleneck(BaseModel):
     deviation_factor: float
 
 class MetricCost(BaseModel):
-    total_cost: float
-    nva_cost: float
+    total_cost: float          # costo por ejecución
+    nva_cost: float            # costo NVA por ejecución
+    monthly_cost: Optional[float] = None   # total_cost × volumen mensual
+    annual_cost: Optional[float] = None     # monthly_cost × 12
+    monthly_nva_cost: Optional[float] = None  # desperdicio mensual (NVA)
 
 class StructuralMetrics(BaseModel):
     va_count: int

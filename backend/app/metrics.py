@@ -42,7 +42,7 @@ def calculate_process_metrics(db: Session, process_id: int) -> schemas.ProcessMe
                 system_jumps=0, handoffs_count=0
             ),
             bottlenecks=[],
-            cost=schemas.MetricCost(total_cost=0.0, nva_cost=0.0)
+            cost=_build_cost(0.0, 0.0, process.monthly_volume)
         )
 
     # 1. Base Times
@@ -158,8 +158,20 @@ def calculate_process_metrics(db: Session, process_id: int) -> schemas.ProcessMe
             handoffs_count=handoffs
         ),
         bottlenecks=bottlenecks,
-        cost=schemas.MetricCost(
-            total_cost=total_cost,
-            nva_cost=nva_cost
-        )
+        cost=_build_cost(total_cost, nva_cost, process.monthly_volume)
+    )
+
+
+def _build_cost(total_cost, nva_cost, monthly_volume):
+    """Costo por ejecución + proyección mensual/anual según el volumen del proceso."""
+    vol = float(monthly_volume) if monthly_volume is not None else None
+    monthly = total_cost * vol if vol is not None else None
+    annual = monthly * 12 if monthly is not None else None
+    monthly_nva = nva_cost * vol if vol is not None else None
+    return schemas.MetricCost(
+        total_cost=total_cost,
+        nva_cost=nva_cost,
+        monthly_cost=monthly,
+        annual_cost=annual,
+        monthly_nva_cost=monthly_nva,
     )
