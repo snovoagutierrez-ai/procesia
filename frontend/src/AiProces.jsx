@@ -1781,6 +1781,28 @@ export default function App() {
   // local nva count calculation since metricsData might not have it explicitly as a simple count
   const localNvaCount = tasks.filter((t) => t.valueClass === "NVA").length;
 
+  // #7 Validación de integridad del grafo: detecta nodos aislados, sin salida,
+  // sin entrada y compuertas sin ramificar. No bloquea — informa para corregir.
+  const flowIssues = useMemo(() => {
+    const issues = [];
+    const flows = sequenceFlows || [];
+    const hasOut = (id) => flows.some((f) => f.source_ref === id);
+    const hasIn = (id) => flows.some((f) => f.target_ref === id);
+    if (tasks.length === 0) return issues;
+    for (const t of tasks) {
+      const id = t.bpmnId;
+      const out = hasOut(id), inc = hasIn(id);
+      if (!out && !inc) issues.push({ type: "isolated", name: t.name, sev: "high" });
+      else if (!out) issues.push({ type: "deadend", name: t.name, sev: "high" });
+      else if (!inc) issues.push({ type: "unreachable", name: t.name, sev: "medium" });
+    }
+    for (const g of gateways || []) {
+      const branches = flows.filter((f) => f.source_ref === g.bpmn_id).length;
+      if (branches < 2) issues.push({ type: "gateway", name: g.name || "Compuerta", sev: "medium" });
+    }
+    return issues;
+  }, [tasks, gateways, sequenceFlows]);
+
   const getOutgoingTarget = useCallback((bpmnId) => {
     const flows = (sequenceFlows || []).filter(f => f.source_ref === bpmnId);
     return flows.length > 0 ? flows[0].target_ref : "";
@@ -2241,6 +2263,29 @@ export default function App() {
                   }}
                 />
               </div>
+
+              {flowIssues.length > 0 && (
+                <div style={{ background: '#FFF8EC', border: '1px solid #F0C040', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <AlertTriangle size={18} style={{ color: 'var(--warning)', flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ fontSize: 13, color: 'var(--ink)' }}>
+                    <strong>{flowIssues.length} {flowIssues.length === 1 ? 'problema' : 'problemas'} de conexión en el flujo</strong>
+                    <ul style={{ margin: '6px 0 0', paddingLeft: 18, color: 'var(--muted)', fontSize: 12.5, lineHeight: 1.5 }}>
+                      {flowIssues.slice(0, 5).map((iss, k) => (
+                        <li key={k}>
+                          <b>{iss.name}</b>: {
+                            iss.type === 'isolated' ? 'nodo aislado (sin entrada ni salida)' :
+                            iss.type === 'deadend' ? 'sin salida (callejón sin salida)' :
+                            iss.type === 'unreachable' ? 'sin entrada (inalcanzable desde el inicio)' :
+                            'compuerta sin ramificar (necesita 2+ salidas)'
+                          }
+                        </li>
+                      ))}
+                      {flowIssues.length > 5 && <li>…y {flowIssues.length - 5} más</li>}
+                    </ul>
+                    <div style={{ marginTop: 6, fontSize: 11.5, opacity: 0.85 }}>Conecta los nodos arrastrando desde sus bordes para corregirlos.</div>
+                  </div>
+                </div>
+              )}
 
               <div className="pa-metrics">
                 <div className="pa-metric"><span>Lead time</span><b className="mono">{metricsData ? fmtLong(metricsData.lead_time_sec) : '-'}</b></div>

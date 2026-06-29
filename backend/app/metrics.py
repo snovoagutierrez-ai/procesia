@@ -66,7 +66,7 @@ def calculate_process_metrics(db: Session, process_id: int) -> schemas.ProcessMe
     prev_system = None
     system_jumps = 0
     
-    prev_accountable = None
+    prev_executor = None
     handoffs = 0
     
     total_cost = 0.0
@@ -84,22 +84,29 @@ def calculate_process_metrics(db: Session, process_id: int) -> schemas.ProcessMe
             system_jumps += 1
         prev_system = current_sys if current_sys else prev_system
         
-        # RACI & Cost
-        # Find Accountable role
-        acc_roles = [tr.role for tr in t.raci if tr.raci_type == models.RaciType.A]
-        if not acc_roles and t.raci:
-            # Fallback to any role if no Accountable
-            acc_roles = [t.raci[0].role]
-            
-        current_acc = acc_roles[0].id if acc_roles else None
-        
-        if i > 0 and current_acc and prev_accountable and current_acc != prev_accountable:
+        # RACI, Handoffs & Costo
+        # El EJECUTOR del trabajo es el Responsible (R). Tanto el costo de mano de
+        # obra como los handoffs (traspasos) se miden sobre quien REALIZA la tarea,
+        # no sobre el Accountable: el Accountable suele ser constante en todo el
+        # proceso (un jefe), lo que sub-reporta handoffs y distorsiona el costo
+        # (cobra a tarifa de gerente trabajo ejecutado por personal junior).
+        resp_roles = [tr.role for tr in t.raci if tr.raci_type == models.RaciType.R]
+        executor_roles = resp_roles
+        if not executor_roles:
+            # Fallback: Accountable, luego cualquier rol asignado
+            executor_roles = [tr.role for tr in t.raci if tr.raci_type == models.RaciType.A]
+        if not executor_roles and t.raci:
+            executor_roles = [t.raci[0].role]
+
+        current_exec = executor_roles[0].id if executor_roles else None
+
+        if i > 0 and current_exec and prev_executor and current_exec != prev_executor:
             handoffs += 1
-        prev_accountable = current_acc if current_acc else prev_accountable
-        
-        # Calculate cost based on cycle time (as agreed)
-        if acc_roles and acc_roles[0].cost_per_hour is not None:
-            cph = float(acc_roles[0].cost_per_hour)
+        prev_executor = current_exec if current_exec else prev_executor
+
+        # Costo de mano de obra = tiempo de ciclo × tarifa del ejecutor (Responsible)
+        if executor_roles and executor_roles[0].cost_per_hour is not None:
+            cph = float(executor_roles[0].cost_per_hour)
             task_cost = (float(t.std_cycle_time_sec) / 3600.0) * cph
             total_cost += task_cost
             if t.value_classification == models.ValueClass.NVA:
