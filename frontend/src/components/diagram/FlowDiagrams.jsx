@@ -159,7 +159,7 @@ function DeletableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
   );
 }
 
-function getLayoutedElements(rfNodes, rfEdges, direction = "LR") {
+function getLayoutedElements(rfNodes, rfEdges, direction = "LR", savedPositions = null) {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: direction, nodesep: 60, ranksep: 80, marginx: 30, marginy: 30 });
@@ -176,7 +176,7 @@ function getLayoutedElements(rfNodes, rfEdges, direction = "LR") {
     const pos = g.node(node.id);
     const w = node.type === "taskNode" ? 200 : 60;
     const h = node.type === "taskNode" ? 90 : 60;
-    
+
     const WRAP_WIDTH = 1600; // Salto de carro a los ~6 nodos
     const Y_SPACING = 300;   // Distancia vertical entre filas
 
@@ -189,9 +189,15 @@ function getLayoutedElements(rfNodes, rfEdges, direction = "LR") {
       finalY = finalY + (row * Y_SPACING);
     }
 
-    return { 
-      ...node, 
-      position: { x: finalX - w / 2, y: finalY - h / 2 },
+    // Posición manual guardada tiene prioridad sobre el auto-layout (dagre)
+    const saved = savedPositions && savedPositions[node.id];
+    const position = (saved && typeof saved.x === "number" && typeof saved.y === "number")
+      ? { x: saved.x, y: saved.y }
+      : { x: finalX - w / 2, y: finalY - h / 2 };
+
+    return {
+      ...node,
+      position,
       targetPosition: Position.Left,
       sourcePosition: Position.Right
     };
@@ -199,7 +205,7 @@ function getLayoutedElements(rfNodes, rfEdges, direction = "LR") {
   return { nodes: layouted, edges: rfEdges };
 }
 
-function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete) {
+function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions = null) {
   const rfNodes = [];
   const rfEdges = [];
 
@@ -279,10 +285,11 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
     });
   }
 
-  return getLayoutedElements(rfNodes, rfEdges);
+  return getLayoutedElements(rfNodes, rfEdges, "LR", savedPositions);
 }
 
-function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange }) {
+function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange }) {
+  const savedPositions = proc?.layout_json || null;
   const onEdgesDelete = useCallback(
     (deletedEdges) => {
       const deletedIds = new Set(deletedEdges.map(e => e.id));
@@ -298,8 +305,8 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   );
 
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
-    () => buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete),
-    [proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete]
+    () => buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions),
+    [proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions]
   );
 
   const nodesWithSelection = useMemo(
@@ -334,6 +341,15 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
     [gateways, sequenceFlows, onGraphChange, setEdges]
   );
 
+  // #5 Persistir posiciones manuales: al soltar un nodo, guarda el mapa completo
+  // de posiciones { node_id: {x,y} } para que el diagrama no vuelva al auto-layout.
+  const onNodeDragStop = useCallback(() => {
+    if (!onLayoutChange) return;
+    const map = {};
+    nodes.forEach((n) => { map[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) }; });
+    onLayoutChange(map);
+  }, [nodes, onLayoutChange]);
+
   return (
     <div style={{ height: 280, width: "100%" }}>
       <ReactFlow
@@ -342,6 +358,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeDragStop={onNodeDragStop}
         onEdgesDelete={onEdgesDelete}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}

@@ -1350,6 +1350,22 @@ export default function App() {
     });
   };
 
+  // #5 Guarda las posiciones manuales del diagrama (debounced). Actualiza proc.layout_json
+  // en estado para que los re-renders respeten las posiciones y no vuelvan al auto-layout.
+  const layoutTimeoutRef = useRef(null);
+  const saveLayout = useCallback((positionsMap) => {
+    setProc((p) => (p ? { ...p, layout_json: positionsMap } : p));
+    const pid = procRef.current?.id;
+    if (!pid) return;
+    if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
+    layoutTimeoutRef.current = setTimeout(() => {
+      apiFetch(`/processes/${pid}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ layout_json: positionsMap }),
+      }).catch(() => {});
+    }, 600);
+  }, []);
+
   const updateTask = (id, patch) => {
     setTasks((ts) => {
       const updatedTasks = ts.map((t) => (t.id === id ? { ...t, ...patch } : t));
@@ -2272,6 +2288,7 @@ export default function App() {
                       body: JSON.stringify({ gateways: newGateways, sequence_flows: newFlows })
                     });
                   }}
+                  onLayoutChange={saveLayout}
                 />
               </div>
 

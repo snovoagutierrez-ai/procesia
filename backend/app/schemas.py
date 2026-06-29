@@ -113,6 +113,7 @@ class ProcessBase(BaseModel):
     trigger_event: Optional[str] = Field(None, max_length=200)
     output_result: Optional[str] = Field(None, max_length=200)
     monthly_volume: Optional[float] = Field(None, ge=0)  # ejecuciones/mes
+    layout_json: Optional[dict] = None  # posiciones manuales de nodos
 
 class ProcessCreate(ProcessBase):
     pass
@@ -125,6 +126,7 @@ class ProcessUpdate(BaseModel):
     trigger_event: Optional[str] = Field(None, max_length=200)
     output_result: Optional[str] = Field(None, max_length=200)
     monthly_volume: Optional[float] = Field(None, ge=0)
+    layout_json: Optional[dict] = None
 
 class ProcessResponse(ProcessBase):
     id: int

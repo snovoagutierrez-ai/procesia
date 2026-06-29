@@ -101,6 +101,7 @@ class Process(Base):
     trigger_event = Column(String(200))
     output_result = Column(String(200))
     monthly_volume = Column(Numeric(12, 2), nullable=True)  # ejecuciones por mes → costo mensual/anualizado
+    layout_json = Column(JSONB, nullable=True)  # posiciones manuales de nodos { node_id: {x,y} }
 
     owner = relationship("User", back_populates="processes")
     macroprocess = relationship("Macroprocess", back_populates="processes")
