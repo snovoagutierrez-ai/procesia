@@ -404,7 +404,7 @@ IMPORTANTE: Todo el texto generado en descripciones, recomendaciones y justifica
 
 REGLAS DE ANÁLISIS MACRO
 1. Cuellos de botella macro (TOC): Identifica qué proceso limita el flujo completo basándote en el cycle time de los procesos individuales y reporta en "macro_bottlenecks".
-2. Desperdicio de interfaz / handoffs: Evalúa las esperas o retrabajos que ocurren en las transiciones de un proceso a otro, y regístralos en "interface_wastes".
+2. Desperdicio de interfaz / handoffs: USA "connections" (las transiciones REALES proceso→proceso, no las infieras). Para cada conexión, compara "from_output_result" con "to_trigger_event": si no coinciden o hay un salto lógico, es un desperdicio de interfaz (esperas, retrabajo, datos que se rehacen). Regístralos en "interface_wastes". Si un proceso no aparece en ninguna conexión, señálalo como proceso aislado/sin integrar.
 3. Redundancia entre procesos: Identifica pasos o validaciones repetidas en procesos distintos que podrían consolidarse.
 4. Secuenciación / paralelización: Identifica procesos que actualmente son secuenciales pero que podrían ejecutarse en paralelo.
 5. Recomendaciones y Proyección: Propón acciones y un "projected_macro_lead_time_sec".
@@ -476,12 +476,28 @@ def build_macroprocess_snapshot(db: Session, macroprocess_id: int) -> Dict[str, 
             continue
         
     macro_pce = (total_va_time / total_lead_time * 100.0) if total_lead_time > 0 else 0.0
-    
+
+    # Conexiones estructurales reales entre procesos (no inferidas). Incluye el
+    # semántico output→trigger para que el optimizador detecte desajustes de interfaz.
+    proc_by_id = {str(p.id): p for p in macro.processes}
+    connections = []
+    for f in macro.macro_sequence_flows:
+        src = proc_by_id.get(str(f.source_ref))
+        tgt = proc_by_id.get(str(f.target_ref))
+        connections.append({
+            "from_process_code": src.code if src else f.source_ref,
+            "from_output_result": src.output_result if src else None,
+            "to_process_code": tgt.code if tgt else f.target_ref,
+            "to_trigger_event": tgt.trigger_event if tgt else None,
+            "condition": f.condition,
+        })
+
     return {
         "macroprocess_id": str(macro.id),
         "code": macro.code,
         "name": macro.name,
         "processes": processes_data,
+        "connections": connections,
         "metrics": {
             "total_macro_lead_time_sec": total_lead_time,
             "macro_pce": macro_pce,

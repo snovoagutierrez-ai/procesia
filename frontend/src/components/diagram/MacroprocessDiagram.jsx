@@ -246,6 +246,11 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
 
   const [hideBanner, setHideBanner] = useState(false);
   const needsHelp = processes && processes.length >= 2 && (!sequenceFlows || sequenceFlows.length === 0);
+  // #9 Validación del grafo macro: procesos sin integrar al flujo (hay conexiones,
+  // pero estos procesos no participan en ninguna). Mutuamente excluyente con needsHelp.
+  const isolatedProcesses = (processes && processes.length >= 2 && sequenceFlows && sequenceFlows.length > 0)
+    ? processes.filter(p => !sequenceFlows.some(sf => sf.source_ref === String(p.id) || sf.target_ref === String(p.id)))
+    : [];
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", background: "#F6F8FA", borderRadius: "8px", overflow: "hidden", border: "1px solid #E2E7E3" }}>
@@ -253,6 +258,18 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
         <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#FFF8E1', border: '1px solid #F5DEB3', color: '#C98A12', padding: '8px 16px', borderRadius: '8px', zIndex: 10, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxWidth: '90%' }}>
           <AlertCircle size={18} style={{ flexShrink: 0 }} />
           <span>Une los puntos laterales de los procesos para armar tu flujo.</span>
+          <button onClick={() => setHideBanner(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#C98A12', padding: 4, marginLeft: 8 }} title="Ocultar">
+            <span style={{ fontSize: 16, fontWeight: 'bold' }}>×</span>
+          </button>
+        </div>
+      )}
+      {isolatedProcesses.length > 0 && !hideBanner && (
+        <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#FFF8E1', border: '1px solid #F0C040', color: '#C98A12', padding: '8px 16px', borderRadius: '8px', zIndex: 10, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxWidth: '92%' }}>
+          <AlertCircle size={18} style={{ flexShrink: 0 }} />
+          <span>
+            {isolatedProcesses.length === 1 ? 'Proceso sin integrar al flujo' : `${isolatedProcesses.length} procesos sin integrar al flujo`}:{' '}
+            <b>{isolatedProcesses.map(p => p.code).join(', ')}</b>. Conéctalos para un análisis end-to-end completo.
+          </span>
           <button onClick={() => setHideBanner(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#C98A12', padding: 4, marginLeft: 8 }} title="Ocultar">
             <span style={{ fontSize: 16, fontWeight: 'bold' }}>×</span>
           </button>
