@@ -15,16 +15,21 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
 
   const handleViewFlow = async (process) => {
     setPreviewProcess(process);
+    setPreviewData({ tasks: [], gateways: [], sequenceFlows: [] });
     try {
-      const res = await apiFetch(`/processes/${process.id}/details`);
-      if (res.ok) {
-        const data = await res.json();
-        setPreviewData({
-          tasks: data.tasks || [],
-          gateways: data.gateways || [],
-          sequenceFlows: data.sequence_flows || []
-        });
-      }
+      // No existe /details: el flujo se arma con /tasks (mapeado a formato del diagrama) + /graph
+      const [tRes, gRes] = await Promise.all([
+        apiFetch(`/processes/${process.id}/tasks`),
+        apiFetch(`/processes/${process.id}/graph`),
+      ]);
+      const tasks = tRes.ok ? (await tRes.json()).map(t => ({
+        id: t.id, bpmnId: t.bpmn_id, name: t.name, type: t.task_type,
+        valueClass: t.value_classification, wasteType: t.waste_type || "",
+        cycleTime: Number(t.std_cycle_time_sec) || 0, waitTime: Number(t.std_wait_time_sec) || 0,
+        responsible: t.responsible || "", position_order: t.position_order,
+      })) : [];
+      const graph = gRes.ok ? await gRes.json() : {};
+      setPreviewData({ tasks, gateways: graph.gateways || [], sequenceFlows: graph.sequence_flows || [] });
     } catch (err) {
       console.error("Failed to load flow preview", err);
     }
