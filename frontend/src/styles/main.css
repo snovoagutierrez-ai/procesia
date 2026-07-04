@@ -126,6 +126,16 @@ button{font-family:inherit}
 /* ---- shell ---- */
 .pa-shell{display:grid;grid-template-columns:296px 1fr;gap:18px;padding:18px;max-width:1320px;margin:0 auto;align-items:start}
 @media (max-width:880px){.pa-shell{grid-template-columns:1fr;padding:12px;gap:12px}}
+.pa-detail{min-width:0}
+/* Desktop wide (>=1024px): 3 fixed-flex columns using the full viewport width */
+@media (min-width:1024px){
+  .pa-shell{grid-template-columns:280px 1fr 320px;max-width:100%;gap:16px;padding:16px 20px;align-items:stretch}
+  .pa-side{max-height:calc(100vh - 92px)}
+  .pa-detail{align-self:start;position:sticky;top:76px;max-height:calc(100vh - 92px);overflow-y:auto;min-width:0}
+  .pa-editor-layout .pa-detail{position:sticky;top:0;max-height:calc(100dvh - 56px)}
+  .pa-main .pa-diagram-card{height:calc(100vh - 260px);min-height:420px;display:flex;flex-direction:column}
+  .pa-main .pa-diagram-card .pa-flow-canvas{flex:1;height:auto !important}
+}
 @media (min-width:769px) and (max-width:880px){.pa-mobile-nav{display:flex}}
 /* column (no reverse): en móvil solo se renderiza un hijo por paso (pa-side o pa-main),
    por lo que column-reverse no aportaba orden y empaquetaba el contenido abajo,
@@ -274,6 +284,15 @@ textarea.pa-input{resize:vertical;line-height:1.45}
 .pa-alert{display:flex;gap:10px;background:#FCF3E8;border:1px solid #F0D6AE;border-radius:10px;padding:12px 13px;color:#7A5A12;font-size:13px;line-height:1.5}
 .pa-alert svg{flex:0 0 auto;margin-top:1px;color:#C98A12}
 .pa-alert-sub{font-size:11.5px;color:#9A7A2E;margin-top:4px}
+
+/* ---- modal (overlay dialog) ---- */
+.pa-modal-overlay{position:fixed;inset:0;background:rgba(21,35,46,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:9999}
+.pa-modal-content{background:#fff;border-radius:14px;width:100%;max-width:460px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.pa-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}
+.pa-modal-header h2{margin:0;font-size:16px;display:flex;align-items:center}
+.pa-btn-icon{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;
+  border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer}
+.pa-btn-icon:hover{background:#F5F7F5}
 
 /* ---- accessibility ---- */
 .pa-root :focus-visible{outline:2px solid var(--teal);outline-offset:2px}

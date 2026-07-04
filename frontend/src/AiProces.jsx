@@ -14,7 +14,7 @@ import {
   Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, Download, Sparkles, Loader2,
   AlertTriangle, User, Wrench, PenLine, Gauge, X, ArrowRight, Lightbulb,
   ArrowLeft, FolderOpen, FolderPlus, FileText, Copy, Clock, LogOut, Info, Check,
-  RefreshCw, TrendingUp
+  RefreshCw, TrendingUp, Eye
 } from "lucide-react";
 import { useAuth } from './components/auth/AuthContext.jsx';
 import { useConfirm, useInputDialog } from './components/shared/ConfirmDialog.jsx';
@@ -26,6 +26,7 @@ import { Editor, GatewayEditor, Optimization, ValueClassWizard, fmtShort, fmtLon
 import { VSMLadder, FlowDiagram } from "./components/diagram/FlowDiagrams.jsx";
 import WelcomeModal from "./components/shared/WelcomeModal.jsx";
 import SnapshotsModal from "./components/editor/SnapshotsModal.jsx";
+import ProcessSummaryModal from "./components/editor/ProcessSummaryModal.jsx";
 
 function Banner({ type, message, actionText, onAction, onClose }) {
   const bg = type === 'success' ? '#E8F5E9' : type === 'warning' ? '#FFF8E1' : '#E8F4F8';
@@ -1026,8 +1027,10 @@ export default function App() {
   const [macroLongLoading, setMacroLongLoading] = useState({});
   const [expertMode, setExpertMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isDesktopWide, setIsDesktopWide] = useState(window.innerWidth >= 1024);
   const [mobileStep, setMobileStep] = useState(1);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [processSummaryOpen, setProcessSummaryOpen] = useState(false);
 
   const { confirm, dialog: confirmDialog } = useConfirm();
   const { showInput, inputDialog } = useInputDialog();
@@ -1056,7 +1059,10 @@ export default function App() {
   }, [proc]);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      setIsDesktopWide(window.innerWidth >= 1024);
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -2047,6 +2053,14 @@ export default function App() {
       {confirmDialog}
       {inputDialog}
       {firstStepsActive && <GuideTicket step={guideStep} onStep={setGuideStep} onDismiss={dismissGuide} />}
+      <ProcessSummaryModal
+        isOpen={processSummaryOpen}
+        onClose={() => setProcessSummaryOpen(false)}
+        proc={proc}
+        tasks={tasks}
+        gateways={gateways}
+        metricsData={metricsData}
+      />
       <SnapshotsModal
         isOpen={snapshotsModalOpen}
         onClose={() => setSnapshotsModalOpen(false)}
@@ -2133,6 +2147,9 @@ export default function App() {
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver resumen del proceso" onClick={() => setProcessSummaryOpen(true)} aria-label="Ver proceso">
+                  <Eye size={16} /><span className="pa-editor-action-label"> Ver proceso</span>
+                </button>
                 <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }} aria-label="Guía">
                   <Lightbulb size={16} /><span className="pa-editor-action-label"> Guía</span>
                 </button>
@@ -2344,7 +2361,7 @@ export default function App() {
               </div>
               )}
 
-              {(!isMobile || mobileStep === 3 || mobileStep === 4) && (
+              {!isDesktopWide && (!isMobile || mobileStep === 3 || mobileStep === 4) && (
               <div className="pa-panel" style={{ marginTop: 16 }}>
                 {!isMobile && (
                   <div className="pa-tabs">
@@ -2425,6 +2442,87 @@ export default function App() {
             </div>
             )}
           </main>
+          )}
+
+          {isDesktopWide && (
+          <aside className="pa-detail">
+            <div className="pa-panel">
+              <div className="pa-tabs">
+                <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
+                <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> Optimización IA</button>
+              </div>
+              <div className="pa-panel-body">
+                {tab === "detalle" && aiTip && selectedTask &&
+                  (selectedTask.bpmnId === aiTip.rec.target_node_bpmn_id || selectedTask.id.toString() === aiTip.rec.target_node_bpmn_id) && (
+                  <div style={{ marginBottom: 16, padding: '12px 14px', background: '#F0FAFA', border: '1px solid var(--teal)', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--teal)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                          Recomendación IA — {ACTION[aiTip.rec.action_type]?.label || aiTip.rec.action_type}
+                        </div>
+                        <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--ink)' }}>{aiTip.rec.description}</p>
+                        {aiTip.rec.expected_benefit && (
+                          <div style={{ fontSize: 12, color: 'var(--muted)' }}>Beneficio: {aiTip.rec.expected_benefit}</div>
+                        )}
+                        {aiTip.rec.action_type === 'MERGE' && (
+                          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                            Para fusionar: edita esta tarea incorporando las actividades de la tarea a eliminar, luego elimina esa tarea desde la lista.
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={() => setAiTip(null)} aria-label="Descartar sugerencia"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2, flexShrink: 0 }}>
+                        <X size={15} />
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button className="pa-btn pa-btn-primary pa-btn-sm"
+                        onClick={() => { aiTip.markAsApplied(); setAiTip(null); }}>
+                        <Check size={13} /> Marcar como aplicada
+                      </button>
+                      <button className="pa-btn pa-btn-ghost pa-btn-sm"
+                        onClick={() => setAiTip(null)}>
+                        Descartar
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {tab === "detalle" ? (
+                  selectedTask ? (
+                    <Editor task={selectedTask} onChange={updateTask} onMove={moveTask} onDelete={deleteTask}
+                      processId={proc?.id}
+                      isFirst={selectedTask ? tasks[0]?.id === selectedTask.id : true}
+                      isLast={selectedTask ? tasks[tasks.length - 1]?.id === selectedTask.id : true}
+                      saveState={saveState} expertMode={expertMode} setExpertMode={setExpertMode}
+                      sequenceFlows={sequenceFlows} gateways={gateways} tasks={tasks} onForceSave={flushAllSaves}
+                      firstStepsActive={firstStepsActive} guideStep={guideStep}
+                      onGuideComplete={() => {
+                        if (firstStepsActive && guideStep === 2) {
+                          setGuideStep(3);
+                        }
+                      }}
+                      onFlowsChange={(newFlows) => {
+                        setSequenceFlows(newFlows);
+                        apiFetch(`/processes/${proc.id}/graph`, {
+                          method: "PUT", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ gateways, sequence_flows: newFlows })
+                        }).catch(() => {});
+                      }}
+                      onDone={() => setSelectedId(null)} />
+                  ) : selectedGateway ? (
+                    <GatewayEditor gateway={selectedGateway} onChange={updateGateway} onDelete={deleteGateway}
+                      saveState={saveState} onDone={() => setSelectedId(null)} />
+                  ) : (
+                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)' }}>
+                    Selecciona un nodo para ver sus detalles.
+                  </div>
+                )
+              ) : (
+                <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onApplyRecommendation={handleApplyRecommendation} />
+              )}
+              </div>
+            </div>
+          </aside>
           )}
           </div>
         </div>

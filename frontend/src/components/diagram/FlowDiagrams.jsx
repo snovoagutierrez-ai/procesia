@@ -414,7 +414,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   }, [nodes, onLayoutChange, laneMode]);
 
   return (
-    <div style={{ height: 280, width: "100%", position: 'relative' }}>
+    <div className="pa-flow-canvas" style={{ height: 280, width: "100%", position: 'relative' }}>
       <button
         type="button"
         onClick={() => setLaneMode(m => !m)}
@@ -437,6 +437,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         fitViewOptions={{ padding: 0.2 }}
         nodesDraggable={!laneMode}
         nodesConnectable={true}
+        connectionMode="loose"
         panOnDrag
         zoomOnScroll
         minZoom={0.3}
