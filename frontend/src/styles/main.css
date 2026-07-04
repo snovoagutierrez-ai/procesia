@@ -127,9 +127,31 @@ button{font-family:inherit}
 .pa-shell{display:grid;grid-template-columns:296px 1fr;gap:18px;padding:18px;max-width:1320px;margin:0 auto;align-items:start}
 @media (max-width:880px){.pa-shell{grid-template-columns:1fr;padding:12px;gap:12px}}
 .pa-detail{min-width:0}
+/* Collapsible side panels (Outlook-style rails) */
+.pa-collapse-btn{margin-left:auto;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
+  border:none;background:transparent;color:var(--inv-muted);cursor:pointer;border-radius:6px;flex-shrink:0}
+.pa-collapse-btn:hover{background:rgba(255,255,255,.08);color:var(--inv)}
+.pa-tabs .pa-collapse-btn{color:var(--muted)}
+.pa-tabs .pa-collapse-btn:hover{background:var(--teal-tint);color:var(--teal-deep)}
+.pa-rail{align-self:start;position:sticky;top:76px;height:calc(100vh - 92px);display:flex;flex-direction:column;
+  align-items:center;gap:14px;padding:12px 0;border-radius:14px;cursor:pointer}
+.pa-editor-layout .pa-rail{top:0;height:calc(100dvh - 56px)}
+.pa-rail-left{background:var(--ink)}
+.pa-rail-right{background:var(--card);border:1px solid var(--line)}
+.pa-rail-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;
+  border:1px solid var(--line);background:var(--card);color:var(--teal-deep);cursor:pointer;flex-shrink:0}
+.pa-rail-left .pa-rail-btn{background:var(--ink2);border-color:var(--line-ink);color:var(--inv)}
+.pa-rail-btn:hover{filter:brightness(1.08)}
+.pa-rail-label{writing-mode:vertical-rl;transform:rotate(180deg);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:600;white-space:nowrap}
+.pa-rail-left .pa-rail-label{color:var(--inv-muted)}
+.pa-rail-right .pa-rail-label{color:var(--muted)}
 /* Desktop wide (>=1024px): 3 fixed-flex columns using the full viewport width */
 @media (min-width:1024px){
   .pa-shell{grid-template-columns:280px 1fr 320px;max-width:100%;gap:16px;padding:16px 20px;align-items:stretch}
+  .pa-shell.pa-left-collapsed{grid-template-columns:46px 1fr 320px}
+  .pa-shell.pa-right-collapsed{grid-template-columns:280px 1fr 46px}
+  .pa-shell.pa-left-collapsed.pa-right-collapsed{grid-template-columns:46px 1fr 46px}
   .pa-side{max-height:calc(100vh - 92px)}
   .pa-detail{align-self:start;position:sticky;top:76px;max-height:calc(100vh - 92px);overflow-y:auto;min-width:0}
   .pa-editor-layout .pa-detail{position:sticky;top:0;max-height:calc(100dvh - 56px)}

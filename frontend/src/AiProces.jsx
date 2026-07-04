@@ -11,7 +11,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import {
-  Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, Download, Sparkles, Loader2,
+  Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, ChevronLeft, Download, Sparkles, Loader2,
   AlertTriangle, User, Wrench, PenLine, Gauge, X, ArrowRight, Lightbulb,
   ArrowLeft, FolderOpen, FolderPlus, FileText, Copy, Clock, LogOut, Info, Check,
   RefreshCw, TrendingUp, Eye, MessageSquare
@@ -1034,6 +1034,8 @@ export default function App() {
   const [processSummaryOpen, setProcessSummaryOpen] = useState(false);
   const [consultAssistantOpen, setConsultAssistantOpen] = useState(false);
   const [dismissedIssuesSig, setDismissedIssuesSig] = useState(null);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
 
   const { confirm, dialog: confirmDialog } = useConfirm();
   const { showInput, inputDialog } = useInputDialog();
@@ -2200,11 +2202,24 @@ export default function App() {
             </div>
           )}
 
-          <div className="pa-shell">
-            {(!isMobile || mobileStep === 1) && (
+          <div className={"pa-shell" + (isDesktopWide && leftCollapsed ? " pa-left-collapsed" : "") + (isDesktopWide && rightCollapsed ? " pa-right-collapsed" : "")}>
+            {isDesktopWide && leftCollapsed && (
+              <div className="pa-rail pa-rail-left" onClick={() => setLeftCollapsed(false)} title="Expandir panel del proceso">
+                <button className="pa-rail-btn" aria-label="Expandir panel del proceso"><ChevronRight size={16} /></button>
+                <span className="pa-rail-label">Proceso · Tareas</span>
+              </div>
+            )}
+            {(!isMobile || mobileStep === 1) && !(isDesktopWide && leftCollapsed) && (
             <aside className="pa-side">
               <div className="pa-side-sec">
-                <div className="pa-side-title">Proceso</div>
+                <div className="pa-side-title">
+                  Proceso
+                  {isDesktopWide && (
+                    <button className="pa-collapse-btn" onClick={() => setLeftCollapsed(true)} aria-label="Encoger panel del proceso" title="Encoger panel">
+                      <ChevronLeft size={15} />
+                    </button>
+                  )}
+                </div>
                 <input className="pa-input ink" value={proc.name || ""} onChange={(e) => setProcField("name", e.target.value)} placeholder="Nombre del proceso" />
                 <input className="pa-input ink mono" value={proc.code || ""} onChange={(e) => setProcField("code", e.target.value)} placeholder="Código" />
                 <textarea className="pa-input ink" rows={2} value={proc.objective || ""} onChange={(e) => setProcField("objective", e.target.value)} placeholder="Objetivo" />
@@ -2467,12 +2482,21 @@ export default function App() {
           </main>
           )}
 
-          {isDesktopWide && (
+          {isDesktopWide && rightCollapsed && (
+            <div className="pa-rail pa-rail-right" onClick={() => setRightCollapsed(false)} title="Expandir panel de detalle">
+              <button className="pa-rail-btn" aria-label="Expandir panel de detalle"><ChevronLeft size={16} /></button>
+              <span className="pa-rail-label">Detalle · IA</span>
+            </div>
+          )}
+          {isDesktopWide && !rightCollapsed && (
           <aside className="pa-detail">
             <div className="pa-panel">
               <div className="pa-tabs">
                 <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
                 <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> Optimización IA</button>
+                <button className="pa-collapse-btn" onClick={() => setRightCollapsed(true)} aria-label="Encoger panel de detalle" title="Encoger panel" style={{ marginLeft: 'auto', marginRight: 8 }}>
+                  <ChevronRight size={15} />
+                </button>
               </div>
               <div className="pa-panel-body">
                 {tab === "detalle" && aiTip && selectedTask &&
