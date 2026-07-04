@@ -2491,12 +2491,14 @@ export default function App() {
           {isDesktopWide && !rightCollapsed && (
           <aside className="pa-detail">
             <div className="pa-panel">
-              <div className="pa-tabs">
-                <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
-                <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> Optimización IA</button>
-                <button className="pa-collapse-btn" onClick={() => setRightCollapsed(true)} aria-label="Encoger panel de detalle" title="Encoger panel" style={{ marginLeft: 'auto', marginRight: 8 }}>
-                  <ChevronRight size={15} />
+              <div className="pa-detail-tabbar">
+                <button className="pa-collapse-btn pa-detail-collapse" onClick={() => setRightCollapsed(true)} aria-label="Encoger panel de detalle" title="Encoger panel">
+                  <ChevronRight size={16} />
                 </button>
+                <div className="pa-tabs">
+                  <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
+                  <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> Optimización IA</button>
+                </div>
               </div>
               <div className="pa-panel-body">
                 {tab === "detalle" && aiTip && selectedTask &&

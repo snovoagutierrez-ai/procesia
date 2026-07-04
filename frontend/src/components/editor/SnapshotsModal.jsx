@@ -68,6 +68,21 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestore, 
         </div>
         
         <div style={{ padding: 20 }}>
+          <div style={{ background: '#F0FAFA', border: '1px solid #BFE6E6', color: '#0B5E5E', padding: 12, borderRadius: 8, fontSize: 12.5, lineHeight: 1.55, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <Clock size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <strong style={{ display: 'block', marginBottom: 4 }}>¿Cómo se guarda una versión?</strong>
+                Las versiones se crean <strong>automáticamente</strong> (no de forma manual) como punto de retorno justo <strong>antes</strong> de una acción que reemplaza tu flujo. Cada versión es una copia completa de las tareas, compuertas y conexiones tal como estaban en ese momento. Se guarda automáticamente antes de:
+                <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                  <li>Aplicar un <strong>flujo optimizado por IA</strong>.</li>
+                  <li><strong>Restaurar</strong> otra versión anterior.</li>
+                  <li><strong>Eliminar una tarea</strong> del proceso.</li>
+                </ul>
+                <div style={{ marginTop: 6, opacity: 0.85 }}>Editar campos, mover pasos o conectar nodos <em>no</em> genera una versión: esos cambios se guardan sobre el proceso actual.</div>
+              </div>
+            </div>
+          </div>
           <div style={{ background: '#FFF8E1', color: '#C98A12', padding: 12, borderRadius: 8, fontSize: 12, display: 'flex', gap: 8, marginBottom: 16 }}>
             <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
             <span>Restaurar una versión sobrescribirá todas las tareas y conexiones actuales del proceso.</span>
