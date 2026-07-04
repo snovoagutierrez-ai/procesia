@@ -14,7 +14,7 @@ import {
   Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, Download, Sparkles, Loader2,
   AlertTriangle, User, Wrench, PenLine, Gauge, X, ArrowRight, Lightbulb,
   ArrowLeft, FolderOpen, FolderPlus, FileText, Copy, Clock, LogOut, Info, Check,
-  RefreshCw, TrendingUp, Eye
+  RefreshCw, TrendingUp, Eye, MessageSquare
 } from "lucide-react";
 import { useAuth } from './components/auth/AuthContext.jsx';
 import { useConfirm, useInputDialog } from './components/shared/ConfirmDialog.jsx';
@@ -27,6 +27,7 @@ import { VSMLadder, FlowDiagram } from "./components/diagram/FlowDiagrams.jsx";
 import WelcomeModal from "./components/shared/WelcomeModal.jsx";
 import SnapshotsModal from "./components/editor/SnapshotsModal.jsx";
 import ProcessSummaryModal from "./components/editor/ProcessSummaryModal.jsx";
+import ConsultAssistantModal from "./components/editor/ConsultAssistantModal.jsx";
 
 function Banner({ type, message, actionText, onAction, onClose }) {
   const bg = type === 'success' ? '#E8F5E9' : type === 'warning' ? '#FFF8E1' : '#E8F4F8';
@@ -1031,6 +1032,8 @@ export default function App() {
   const [mobileStep, setMobileStep] = useState(1);
   const [showTutorial, setShowTutorial] = useState(false);
   const [processSummaryOpen, setProcessSummaryOpen] = useState(false);
+  const [consultAssistantOpen, setConsultAssistantOpen] = useState(false);
+  const [dismissedIssuesSig, setDismissedIssuesSig] = useState(null);
 
   const { confirm, dialog: confirmDialog } = useConfirm();
   const { showInput, inputDialog } = useInputDialog();
@@ -1834,6 +1837,14 @@ export default function App() {
     return issues;
   }, [tasks, gateways, sequenceFlows]);
 
+  // Firma del conjunto de problemas: si cambia (aparecen/desaparecen problemas),
+  // el aviso vuelve a mostrarse aunque el usuario lo hubiera cerrado antes.
+  const flowIssuesSig = useMemo(
+    () => flowIssues.map((i) => `${i.type}:${i.name}`).join("|"),
+    [flowIssues]
+  );
+  const showFlowIssues = flowIssues.length > 0 && dismissedIssuesSig !== flowIssuesSig;
+
   const getOutgoingTarget = useCallback((bpmnId) => {
     const flows = (sequenceFlows || []).filter(f => f.source_ref === bpmnId);
     return flows.length > 0 ? flows[0].target_ref : "";
@@ -2061,6 +2072,10 @@ export default function App() {
         gateways={gateways}
         metricsData={metricsData}
       />
+      <ConsultAssistantModal
+        isOpen={consultAssistantOpen}
+        onClose={() => setConsultAssistantOpen(false)}
+      />
       <SnapshotsModal
         isOpen={snapshotsModalOpen}
         onClose={() => setSnapshotsModalOpen(false)}
@@ -2147,6 +2162,9 @@ export default function App() {
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Asistente de consultas IA" onClick={() => setConsultAssistantOpen(true)} aria-label="Asistente">
+                  <MessageSquare size={16} /><span className="pa-editor-action-label"> Asistente</span>
+                </button>
                 <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver resumen del proceso" onClick={() => setProcessSummaryOpen(true)} aria-label="Ver proceso">
                   <Eye size={16} /><span className="pa-editor-action-label"> Ver proceso</span>
                 </button>
@@ -2309,10 +2327,10 @@ export default function App() {
                 />
               </div>
 
-              {flowIssues.length > 0 && (
+              {showFlowIssues && (
                 <div style={{ background: '#FFF8EC', border: '1px solid #F0C040', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   <AlertTriangle size={18} style={{ color: 'var(--warning)', flexShrink: 0, marginTop: 1 }} />
-                  <div style={{ fontSize: 13, color: 'var(--ink)' }}>
+                  <div style={{ fontSize: 13, color: 'var(--ink)', flex: 1 }}>
                     <strong>{flowIssues.length} {flowIssues.length === 1 ? 'problema' : 'problemas'} de conexión en el flujo</strong>
                     <ul style={{ margin: '6px 0 0', paddingLeft: 18, color: 'var(--muted)', fontSize: 12.5, lineHeight: 1.5 }}>
                       {flowIssues.slice(0, 5).map((iss, k) => (
@@ -2329,6 +2347,11 @@ export default function App() {
                     </ul>
                     <div style={{ marginTop: 6, fontSize: 11.5, opacity: 0.85 }}>Conecta los nodos arrastrando desde sus bordes para corregirlos.</div>
                   </div>
+                  <button onClick={() => setDismissedIssuesSig(flowIssuesSig)} aria-label="Cerrar aviso de problemas de conexión"
+                    title="Cerrar aviso"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2, flexShrink: 0, display: 'flex', alignSelf: 'flex-start' }}>
+                    <X size={16} />
+                  </button>
                 </div>
               )}
 
