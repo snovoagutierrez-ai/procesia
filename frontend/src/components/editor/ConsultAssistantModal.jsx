@@ -47,8 +47,8 @@ export default function ConsultAssistantModal({ isOpen, onClose }) {
   };
 
   return (
-    <div className="pa-modal-overlay">
-      <div role="dialog" aria-modal="true" aria-labelledby="consult-assistant-title" className="pa-modal-content" style={{ maxWidth: 560, height: '80vh', maxHeight: 640 }}>
+    <div className="pa-modal-overlay pa-consult-overlay">
+      <div role="dialog" aria-modal="true" aria-labelledby="consult-assistant-title" className="pa-modal-content pa-consult-modal">
         <div className="pa-modal-header">
           <h2 id="consult-assistant-title"><MessageSquare size={18} style={{ marginRight: 8, verticalAlign: 'text-bottom' }} /> Asistente de consultas</h2>
           <button className="pa-btn-icon" onClick={onClose} aria-label="Cerrar asistente de consultas"><X size={18} /></button>
@@ -95,8 +95,7 @@ export default function ConsultAssistantModal({ isOpen, onClose }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
-            style={{ flex: 1 }}
-            autoFocus
+            style={{ flex: 1, fontSize: 16 }}
           />
           <button className="pa-btn pa-btn-primary" onClick={() => send()} disabled={loading || !input.trim()} aria-label="Enviar consulta" style={{ padding: '0 16px' }}>
             {loading ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
