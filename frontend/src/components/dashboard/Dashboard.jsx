@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, Play, Trash2, Plus, PenLine, Network, ChevronUp, ChevronDown, ChevronRight, Layers, LayoutGrid, Bot, ArrowRight, Loader2, FileText, FolderOpen, AlertTriangle, X } from 'lucide-react';
 import MacroprocessDiagram from '../diagram/MacroprocessDiagram.jsx';
 import { FlowDiagram } from '../diagram/FlowDiagrams.jsx';
+import ProcessSummaryModal from '../editor/ProcessSummaryModal.jsx';
 import { apiFetch } from '../../api.js';
 
 function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCreateMacro, onDeleteProcess, onDeleteMacro, macroOpts, runOptimizeMacro, onLoadDemo, openOpts, setOpenOpts, macroLongLoading }) {
@@ -12,6 +13,29 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
 
   const [previewProcess, setPreviewProcess] = useState(null);
   const [previewData, setPreviewData] = useState({ tasks: [], gateways: [], sequenceFlows: [] });
+
+  const [summaryProcess, setSummaryProcess] = useState(null);
+  const [summaryData, setSummaryData] = useState({ tasks: [], gateways: [] });
+  const [summaryMetrics, setSummaryMetrics] = useState(null);
+
+  const handleViewSummary = async (process) => {
+    setSummaryProcess(process);
+    setSummaryData({ tasks: [], gateways: [] });
+    setSummaryMetrics(null);
+    try {
+      const [tRes, gRes, mRes] = await Promise.all([
+        apiFetch(`/processes/${process.id}/tasks`),
+        apiFetch(`/processes/${process.id}/graph`),
+        apiFetch(`/processes/${process.id}/metrics`),
+      ]);
+      const tasks = tRes.ok ? (await tRes.json()).map(t => ({ id: t.id, bpmnId: t.bpmn_id, name: t.name })) : [];
+      const graph = gRes.ok ? await gRes.json() : {};
+      setSummaryData({ tasks, gateways: graph.gateways || [] });
+      if (mRes.ok) setSummaryMetrics(await mRes.json());
+    } catch (err) {
+      console.error("Failed to load process summary", err);
+    }
+  };
 
   const handleViewFlow = async (process) => {
     setPreviewProcess(process);
@@ -275,7 +299,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                       </div>
                     ) : (
                       <div style={{ width: '100%', height: '400px', marginTop: '16px' }}>
-                        <MacroprocessDiagram macroprocessId={m.id} processes={mProcs} onProcessDoubleClick={onSelect} onViewFlow={handleViewFlow} />
+                        <MacroprocessDiagram macroprocessId={m.id} processes={mProcs} onProcessDoubleClick={onSelect} onViewFlow={handleViewFlow} onViewSummary={handleViewSummary} />
                       </div>
                     )}
                       </>
@@ -350,6 +374,15 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
           </div>
         </div>
       )}
+
+      <ProcessSummaryModal
+        isOpen={!!summaryProcess}
+        onClose={() => setSummaryProcess(null)}
+        proc={summaryProcess}
+        tasks={summaryData.tasks}
+        gateways={summaryData.gateways}
+        metricsData={summaryMetrics}
+      />
 
       {previewProcess && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setPreviewProcess(null)}>

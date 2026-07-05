@@ -14,7 +14,7 @@ import {
   Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, ChevronLeft, Download, Sparkles, Loader2,
   AlertTriangle, User, Wrench, PenLine, Gauge, X, ArrowRight, Lightbulb,
   ArrowLeft, FolderOpen, FolderPlus, FileText, Copy, Clock, LogOut, Info, Check,
-  RefreshCw, TrendingUp, Eye, MessageSquare
+  RefreshCw, TrendingUp, MessageSquare
 } from "lucide-react";
 import { useAuth } from './components/auth/AuthContext.jsx';
 import { useConfirm, useInputDialog } from './components/shared/ConfirmDialog.jsx';
@@ -26,7 +26,6 @@ import { Editor, GatewayEditor, Optimization, ValueClassWizard, fmtShort, fmtLon
 import { VSMLadder, FlowDiagram } from "./components/diagram/FlowDiagrams.jsx";
 import WelcomeModal from "./components/shared/WelcomeModal.jsx";
 import SnapshotsModal from "./components/editor/SnapshotsModal.jsx";
-import ProcessSummaryModal from "./components/editor/ProcessSummaryModal.jsx";
 import ConsultAssistantModal from "./components/editor/ConsultAssistantModal.jsx";
 
 function Banner({ type, message, actionText, onAction, onClose }) {
@@ -1031,7 +1030,6 @@ export default function App() {
   const [isDesktopWide, setIsDesktopWide] = useState(window.innerWidth >= 1024);
   const [mobileStep, setMobileStep] = useState(1);
   const [showTutorial, setShowTutorial] = useState(false);
-  const [processSummaryOpen, setProcessSummaryOpen] = useState(false);
   const [consultAssistantOpen, setConsultAssistantOpen] = useState(false);
   const [dismissedIssuesSig, setDismissedIssuesSig] = useState(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -2066,14 +2064,6 @@ export default function App() {
       {confirmDialog}
       {inputDialog}
       {firstStepsActive && <GuideTicket step={guideStep} onStep={setGuideStep} onDismiss={dismissGuide} />}
-      <ProcessSummaryModal
-        isOpen={processSummaryOpen}
-        onClose={() => setProcessSummaryOpen(false)}
-        proc={proc}
-        tasks={tasks}
-        gateways={gateways}
-        metricsData={metricsData}
-      />
       <ConsultAssistantModal
         isOpen={consultAssistantOpen}
         onClose={() => setConsultAssistantOpen(false)}
@@ -2166,9 +2156,6 @@ export default function App() {
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                 <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Asistente de consultas IA" onClick={() => setConsultAssistantOpen(true)} aria-label="Asistente">
                   <MessageSquare size={16} /><span className="pa-editor-action-label"> Asistente</span>
-                </button>
-                <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver resumen del proceso" onClick={() => setProcessSummaryOpen(true)} aria-label="Ver proceso">
-                  <Eye size={16} /><span className="pa-editor-action-label"> Ver proceso</span>
                 </button>
                 <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }} aria-label="Guía">
                   <Lightbulb size={16} /><span className="pa-editor-action-label"> Guía</span>
