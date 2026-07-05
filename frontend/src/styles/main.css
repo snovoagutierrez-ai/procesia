@@ -396,6 +396,15 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
   }
 }
 
+/* Overflow ("⋯") action menu for the editor topbar on mobile */
+.pa-editor-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:50;background:#fff;border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;min-width:200px;display:flex;flex-direction:column;gap:2px}
+.pa-editor-menu button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;border:none;
+  padding:11px 12px;font-size:14px;font-weight:500;color:var(--ink);cursor:pointer;border-radius:8px;font-family:inherit;min-height:44px;white-space:nowrap}
+.pa-editor-menu button:hover,.pa-editor-menu button:active{background:var(--teal-tint);color:var(--teal-deep)}
+.pa-editor-menu button svg{flex-shrink:0;color:var(--muted)}
+.pa-editor-menu button:hover svg,.pa-editor-menu button:active svg{color:var(--teal-deep)}
+
 /* Shell is the one scroll container for the editor */
 .pa-editor-layout > .pa-shell {
   flex: 1;

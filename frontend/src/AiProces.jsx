@@ -14,7 +14,7 @@ import {
   Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, ChevronLeft, Download, Sparkles, Loader2,
   AlertTriangle, User, Wrench, PenLine, Gauge, X, ArrowRight, Lightbulb,
   ArrowLeft, FolderOpen, FolderPlus, FileText, Copy, Clock, LogOut, Info, Check,
-  RefreshCw, TrendingUp, MessageSquare
+  RefreshCw, TrendingUp, MessageSquare, MoreVertical
 } from "lucide-react";
 import { useAuth } from './components/auth/AuthContext.jsx';
 import { useConfirm, useInputDialog } from './components/shared/ConfirmDialog.jsx';
@@ -1031,6 +1031,7 @@ export default function App() {
   const [mobileStep, setMobileStep] = useState(1);
   const [showTutorial, setShowTutorial] = useState(false);
   const [consultAssistantOpen, setConsultAssistantOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dismissedIssuesSig, setDismissedIssuesSig] = useState(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
@@ -2138,35 +2139,71 @@ export default function App() {
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                 <button className="pa-btn pa-btn-ghost pa-btn-icon-only" onClick={goBackToDashboard} aria-label="Volver"><ArrowLeft size={16} /></button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)', minWidth: 0 }}>
-                  <span className="pa-editor-breadcrumb-trail" style={{ display: 'contents' }}>
-                    <span style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500, whiteSpace: 'nowrap' }} onClick={goBackToDashboard}>Mis procesos</span>
-                    <span style={{ opacity: 0.5, flexShrink: 0 }}>/</span>
-                    <span style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500, whiteSpace: 'nowrap' }} onClick={goBackToDashboard}>
-                      {macroprocesses.find(m => m.id === proc.macroprocess_id)?.name || "General"}
+                {!isMobile ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)', minWidth: 0 }}>
+                    <span className="pa-editor-breadcrumb-trail" style={{ display: 'contents' }}>
+                      <span style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500, whiteSpace: 'nowrap' }} onClick={goBackToDashboard}>Mis procesos</span>
+                      <span style={{ opacity: 0.5, flexShrink: 0 }}>/</span>
+                      <span style={{ cursor: 'pointer', color: 'var(--teal)', fontWeight: 500, whiteSpace: 'nowrap' }} onClick={goBackToDashboard}>
+                        {macroprocesses.find(m => m.id === proc.macroprocess_id)?.name || "General"}
+                      </span>
+                      <span style={{ opacity: 0.5, flexShrink: 0 }}>/</span>
                     </span>
-                    <span style={{ opacity: 0.5, flexShrink: 0 }}>/</span>
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                    <h2 style={{ margin: 0, fontSize: 16, color: 'var(--inv)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }}>{proc.name}</h2>
-                    {proc.code && <span className="pa-tag" style={{ margin: 0, color: 'var(--ink)', flexShrink: 0 }}>{proc.code}</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <h2 style={{ margin: 0, fontSize: 16, color: 'var(--inv)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }}>{proc.name}</h2>
+                      {proc.code && <span className="pa-tag" style={{ margin: 0, color: 'var(--ink)', flexShrink: 0 }}>{proc.code}</span>}
+                    </div>
                   </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.2 }}>
+                    <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--inv)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{proc.name || "Proceso"}</h2>
+                    <span style={{ fontSize: 11, color: 'var(--inv-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {macroprocesses.find(m => m.id === proc.macroprocess_id)?.name || "General"}{proc.code ? ` · ${proc.code}` : ''}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {!isMobile ? (
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Asistente de consultas IA" onClick={() => setConsultAssistantOpen(true)} aria-label="Asistente">
+                    <MessageSquare size={16} /><span className="pa-editor-action-label"> Asistente</span>
+                  </button>
+                  <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }} aria-label="Guía">
+                    <Lightbulb size={16} /><span className="pa-editor-action-label"> Guía</span>
+                  </button>
+                  <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => setSnapshotsModalOpen(true)} aria-label="Versiones">
+                    <Clock size={16} /><span className="pa-editor-action-label"> Versiones</span>
+                  </button>
+                  <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={exportBpmn} aria-label="Exportar BPMN">
+                    <Download size={16} /><span className="pa-editor-action-label"> .bpmn</span>
+                  </button>
                 </div>
-              </div>
-              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Asistente de consultas IA" onClick={() => setConsultAssistantOpen(true)} aria-label="Asistente">
-                  <MessageSquare size={16} /><span className="pa-editor-action-label"> Asistente</span>
-                </button>
-                <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }} aria-label="Guía">
-                  <Lightbulb size={16} /><span className="pa-editor-action-label"> Guía</span>
-                </button>
-                <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => setSnapshotsModalOpen(true)} aria-label="Versiones">
-                  <Clock size={16} /><span className="pa-editor-action-label"> Versiones</span>
-                </button>
-                <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={exportBpmn} aria-label="Exportar BPMN">
-                  <Download size={16} /><span className="pa-editor-action-label"> .bpmn</span>
-                </button>
-              </div>
+              ) : (
+                <div style={{ position: "relative", flexShrink: 0 }}>
+                  <button className="pa-btn pa-btn-ghost pa-btn-icon-only" onClick={() => setMobileMenuOpen(o => !o)} aria-label="Más acciones" aria-haspopup="menu" aria-expanded={mobileMenuOpen}>
+                    <MoreVertical size={18} />
+                  </button>
+                  {mobileMenuOpen && (
+                    <>
+                      <div onClick={() => setMobileMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+                      <div role="menu" className="pa-editor-menu">
+                        <button role="menuitem" onClick={() => { setConsultAssistantOpen(true); setMobileMenuOpen(false); }}>
+                          <MessageSquare size={16} /> Asistente
+                        </button>
+                        <button role="menuitem" onClick={() => { setFirstStepsActive(true); setGuideStep(1); setMobileMenuOpen(false); }}>
+                          <Lightbulb size={16} /> Guía paso a paso
+                        </button>
+                        <button role="menuitem" onClick={() => { setSnapshotsModalOpen(true); setMobileMenuOpen(false); }}>
+                          <Clock size={16} /> Versiones
+                        </button>
+                        <button role="menuitem" onClick={() => { exportBpmn(); setMobileMenuOpen(false); }}>
+                          <Download size={16} /> Exportar .bpmn
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
