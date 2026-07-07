@@ -337,6 +337,14 @@ textarea.pa-input{resize:vertical;line-height:1.45}
 .pa-fab:active{transform:translateY(0)}
 .pa-fab.open{background:var(--ink)}
 @media (max-width:768px){.pa-fab{right:16px;bottom:16px;width:52px;height:52px}}
+/* Hover tooltip ("¿Necesitas ayuda?") to the left of the FAB */
+.pa-fab-tip{position:absolute;right:calc(100% + 12px);top:50%;transform:translateY(-50%) translateX(8px);
+  background:var(--ink);color:#fff;font-size:13px;font-weight:600;white-space:nowrap;padding:8px 12px;border-radius:10px;
+  box-shadow:0 4px 14px rgba(0,0,0,.22);opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease}
+.pa-fab-tip::after{content:'';position:absolute;left:100%;top:50%;transform:translateY(-50%);
+  border:6px solid transparent;border-left-color:var(--ink)}
+.pa-fab:hover .pa-fab-tip,.pa-fab:focus-visible .pa-fab-tip{opacity:1;transform:translateY(-50%) translateX(0)}
+@media (hover:none){.pa-fab-tip{display:none}}
 
 /* ---- accessibility ---- */
 .pa-root :focus-visible{outline:2px solid var(--teal);outline-offset:2px}

@@ -2074,8 +2074,8 @@ export default function App() {
           className={"pa-fab" + (consultAssistantOpen ? " open" : "")}
           onClick={() => setConsultAssistantOpen(o => !o)}
           aria-label={consultAssistantOpen ? "Cerrar asistente" : "Abrir asistente de consultas IA"}
-          title="Asistente de consultas IA"
         >
+          {!consultAssistantOpen && <span className="pa-fab-tip">¿Necesitas ayuda?</span>}
           {consultAssistantOpen ? <X size={24} /> : <MessageSquare size={24} />}
         </button>
       )}
