@@ -2069,7 +2069,7 @@ export default function App() {
         isOpen={consultAssistantOpen}
         onClose={() => setConsultAssistantOpen(false)}
       />
-      {view === "editor" && proc && (
+      {(view === "dashboard" || proc) && (
         <button
           className={"pa-fab" + (consultAssistantOpen ? " open" : "")}
           onClick={() => setConsultAssistantOpen(o => !o)}
