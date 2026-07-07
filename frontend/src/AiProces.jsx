@@ -2069,6 +2069,16 @@ export default function App() {
         isOpen={consultAssistantOpen}
         onClose={() => setConsultAssistantOpen(false)}
       />
+      {view === "editor" && proc && (
+        <button
+          className={"pa-fab" + (consultAssistantOpen ? " open" : "")}
+          onClick={() => setConsultAssistantOpen(o => !o)}
+          aria-label={consultAssistantOpen ? "Cerrar asistente" : "Abrir asistente de consultas IA"}
+          title="Asistente de consultas IA"
+        >
+          {consultAssistantOpen ? <X size={24} /> : <MessageSquare size={24} />}
+        </button>
+      )}
       <SnapshotsModal
         isOpen={snapshotsModalOpen}
         onClose={() => setSnapshotsModalOpen(false)}
@@ -2165,9 +2175,6 @@ export default function App() {
               </div>
               {!isMobile ? (
                 <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Asistente de consultas IA" onClick={() => setConsultAssistantOpen(true)} aria-label="Asistente">
-                    <MessageSquare size={16} /><span className="pa-editor-action-label"> Asistente</span>
-                  </button>
                   <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }} aria-label="Guía">
                     <Lightbulb size={16} /><span className="pa-editor-action-label"> Guía</span>
                   </button>
@@ -2187,9 +2194,6 @@ export default function App() {
                     <>
                       <div onClick={() => setMobileMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
                       <div role="menu" className="pa-editor-menu">
-                        <button role="menuitem" onClick={() => { setConsultAssistantOpen(true); setMobileMenuOpen(false); }}>
-                          <MessageSquare size={16} /> Asistente
-                        </button>
                         <button role="menuitem" onClick={() => { setFirstStepsActive(true); setGuideStep(1); setMobileMenuOpen(false); }}>
                           <Lightbulb size={16} /> Guía paso a paso
                         </button>
