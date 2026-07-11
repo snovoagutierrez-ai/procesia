@@ -140,16 +140,19 @@ function TaskNode({ data }) {
   );
 }
 
-function DeletableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style, markerEnd }) {
+function DeletableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, label, style, markerEnd }) {
   const [edgePath, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
   return (
     <>
       <BaseEdge path={edgePath} style={style} markerEnd={markerEnd} id={id} />
       <EdgeLabelRenderer>
-        <div 
-          style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`, pointerEvents: 'all' }} 
+        <div
+          style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`, pointerEvents: 'all', display: 'flex', alignItems: 'center', gap: 4 }}
           className="nodrag nopan"
         >
+          {label && (
+            <span className="edge-branch-label">{label}</span>
+          )}
           <button className="edge-delete-btn" onClick={(e) => { e.stopPropagation(); if(data?.onDelete) data.onDelete(id); }}>
             <Trash2 size={12} color="#D9503C" />
           </button>
