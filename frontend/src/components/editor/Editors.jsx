@@ -393,6 +393,79 @@ function TaskAssistant({ task, onChange }) {
   );
 }
 
+/* Comentarios colaborativos anclados a un nodo (tarea o compuerta).
+   Sección plegable, consistente con "Tiempos observados". */
+function NodeComments({ processId, nodeBpmnId }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!processId || !nodeBpmnId) return;
+    setItems([]);
+    apiFetch(`/processes/${processId}/comments?node=${encodeURIComponent(nodeBpmnId)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setItems)
+      .catch(() => {});
+  }, [processId, nodeBpmnId]);
+
+  const add = async () => {
+    const text = draft.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/processes/${processId}/comments`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ node_bpmn_id: nodeBpmnId, text }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setItems(prev => [...prev, created]);
+        setDraft("");
+      }
+    } finally { setBusy(false); }
+  };
+
+  const remove = async (id) => {
+    const res = await apiFetch(`/processes/${processId}/comments/${id}`, { method: "DELETE" });
+    if (res.ok || res.status === 204) setItems(prev => prev.filter(c => c.id !== id));
+  };
+
+  if (!processId || !nodeBpmnId) return null;
+  return (
+    <div style={{ marginBottom: 16, border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} className="pa-btn pa-btn-ghost" style={{ width: '100%', justifyContent: 'space-between', borderRadius: 0, border: 'none', background: '#F8F9FA' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Send size={14} /> Comentarios {items.length > 0 && <span className="pa-tag" style={{ margin: 0 }}>{items.length}</span>}</span>
+        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+      </button>
+      {open && (
+        <div style={{ padding: 14 }}>
+          {items.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 10 }}>Anota dudas, acuerdos o contexto sobre este paso para quien revise el proceso.</div>}
+          {items.map(c => (
+            <div key={c.id} style={{ padding: '8px 10px', background: '#F8FAF8', border: '1px solid var(--line)', borderRadius: 8, marginBottom: 8 }}>
+              <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{c.text}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, fontSize: 11, color: 'var(--muted)' }}>
+                <span>{c.author_email || 'anónimo'}</span>
+                {c.created_at && <span>· {new Date(c.created_at).toLocaleDateString()}</span>}
+                <button type="button" onClick={() => remove(c.id)} aria-label="Eliminar comentario"
+                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex', padding: 2 }}><Trash2 size={12} /></button>
+              </div>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input className="pa-input" value={draft} placeholder="Escribe un comentario…" style={{ flex: 1 }}
+              onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add(); }} />
+            <button type="button" className="pa-btn pa-btn-primary pa-btn-sm" onClick={add} disabled={busy || !draft.trim()}>
+              {busy ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // #8 Tiempos observados: registrar mediciones reales por tarea y comparar
 // promedio observado vs estándar + variabilidad (CV). Infraestructura ya existía
 // (tabla time_measurements), faltaban endpoints + UI.
@@ -533,6 +606,8 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
 
       {processId && task.id && <MeasurementsPanel processId={processId} taskId={task.id} stdCycle={task.cycleTime} />}
 
+      {processId && task.bpmnId && <NodeComments processId={processId} nodeBpmnId={task.bpmnId} />}
+
       <div style={{ marginBottom: '16px' }}>
         <div style={{ marginBottom: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--text)', display: 'flex', gap: '8px', alignItems: 'center' }}>
           Clasificación de valor 
@@ -586,7 +661,54 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
   );
 }
 
-function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idle' }, onDone }) {
+/* Fila de rama saliente de una compuerta: etiqueta (Sí/No) + probabilidad %.
+   Estado local con commit onBlur para no disparar un PUT del grafo por tecla. */
+function BranchRow({ flow, targetName, isExclusive, onCommit }) {
+  const [label, setLabel] = useState(flow.condition_expression || flow.condition || "");
+  const [prob, setProb] = useState(flow.branch_probability != null ? String(flow.branch_probability) : "");
+
+  useEffect(() => {
+    setLabel(flow.condition_expression || flow.condition || "");
+    setProb(flow.branch_probability != null ? String(flow.branch_probability) : "");
+  }, [flow.bpmn_id, flow.condition_expression, flow.branch_probability]);
+
+  const commit = (nextLabel = label, nextProb = prob) => {
+    const p = nextProb === "" ? null : Math.max(0, Math.min(100, Number(nextProb)));
+    onCommit(flow, {
+      condition_expression: nextLabel || null,
+      branch_probability: p != null && !Number.isNaN(p) ? p : null,
+    });
+  };
+
+  return (
+    <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <ArrowRight size={13} style={{ flexShrink: 0 }} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Hacia <b>{targetName}</b></span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ flex: 1, minWidth: 120 }}>
+          <label style={{ fontSize: 11, color: 'var(--muted)' }}>Etiqueta de la rama</label>
+          <input className="pa-input" value={label} placeholder="Ej: Sí / No / Rechazado"
+            onChange={(e) => setLabel(e.target.value)} onBlur={() => commit()} />
+        </div>
+        {isExclusive && (
+          <div style={{ width: 92 }}>
+            <label style={{ fontSize: 11, color: 'var(--muted)' }}>Prob. %</label>
+            <input className="pa-input mono" type="number" min="0" max="100" value={prob} placeholder="—"
+              onChange={(e) => setProb(e.target.value)} onBlur={() => commit()} />
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button type="button" className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => { setLabel("Sí"); commit("Sí", prob); }}>Sí</button>
+          <button type="button" className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => { setLabel("No"); commit("No", prob); }}>No</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idle' }, onDone, sequenceFlows = [], tasks = [], gateways = [], onFlowsChange, processId }) {
   const [showSaved, setShowSaved] = useState(false);
   const handleSave = () => {
     setShowSaved(true);
@@ -619,11 +741,61 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
             <option value="parallelGateway">Paralela (+)</option>
           </select>
         </Field>
+
+        {(() => {
+          const outgoing = (sequenceFlows || []).filter(f => f.source_ref === gateway.bpmn_id);
+          if (outgoing.length === 0) return null;
+          const isExclusive = gateway.node_type === "exclusiveGateway";
+          const targetName = (ref) => {
+            if (ref === "end") return "Fin";
+            if (ref === "start") return "Inicio";
+            const t = (tasks || []).find(tk => tk.bpmnId === ref || (tk.id != null && tk.id.toString() === ref));
+            if (t) return t.name || "Tarea";
+            const g = (gateways || []).find(gx => gx.bpmn_id === ref);
+            if (g) return g.name || "Compuerta";
+            return ref;
+          };
+          const commitBranch = (flow, patch) => {
+            if (!onFlowsChange) return;
+            const newFlows = (sequenceFlows || []).map(f =>
+              (f.bpmn_id && f.bpmn_id === flow.bpmn_id) || f === flow ? { ...f, ...patch } : f
+            );
+            onFlowsChange(newFlows);
+          };
+          const probs = outgoing.map(f => f.branch_probability).filter(p => p != null && p !== "");
+          const probSum = probs.reduce((a, p) => a + Number(p), 0);
+          const showSumWarning = isExclusive && outgoing.length > 1 && probs.length > 0 && Math.round(probSum) !== 100;
+          return (
+            <div style={{ marginTop: 16 }}>
+              <div className="pa-label" style={{ marginBottom: 8 }}>
+                Ramas de salida ({outgoing.length})
+                {isExclusive && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}> — etiqueta cada camino (Sí/No) y qué % de los casos lo toma</span>}
+              </div>
+              {outgoing.map((f, i) => (
+                <BranchRow key={f.bpmn_id || i} flow={f} isExclusive={isExclusive}
+                  targetName={targetName(f.target_ref)} onCommit={commitBranch} />
+              ))}
+              {showSumWarning && (
+                <Banner variant="warning" title="Las probabilidades no suman 100%">
+                  Actualmente suman {Math.round(probSum)}%. Las métricas normalizan sobre el total definido, pero para un modelo claro conviene que las ramas sumen 100%.
+                </Banner>
+              )}
+              {isExclusive && outgoing.length === 1 && (
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  Una compuerta exclusiva necesita al menos 2 salidas. Conecta otra rama desde el diagrama o con el selector de la lista lateral.
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         <div style={{ marginTop: 16 }}>
           <Banner variant="info" title="¿Cómo conectar?">
             Arrastra desde los puntos conectores de los nodos en el diagrama hacia esta compuerta para conectarla. Usa la tecla Retroceso (Backspace) para eliminar flechas erróneas.
           </Banner>
         </div>
+
+        {processId && <div style={{ marginTop: 16 }}><NodeComments processId={processId} nodeBpmnId={gateway.bpmn_id} /></div>}
         <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '12px', color: '#0E9F9F', flex: 1, minWidth: '150px' }}>Guardado automático activado</span>
           <button className="pa-btn pa-btn-ghost" style={{ color: '#D9503C', borderColor: '#D9503C' }} onClick={() => onDelete(gateway.bpmn_id)}>

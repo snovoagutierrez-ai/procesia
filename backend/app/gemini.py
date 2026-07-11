@@ -35,6 +35,11 @@ REGLAS DE ANÁLISIS
    motion, excess_processing. El campo severity en bottlenecks DEBE ser exactamente uno de: low, medium, high, critical.
 3. RACI: detecta anomalías — más de un 'A' (Accountable) en una tarea, ausencia de 'A',
    o exceso de handoffs entre roles distintos en tareas consecutivas.
+3b. Ramas y decisiones: "sequence_flows" incluye condition_expression (ej. "Sí"/"No") y
+   branch_probability (0-100, % de instancias que toman esa rama al salir de una compuerta
+   exclusiva). Pondera el impacto de tus recomendaciones por esa probabilidad: una rama de
+   retrabajo con probabilidad alta es un hallazgo prioritario (defects); una rama del 5%
+   rara vez justifica recomendaciones de alto esfuerzo.
 4. Sistemas: detecta saltos innecesarios entre sistemas (context switching) y
    oportunidades de automatización o integración.
 5. Recomendaciones: por cada hallazgo cualitativo o matemático, propón una acción concreta.
@@ -170,7 +175,8 @@ def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
             "source_ref": sf.source_ref,
             "target_ref": sf.target_ref,
             "name": sf.name,
-            "condition_expression": sf.condition_expression
+            "condition_expression": sf.condition_expression,
+            "branch_probability": float(sf.branch_probability) if sf.branch_probability is not None else None
         })
 
     snapshot = {

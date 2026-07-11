@@ -113,6 +113,20 @@ class Process(Base):
     snapshots = relationship("ProcessSnapshot", back_populates="process", cascade="all, delete-orphan", passive_deletes=True)
 
 
+class NodeComment(Base):
+    """Comentario colaborativo anclado a un nodo del proceso (tarea o compuerta)."""
+    __tablename__ = 'node_comments'
+
+    id = Column(BigInteger, primary_key=True)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False, index=True)
+    node_bpmn_id = Column(String(60), nullable=False, index=True)
+    author_id = Column(BigInteger, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    author = relationship("User")
+
+
 class ProcessSnapshot(Base):
     __tablename__ = 'process_snapshots'
 
@@ -243,6 +257,9 @@ class SequenceFlow(Base):
     target_ref = Column(String(60), nullable=False)
     name = Column(String(200))
     condition_expression = Column(Text)
+    # Probabilidad de tomar esta rama al salir de una compuerta exclusiva (0-100).
+    # NULL = no definida (las métricas asumen reparto equiprobable entre ramas).
+    branch_probability = Column(Numeric(5, 2), nullable=True)
 
     process = relationship("Process", back_populates="sequence_flows")
 

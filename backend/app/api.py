@@ -583,6 +583,52 @@ def tutorial_chat_endpoint(request: Request, chat_request: schemas.ChatRequest,
     return {"reply": reply}
 
 # ==========================================
+# 9b. Node Comments (colaboración por nodo)
+# ==========================================
+
+def _comment_out(c: models.NodeComment) -> schemas.NodeCommentOut:
+    return schemas.NodeCommentOut(
+        id=c.id, node_bpmn_id=c.node_bpmn_id, text=c.text,
+        author_email=c.author.email if c.author else None,
+        created_at=c.created_at,
+    )
+
+@router.get("/processes/{id}/comments", response_model=List[schemas.NodeCommentOut])
+def list_node_comments(id: int, node: str = Query(None), db: Session = Depends(get_db),
+                       current_user: models.User = Depends(auth.get_current_user)):
+    verify_process_access(db, id, current_user)
+    q = db.query(models.NodeComment).filter(models.NodeComment.process_id == id)
+    if node:
+        q = q.filter(models.NodeComment.node_bpmn_id == node)
+    return [_comment_out(c) for c in q.order_by(models.NodeComment.created_at.asc()).all()]
+
+@router.post("/processes/{id}/comments", response_model=schemas.NodeCommentOut, status_code=status.HTTP_201_CREATED)
+def create_node_comment(id: int, data: schemas.NodeCommentCreate, db: Session = Depends(get_db),
+                        current_user: models.User = Depends(auth.get_current_user)):
+    verify_process_access(db, id, current_user)
+    c = models.NodeComment(process_id=id, node_bpmn_id=data.node_bpmn_id,
+                           author_id=current_user.id, text=data.text.strip())
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return _comment_out(c)
+
+@router.delete("/processes/{id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_node_comment(id: int, comment_id: int, db: Session = Depends(get_db),
+                        current_user: models.User = Depends(auth.get_current_user)):
+    verify_process_access(db, id, current_user)
+    c = db.query(models.NodeComment).filter(models.NodeComment.id == comment_id,
+                                            models.NodeComment.process_id == id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    # Solo el autor del comentario o un admin pueden borrarlo
+    if c.author_id != current_user.id and current_user.role != models.UserRole.admin:
+        raise HTTPException(status_code=403, detail="Solo el autor puede eliminar su comentario")
+    db.delete(c)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+# ==========================================
 # 10. Process Snapshots Endpoints
 # ==========================================
 

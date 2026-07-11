@@ -27,6 +27,7 @@ import { VSMLadder, FlowDiagram } from "./components/diagram/FlowDiagrams.jsx";
 import WelcomeModal from "./components/shared/WelcomeModal.jsx";
 import SnapshotsModal from "./components/editor/SnapshotsModal.jsx";
 import ConsultAssistantModal from "./components/editor/ConsultAssistantModal.jsx";
+import { openProcessReport } from "./utils/processReport.js";
 
 function Banner({ type, message, actionText, onAction, onClose }) {
   const bg = type === 'success' ? '#E8F5E9' : type === 'warning' ? '#FFF8E1' : '#E8F4F8';
@@ -1032,6 +1033,13 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [consultAssistantOpen, setConsultAssistantOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [toast, setToast] = useState(null); // { message, type: 'error'|'success' }
+  const toastTimer = useRef(null);
+  const showToast = useCallback((message, type = 'error') => {
+    setToast({ message, type });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 5000);
+  }, []);
   const [dismissedIssuesSig, setDismissedIssuesSig] = useState(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
@@ -1257,18 +1265,22 @@ export default function App() {
       
       await loadProcesses();
     } catch(e) {
-      alert("Error creando datos demo: " + e.message);
+      showToast("Error creando datos demo: " + e.message);
       setLoading(false);
     }
   };
 
   const createNewProcess = async (macroprocessId) => {
+    // Pedir nombre al crear: evita la proliferación de procesos "Nuevo proceso"
+    // imposibles de distinguir en el dashboard y la biblioteca.
+    const name = await showInput("Nuevo proceso", { placeholder: "Nombre del proceso (Ej: Aprobación de compras)", confirmLabel: "Crear" });
+    if (name == null) return; // canceló el diálogo
     try {
       const code = "PROC-" + Math.random().toString(36).slice(2, 6).toUpperCase();
       const resProc = await apiFetch(`/processes`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          macroprocess_id: macroprocessId, code, name: "Nuevo proceso",
+          macroprocess_id: macroprocessId, code, name: (name || "").trim() || "Nuevo proceso",
           objective: "", trigger_event: "Inicio", output_result: "Fin",
         }),
       });
@@ -1635,7 +1647,7 @@ export default function App() {
       if (!res.ok) throw new Error("Status error");
       return true;
     } catch (e) {
-      alert("No se pudo guardar el punto de retorno, optimización cancelada por seguridad. Intenta de nuevo.");
+      showToast("No se pudo guardar el punto de retorno, optimización cancelada por seguridad. Intenta de nuevo.");
       return false;
     }
   };
@@ -1946,7 +1958,7 @@ export default function App() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("Error al exportar BPMN: " + e.message);
+      showToast("Error al exportar BPMN: " + e.message);
     }
   }
 
@@ -2069,6 +2081,13 @@ export default function App() {
         isOpen={consultAssistantOpen}
         onClose={() => setConsultAssistantOpen(false)}
       />
+      {toast && (
+        <div className={"pa-toast " + toast.type} role="alert">
+          {toast.type === 'error' ? <AlertTriangle size={16} /> : <Check size={16} />}
+          <span>{toast.message}</span>
+          <button onClick={() => setToast(null)} aria-label="Cerrar aviso"><X size={14} /></button>
+        </div>
+      )}
       {(view === "dashboard" || proc) && (
         <button
           className={"pa-fab" + (consultAssistantOpen ? " open" : "")}
@@ -2184,6 +2203,13 @@ export default function App() {
                   <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={exportBpmn} aria-label="Exportar BPMN">
                     <Download size={16} /><span className="pa-editor-action-label"> .bpmn</span>
                   </button>
+                  <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Reporte imprimible del proceso (PDF)" aria-label="Reporte"
+                    onClick={() => {
+                      const ok = openProcessReport({ proc, tasks, gateways, sequenceFlows, metricsData, macroName: macroprocesses.find(mm => mm.id === proc.macroprocess_id)?.name });
+                      if (!ok) showToast("El navegador bloqueó la ventana del reporte. Permite pop-ups para este sitio.");
+                    }}>
+                    <FileText size={16} /><span className="pa-editor-action-label"> Reporte</span>
+                  </button>
                 </div>
               ) : (
                 <div style={{ position: "relative", flexShrink: 0 }}>
@@ -2202,6 +2228,13 @@ export default function App() {
                         </button>
                         <button role="menuitem" onClick={() => { exportBpmn(); setMobileMenuOpen(false); }}>
                           <Download size={16} /> Exportar .bpmn
+                        </button>
+                        <button role="menuitem" onClick={() => {
+                          const ok = openProcessReport({ proc, tasks, gateways, sequenceFlows, metricsData, macroName: macroprocesses.find(mm => mm.id === proc.macroprocess_id)?.name });
+                          if (!ok) showToast("El navegador bloqueó la ventana del reporte. Permite pop-ups para este sitio.");
+                          setMobileMenuOpen(false);
+                        }}>
+                          <FileText size={16} /> Reporte (PDF)
                         </button>
                       </div>
                     </>
@@ -2408,6 +2441,15 @@ export default function App() {
                 </div>
               </div>
 
+              {metricsData?.is_branch_weighted && (
+                <div className="pa-metrics">
+                  <div className="pa-metric"><span>Lead time (camino principal)</span><b className="mono">{metricsData.main_path_lead_time_sec != null ? fmtLong(metricsData.main_path_lead_time_sec) : '—'}</b></div>
+                  <div className="pa-metric wide" style={{ gridColumn: 'span 4' }}>
+                    <span>Con compuertas de decisión, el lead time y el costo son <b>valores esperados</b> ponderados por la probabilidad de cada rama. El camino principal sigue la rama más probable en cada decisión.</span>
+                  </div>
+                </div>
+              )}
+
               {metricsData?.cost && (metricsData.cost.total_cost > 0 || metricsData.cost.monthly_cost) && (
                 <div className="pa-metrics">
                   <div className="pa-metric"><span>Costo por ejecución</span><b className="mono">{fmtMoney(metricsData.cost.total_cost)}</b></div>
@@ -2494,8 +2536,16 @@ export default function App() {
                         }}
                         onDone={() => { if (isMobile) setMobileStep(2); else setSelectedId(null); }} />
                     ) : selectedGateway ? (
-                      <GatewayEditor gateway={selectedGateway} onChange={updateGateway} onDelete={deleteGateway}
-                        saveState={saveState} onDone={() => { if (isMobile) setMobileStep(2); else setSelectedId(null); }} />
+                      <GatewayEditor gateway={selectedGateway} onChange={updateGateway} onDelete={deleteGateway} processId={proc?.id}
+                        saveState={saveState} sequenceFlows={sequenceFlows} tasks={tasks} gateways={gateways}
+                        onFlowsChange={(newFlows) => {
+                          setSequenceFlows(newFlows);
+                          apiFetch(`/processes/${proc.id}/graph`, {
+                            method: "PUT", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ gateways, sequence_flows: newFlows })
+                          }).then(() => loadMetrics(proc.id)).catch(() => {});
+                        }}
+                        onDone={() => { if (isMobile) setMobileStep(2); else setSelectedId(null); }} />
                     ) : (
                     <div style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)' }}>
                       Selecciona un nodo para ver sus detalles.
@@ -2587,8 +2637,16 @@ export default function App() {
                       }}
                       onDone={() => setSelectedId(null)} />
                   ) : selectedGateway ? (
-                    <GatewayEditor gateway={selectedGateway} onChange={updateGateway} onDelete={deleteGateway}
-                      saveState={saveState} onDone={() => setSelectedId(null)} />
+                    <GatewayEditor gateway={selectedGateway} onChange={updateGateway} onDelete={deleteGateway} processId={proc?.id}
+                      saveState={saveState} sequenceFlows={sequenceFlows} tasks={tasks} gateways={gateways}
+                      onFlowsChange={(newFlows) => {
+                        setSequenceFlows(newFlows);
+                        apiFetch(`/processes/${proc.id}/graph`, {
+                          method: "PUT", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ gateways, sequence_flows: newFlows })
+                        }).then(() => loadMetrics(proc.id)).catch(() => {});
+                      }}
+                      onDone={() => setSelectedId(null)} />
                   ) : (
                   <div style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)' }}>
                     Selecciona un nodo para ver sus detalles.

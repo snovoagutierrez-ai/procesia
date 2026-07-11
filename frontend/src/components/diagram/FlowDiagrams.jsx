@@ -332,13 +332,18 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
       if (tTask) targetId = `task-${tTask.id}`;
       else if ((gateways || []).some(g => g.bpmn_id === sf.target_ref)) targetId = `gw-${sf.target_ref}`;
 
+      // Etiqueta de rama: condición (Sí/No) + probabilidad si está definida
+      const branchLabel = sf.condition_expression || sf.condition || "";
+      const prob = sf.branch_probability != null && sf.branch_probability !== "" ? Number(sf.branch_probability) : null;
+      const edgeLabel = branchLabel + (prob != null && !Number.isNaN(prob) ? `${branchLabel ? " " : ""}(${prob}%)` : "");
+
       rfEdges.push({
         id: sf.id || `sf-${sf.source_ref}-${sf.target_ref}`,
         source: sourceId,
         target: targetId,
         type: "deletable",
         data: { onDelete: (edgeId) => { if(onEdgesDelete) onEdgesDelete([{ id: edgeId }]); } },
-        label: sf.condition || "",
+        label: edgeLabel,
         animated: true,
         style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
         markerEnd: { type: MarkerType.ArrowClosed, color: "#9AA8A8", width: 16, height: 16 },
@@ -390,11 +395,14 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
 
   const onConnect = useCallback(
     (params) => {
+      // bpmn_id es obligatorio en el backend (SequenceFlowSync): sin él, el PUT
+      // de /graph falla con 422 y la conexión arrastrada no persiste al recargar.
       const newFlow = {
-        id: `sf-${Date.now()}`,
+        bpmn_id: "Flow_" + Math.random().toString(36).slice(2, 8).toUpperCase(),
         source_ref: params.source.replace("task-", "").replace("gw-", ""),
         target_ref: params.target.replace("task-", "").replace("gw-", ""),
-        condition: "",
+        name: "",
+        condition_expression: null,
       };
       setEdges((eds) => addEdge({ ...params, type: "deletable", markerEnd: { type: MarkerType.ArrowClosed, color: "#9AA8A8", width: 16, height: 16 }, style: { stroke: "#9AA8A8", strokeWidth: 1.8 } }, eds));
       if (onGraphChange) {

@@ -405,6 +405,7 @@ class SequenceFlowBase(BaseModel):
     target_ref: str = Field(..., max_length=60)
     name: Optional[str] = Field(None, max_length=200)
     condition_expression: Optional[str] = None
+    branch_probability: Optional[float] = Field(None, ge=0, le=100)
 
 class SequenceFlowCreate(SequenceFlowBase):
     pass
@@ -426,6 +427,7 @@ class SequenceFlowSync(BaseModel):
     target_ref: str = Field(..., max_length=60)
     name: Optional[str] = Field(None, max_length=200)
     condition_expression: Optional[str] = None
+    branch_probability: Optional[float] = Field(None, ge=0, le=100)
 
 class GraphSync(BaseModel):
     gateways: List[FlowNodeSync]
@@ -450,6 +452,22 @@ class MacroGraphSync(BaseModel):
 class GraphResponse(BaseModel):
     gateways: List[FlowNodeResponse]
     sequence_flows: List[SequenceFlowResponse]
+
+# ========= NODE COMMENTS =========
+
+class NodeCommentCreate(BaseModel):
+    node_bpmn_id: str = Field(..., max_length=60)
+    text: str = Field(..., min_length=1, max_length=2000)
+
+class NodeCommentOut(BaseModel):
+    id: int
+    node_bpmn_id: str
+    text: str
+    author_email: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 # ========= PROCESS SNAPSHOT =========
 
@@ -621,6 +639,12 @@ class ProcessMetricsResponse(BaseModel):
     structural: StructuralMetrics
     bottlenecks: List[MetricBottleneck]
     cost: MetricCost
+    # True cuando hay compuertas exclusivas con ramas: los tiempos/costos son
+    # valores esperados ponderados por probabilidad de rama, no sumas lineales.
+    is_branch_weighted: bool = False
+    # Lead time del camino más probable (inicio→fin siguiendo la rama de mayor
+    # probabilidad en cada compuerta exclusiva). None si no hay grafo ramificado.
+    main_path_lead_time_sec: Optional[float] = None
 
 # ==========================================
 # 10. Macro Optimization Results (Pydantic)
