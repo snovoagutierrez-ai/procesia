@@ -337,10 +337,24 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
       const prob = sf.branch_probability != null && sf.branch_probability !== "" ? Number(sf.branch_probability) : null;
       const edgeLabel = branchLabel + (prob != null && !Number.isNaN(prob) ? `${branchLabel ? " " : ""}(${prob}%)` : "");
 
+      // connectionMode="loose" (necesario para que las compuertas acepten
+      // conexiones desde cualquiera de sus 4 puntos) desactiva la resolución
+      // automática de handle por tipo: sin sourceHandle/targetHandle explícito
+      // React Flow no puede resolver el par y la arista no se pinta (aunque
+      // el estado y los nodos sean correctos). task-/gw- tienen handles con id
+      // "left"/"right"; start/end tienen un único handle sin id (se deja undefined).
+      const sourceHandle = (sourceId.startsWith('task-') || sourceId.startsWith('gw-')) ? 'right' : undefined;
+      const targetHandle = (targetId.startsWith('task-') || targetId.startsWith('gw-')) ? 'left' : undefined;
+
       rfEdges.push({
-        id: sf.id || `sf-${sf.source_ref}-${sf.target_ref}`,
+        // React Flow requiere id de tipo string; sf.id llega como number desde
+        // el backend (SequenceFlowResponse.id: int) y eso puede impedir que el
+        // store interno de xyflow resuelva/renderee la arista correctamente.
+        id: String(sf.id ?? `sf-${sf.source_ref}-${sf.target_ref}`),
         source: sourceId,
         target: targetId,
+        sourceHandle,
+        targetHandle,
         type: "deletable",
         data: { onDelete: (edgeId) => { if(onEdgesDelete) onEdgesDelete([{ id: edgeId }]); } },
         label: edgeLabel,
@@ -360,9 +374,11 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   const [laneMode, setLaneMode] = useState(false);
   const onEdgesDelete = useCallback(
     (deletedEdges) => {
-      const deletedIds = new Set(deletedEdges.map(e => e.id));
+      // Los ids de React Flow son siempre string (ver buildFlowData: String(sf.id ?? ...)),
+      // pero f.id llega del backend como number — comparar como string en ambos lados.
+      const deletedIds = new Set(deletedEdges.map(e => String(e.id)));
       const newFlows = (sequenceFlows || []).filter(f => {
-        const fId = f.id || f.bpmn_id || `sf-${f.source_ref}-${f.target_ref}`;
+        const fId = String(f.id ?? f.bpmn_id ?? `sf-${f.source_ref}-${f.target_ref}`);
         return !deletedIds.has(fId);
       });
       if (onGraphChange) {
