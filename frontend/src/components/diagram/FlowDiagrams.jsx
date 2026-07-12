@@ -343,17 +343,21 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
       // connectionMode="loose" (necesario para que las compuertas acepten
       // conexiones desde cualquiera de sus 4 puntos) desactiva la resolución
       // automática de handle por tipo: sin sourceHandle/targetHandle explícito
-      // React Flow no puede resolver el par y la arista no se pinta (aunque
-      // el estado y los nodos sean correctos). task-/gw- tienen handles con id
-      // "left"/"right"; start/end tienen un único handle sin id (se deja undefined).
-      const sourceHandle = (sourceId.startsWith('task-') || sourceId.startsWith('gw-')) ? 'right' : undefined;
-      const targetHandle = (targetId.startsWith('task-') || targetId.startsWith('gw-')) ? 'left' : undefined;
+      // React Flow no puede resolver el par y la arista no se pinta.
+      // Se respeta el punto que el usuario usó al dibujar (sf.source_handle /
+      // sf.target_handle, persistidos en BD); flujos legado sin handle guardado
+      // caen al par derecha→izquierda. start/end tienen un único handle sin id.
+      const sourceHandle = (sourceId.startsWith('task-') || sourceId.startsWith('gw-'))
+        ? (sf.source_handle || 'right') : undefined;
+      const targetHandle = (targetId.startsWith('task-') || targetId.startsWith('gw-'))
+        ? (sf.target_handle || 'left') : undefined;
 
       rfEdges.push({
-        // React Flow requiere id de tipo string; sf.id llega como number desde
-        // el backend (SequenceFlowResponse.id: int) y eso puede impedir que el
-        // store interno de xyflow resuelva/renderee la arista correctamente.
-        id: String(sf.id ?? `sf-${sf.source_ref}-${sf.target_ref}`),
+        // React Flow requiere id string. Mismo orden de fallback que usa
+        // onEdgesDelete (id de BD → bpmn_id → par src-tgt): si difieren,
+        // borrar una conexión recién dibujada (aún sin id de BD) no encuentra
+        // el flujo y no elimina nada.
+        id: String(sf.id ?? sf.bpmn_id ?? `sf-${sf.source_ref}-${sf.target_ref}`),
         source: sourceId,
         target: targetId,
         sourceHandle,
@@ -422,8 +426,16 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         target_ref: params.target.replace("task-", "").replace("gw-", ""),
         name: "",
         condition_expression: null,
+        // Persistir desde qué punto se dibujó la conexión, para que al
+        // recargar la flecha salga/entre por el mismo lado del nodo (clave
+        // en compuertas, que tienen 4 puntos).
+        source_handle: params.sourceHandle || null,
+        target_handle: params.targetHandle || null,
       };
-      setEdges((eds) => addEdge({ ...params, type: "deletable", markerEnd: { type: MarkerType.ArrowClosed, color: "#9AA8A8", width: 16, height: 16 }, style: { stroke: "#9AA8A8", strokeWidth: 1.8 } }, eds));
+      // id explícito = bpmn_id: así el edge local coincide con el flujo en
+      // estado y se puede borrar sin tener que recargar (antes React Flow
+      // generaba un id propio que onEdgesDelete no encontraba).
+      setEdges((eds) => addEdge({ ...params, id: newFlow.bpmn_id, type: "deletable", markerEnd: { type: MarkerType.ArrowClosed, color: "#9AA8A8", width: 16, height: 16 }, style: { stroke: "#9AA8A8", strokeWidth: 1.8 } }, eds));
       if (onGraphChange) {
         onGraphChange(gateways, [...(sequenceFlows||[]), newFlow]);
       }

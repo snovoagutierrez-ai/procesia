@@ -406,6 +406,8 @@ class SequenceFlowBase(BaseModel):
     name: Optional[str] = Field(None, max_length=200)
     condition_expression: Optional[str] = None
     branch_probability: Optional[float] = Field(None, ge=0, le=100)
+    source_handle: Optional[str] = Field(None, max_length=10)
+    target_handle: Optional[str] = Field(None, max_length=10)
 
 class SequenceFlowCreate(SequenceFlowBase):
     pass
@@ -428,6 +430,8 @@ class SequenceFlowSync(BaseModel):
     name: Optional[str] = Field(None, max_length=200)
     condition_expression: Optional[str] = None
     branch_probability: Optional[float] = Field(None, ge=0, le=100)
+    source_handle: Optional[str] = Field(None, max_length=10)
+    target_handle: Optional[str] = Field(None, max_length=10)
 
 class GraphSync(BaseModel):
     gateways: List[FlowNodeSync]

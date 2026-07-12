@@ -260,6 +260,10 @@ class SequenceFlow(Base):
     # Probabilidad de tomar esta rama al salir de una compuerta exclusiva (0-100).
     # NULL = no definida (las métricas asumen reparto equiprobable entre ramas).
     branch_probability = Column(Numeric(5, 2), nullable=True)
+    # Punto de conexión usado al dibujar la flecha (left/right/top/bottom).
+    # NULL = legado → el frontend asume salida derecha / entrada izquierda.
+    source_handle = Column(String(10), nullable=True)
+    target_handle = Column(String(10), nullable=True)
 
     process = relationship("Process", back_populates="sequence_flows")
 

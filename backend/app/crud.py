@@ -642,6 +642,8 @@ def sync_graph(db: Session, process_id: int, graph_data: schemas.GraphSync) -> s
             existing_sf_map[sf.bpmn_id].name = sf.name
             existing_sf_map[sf.bpmn_id].condition_expression = sf.condition_expression
             existing_sf_map[sf.bpmn_id].branch_probability = sf.branch_probability
+            existing_sf_map[sf.bpmn_id].source_handle = sf.source_handle
+            existing_sf_map[sf.bpmn_id].target_handle = sf.target_handle
         else:
             db_sf = models.SequenceFlow(
                 process_id=process_id,
@@ -650,7 +652,9 @@ def sync_graph(db: Session, process_id: int, graph_data: schemas.GraphSync) -> s
                 target_ref=sf.target_ref,
                 name=sf.name,
                 condition_expression=sf.condition_expression,
-                branch_probability=sf.branch_probability
+                branch_probability=sf.branch_probability,
+                source_handle=sf.source_handle,
+                target_handle=sf.target_handle
             )
             db.add(db_sf)
             

@@ -2351,17 +2351,17 @@ export default function App() {
                     </div>
                   </>
                 )}
-                <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }} onClick={() => { addTask(); if(isMobile) setMobileStep(3); }}>
-                      <Plus size={14} /> Tarea
-                    </button>
+                <div className="pa-side-cta">
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }} onClick={() => { addTask(); if(isMobile) setMobileStep(3); }}>
+                        <Plus size={14} /> Tarea
+                      </button>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
+                    </div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
-                  </div>
-                </div>
-                <div style={{ marginTop: 16 }}>
                   <button className="pa-btn pa-btn-primary full" onClick={() => { setTab("optim"); if (isMobile) setMobileStep(4); if(firstStepsActive && guideStep === 5) dismissGuide(); }}>
                     <Sparkles size={16} /> 4. Ir a Optimización IA
                   </button>

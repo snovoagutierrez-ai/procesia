@@ -461,11 +461,32 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
   -webkit-overflow-scrolling: touch;
 }
 
-/* Sidebar sticks relative to pa-shell scroll (top:0 = top of the scroll viewport) */
+/* Sidebar sticks relative to pa-shell scroll (top:0 = top of the scroll viewport).
+   El máximo descuenta topbar (56px) + padding vertical del shell (~32px): si no,
+   el fondo del sidebar — donde vive el CTA de Optimización — queda recortado
+   bajo el borde del viewport. */
 .pa-editor-layout .pa-side {
   position: sticky;
   top: 0;
-  max-height: calc(100dvh - 56px);
+  max-height: calc(100dvh - 88px);
+}
+
+/* Botonera del sidebar (Tarea/Compuerta + Ir a Optimización IA): fija al fondo
+   del panel con su propio fondo, así nunca queda cortada ni oculta tras el
+   scroll de la lista de tareas. */
+.pa-side-cta {
+  position: sticky;
+  bottom: 0;
+  margin: auto -12px -14px;   /* compensa el padding de .pa-side-sec para ocupar todo el ancho */
+  padding: 10px 12px 14px;
+  background: var(--ink);
+  border-top: 1px solid var(--line-ink);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+@media (max-width: 880px) {
+  .pa-side-cta { position: static; margin: 12px 0 0; padding: 0; border-top: none; background: transparent; }
 }
 
 /* FIX: specificity override — en móvil el sidebar debe ser static, no sticky.
