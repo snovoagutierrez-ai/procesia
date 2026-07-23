@@ -251,6 +251,18 @@ export default function Login() {
         </div>
       </div>
       )}
+      {showCover && (
+        <div
+          className="pa-cover-line"
+          style={{
+            position: 'fixed', left: 0, right: 0, bottom: '1.4rem', textAlign: 'center',
+            color: '#5C6B6B', fontSize: '0.78rem', letterSpacing: '0.03em', pointerEvents: 'none',
+            animationDelay: '0.6s'
+          }}
+        >
+          Made by Sebastián Novoa
+        </div>
+      )}
     </div>
   );
 }
