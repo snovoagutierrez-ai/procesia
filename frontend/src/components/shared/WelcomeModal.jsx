@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ChevronRight, ChevronLeft, Map, Settings, Sparkles, Network, MessageSquare, Loader2 } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, Map, Sparkles, MessageSquare, Loader2 } from 'lucide-react';
 import Logo from './Logo';
 import { apiFetch } from '../../api.js';
 import {

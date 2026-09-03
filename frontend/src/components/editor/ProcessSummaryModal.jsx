@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Eye, Gauge, GitBranch } from 'lucide-react';
-import { fmtShort, fmtLong } from './Editors.jsx';
+import { fmtLong } from './Editors.jsx';
 
 export default function ProcessSummaryModal({ isOpen, onClose, proc, tasks, gateways, metricsData }) {
   if (!isOpen || !proc) return null;

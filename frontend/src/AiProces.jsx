@@ -1,20 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
-import { apiFetch } from "./api.js";
+import { apiFetch, apiMutate } from "./api.js";
 import { VALUE, WASTE, TYPES, ACTION, SEVERITY, WASTE_QUESTIONS } from "./constants.js";
-import { Seg, Field, TimeField } from "./components/shared/uiAtoms.jsx";
-import {
-  ReactFlow, Background, Controls,
-  useNodesState, useEdgesState, MarkerType,
-  Handle, Position, addEdge,
-} from "@xyflow/react";
+// Los componentes de React Flow y dagre viven en FlowDiagrams.jsx; aquí solo se
+// usa el CSS de la librería, por eso no se importan sus símbolos.
 import "@xyflow/react/dist/style.css";
-import dagre from "dagre";
 import {
-  Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, ChevronLeft, Download, Sparkles, Loader2,
-  AlertTriangle, User, Wrench, PenLine, Gauge, X, ArrowRight, Lightbulb,
-  ArrowLeft, FolderOpen, FolderPlus, FileText, Copy, Clock, LogOut, Info, Check,
-  RefreshCw, TrendingUp, MessageSquare, MoreVertical
+  Plus, Trash2, ChevronRight, ChevronLeft, Download, Sparkles, Loader2,
+  AlertTriangle, Gauge, X, ArrowRight, Lightbulb,
+  ArrowLeft, FileText, Clock, LogOut, Info, Check,
+  MessageSquare, MoreVertical
 } from "lucide-react";
 import { useAuth } from './components/auth/AuthContext.jsx';
 import { useConfirm, useInputDialog } from './components/shared/ConfirmDialog.jsx';
@@ -22,7 +17,7 @@ import MacroprocessDiagram from "./components/diagram/MacroprocessDiagram.jsx";
 import Logo from "./components/shared/Logo.jsx";
 import Dashboard from "./components/dashboard/Dashboard.jsx";
 import './styles/main.css';
-import { Editor, GatewayEditor, Optimization, ValueClassWizard, fmtShort, fmtLong } from "./components/editor/Editors.jsx";
+import { Editor, GatewayEditor, Optimization, fmtShort, fmtLong } from "./components/editor/Editors.jsx";
 import { VSMLadder, FlowDiagram } from "./components/diagram/FlowDiagrams.jsx";
 import WelcomeModal from "./components/shared/WelcomeModal.jsx";
 import SnapshotsModal from "./components/editor/SnapshotsModal.jsx";
@@ -1117,6 +1112,27 @@ export default function App() {
     };
   }, []);
 
+  // Guarda el grafo (compuertas + conexiones) avisando si falla.
+  // Antes cada llamada usaba `.catch(() => {})` y además no comprobaba res.ok,
+  // así que un 422/500 pasaba inadvertido: el usuario veía su diagrama conectado
+  // en pantalla pero al recargar el trabajo no estaba.
+  const persistGraph = useCallback(async (gws, flows, processId) => {
+    const pid = processId ?? procRef.current?.id;
+    if (!pid) return false;
+    try {
+      await apiMutate(`/processes/${pid}/graph`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gateways: gws || [], sequence_flows: flows || [] }),
+      });
+      return true;
+    } catch (e) {
+      setSaveState({ status: 'error' });
+      showToast("No se pudo guardar el diagrama: " + (e.message || "error de conexión") +
+                ". Revisa tu conexión y vuelve a intentarlo.");
+      return false;
+    }
+  }, [showToast]);
+
   // Cancela cualquier guardado diferido pendiente (tareas, proceso, layout).
   // Se llama al cambiar de proceso: sin esto, un temporizador del proceso anterior
   // disparaba ya con otro proceso abierto y el guardado se perdía en silencio.
@@ -1301,7 +1317,7 @@ export default function App() {
       ];
 
       for (let t of tasksToCreate) {
-        await apiFetch(`/processes/${pData.id}/tasks`, {
+        await apiMutate(`/processes/${pData.id}/tasks`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(t),
         });
@@ -1361,7 +1377,7 @@ export default function App() {
     const ok = await confirm("Eliminar macroproceso", "¿Eliminar este macroproceso y TODOS los procesos dentro de él? Esta acción no se puede deshacer.", { danger: true, confirmLabel: "Eliminar" });
     if (!ok) return;
     try {
-      await apiFetch(`/macroprocesses/${id}`, { method: "DELETE" });
+      await apiMutate(`/macroprocesses/${id}`, { method: "DELETE" });
       setMacroprocesses((prev) => prev.filter((m) => m.id !== id));
       setAllProcesses((prev) => prev.filter((p) => p.macroprocess_id !== id));
     } catch (e) {
@@ -1373,7 +1389,7 @@ export default function App() {
     const ok = await confirm("Eliminar proceso", "¿Eliminar este proceso y todas sus tareas? Esta acción no se puede deshacer.", { danger: true, confirmLabel: "Eliminar" });
     if (!ok) return;
     try {
-      await apiFetch(`/processes/${id}`, { method: "DELETE" });
+      await apiMutate(`/processes/${id}`, { method: "DELETE" });
       setAllProcesses((prev) => prev.filter((p) => p.id !== id));
       if (proc?.id === id) { setProc(null); setView("dashboard"); }
     } catch (e) {
@@ -1390,7 +1406,7 @@ export default function App() {
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
     debounceTimeoutRef.current = setTimeout(async () => {
       try {
-        await apiFetch(`/processes/${updatedProc.id}`, {
+        await apiMutate(`/processes/${updatedProc.id}`, {
           method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             macroprocess_id: updatedProc.macroprocess_id, code: updatedProc.code,
@@ -1425,10 +1441,10 @@ export default function App() {
     if (!pid) return;
     if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
     layoutTimeoutRef.current = setTimeout(() => {
-      apiFetch(`/processes/${pid}`, {
+      apiMutate(`/processes/${pid}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ layout_json: positionsMap }),
-      }).catch(() => {});
+      }).catch(() => setSaveState({ status: 'error' }));
     }, 600);
   }, []);
 
@@ -1448,7 +1464,7 @@ export default function App() {
         const t = updatedTasks.find((x) => x.id === id);
         if (!t) return;
         try {
-          await apiFetch(`/processes/${ownerProcessId}/tasks/${id}`, {
+          await apiMutate(`/processes/${ownerProcessId}/tasks/${id}`, {
             method: "PUT", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               bpmn_id: t.bpmnId, name: t.name, description: t.description || "",
@@ -1506,7 +1522,7 @@ export default function App() {
     setTab("detalle");
     
     try {
-      await apiFetch(`/processes/${proc.id}/graph`, {
+      await apiMutate(`/processes/${proc.id}/graph`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gateways: newGateways, sequence_flows: newFlows })
       });
@@ -1516,6 +1532,8 @@ export default function App() {
       }
     } catch (e) {
       console.error(e);
+      setSaveState({ status: 'error' });
+      showToast("No se pudo guardar la compuerta: " + (e.message || "error de conexión"));
     }
   };
 
@@ -1527,7 +1545,7 @@ export default function App() {
       setSaveState({ status: 'saving' });
       updateTaskTimeoutRefs.current[id] = setTimeout(async () => {
         try {
-          await apiFetch(`/processes/${procRef.current?.id}/graph`, {
+          await apiMutate(`/processes/${procRef.current?.id}/graph`, {
             method: "PUT", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ gateways: updated, sequence_flows: sequenceFlowsRef.current })
           });
@@ -1580,10 +1598,7 @@ export default function App() {
       newFlows = [...newFlows, newFlowToTask, newFlowToEnd];
       setSequenceFlows(newFlows);
       
-      apiFetch(`/processes/${proc.id}/graph`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gateways, sequence_flows: newFlows })
-      }).catch(() => {});
+      persistGraph(gateways, newFlows, proc.id);
 
       setTasks((ts) => [...ts, mapped]);
       setSelectedId(mapped.id);
@@ -1604,7 +1619,10 @@ export default function App() {
   const deleteTask = async (id) => {
     if (!proc) return;
     try {
-      await apiFetch(`/processes/${proc.id}/tasks/${id}`, { method: "DELETE" });
+      // apiMutate lanza si el servidor responde !2xx: antes se usaba apiFetch sin
+      // comprobar res.ok, así que un 403/404/500 igual borraba la tarea de la
+      // pantalla y reaparecía al recargar (estado inconsistente con la BD).
+      await apiMutate(`/processes/${proc.id}/tasks/${id}`, { method: "DELETE" });
       const deletedTask = tasks.find((t) => t.id === id);
       setTasks((ts) => {
         const r = ts.filter((t) => t.id !== id);
@@ -1618,10 +1636,7 @@ export default function App() {
                  f.source_ref !== String(id) && f.target_ref !== String(id)
         );
         setSequenceFlows(newFlows);
-        apiFetch(`/processes/${proc.id}/graph`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ gateways, sequence_flows: newFlows })
-        }).catch(() => {});
+        persistGraph(gateways, newFlows, proc.id);
       }
     } catch (e) {
       setError("Error al eliminar tarea.");
@@ -1638,7 +1653,7 @@ export default function App() {
       setSequenceFlows(newFlows);
       if (bpmn_id === selectedId) setSelectedId(null);
       
-      await apiFetch(`/processes/${proc.id}/graph`, {
+      await apiMutate(`/processes/${proc.id}/graph`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gateways: newGateways, sequence_flows: newFlows })
       });
@@ -1725,7 +1740,7 @@ export default function App() {
     try {
       // Eliminar tareas secuencialmente para evitar conflictos de FK
       for (const t of tasks) {
-        await apiFetch(`/processes/${processId}/tasks/${t.id}`, { method: "DELETE" });
+        await apiMutate(`/processes/${processId}/tasks/${t.id}`, { method: "DELETE" });
       }
 
       // Crear tareas del flujo optimizado
@@ -1768,7 +1783,7 @@ export default function App() {
       setSequenceFlows(mappedFlows);
       setGateways([]); // gateways del flujo original ya no aplican
 
-      await apiFetch(`/processes/${processId}/graph`, {
+      await apiMutate(`/processes/${processId}/graph`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gateways: [], sequence_flows: mappedFlows }),
       });
@@ -1800,7 +1815,7 @@ export default function App() {
     try {
       // Eliminar tareas actuales secuencialmente (evita conflictos de FK)
       for (const t of tasks) {
-        await apiFetch(`/processes/${processId}/tasks/${t.id}`, { method: "DELETE" });
+        await apiMutate(`/processes/${processId}/tasks/${t.id}`, { method: "DELETE" });
       }
 
       // Recrear tareas desde el snapshot (formato frontend → backend)
@@ -1832,7 +1847,7 @@ export default function App() {
         const hasRaci = s.responsible || s.accountable || s.consulted || s.informed;
         const hasSystems = s.systems;
         if (data?.id && (hasRaci || hasSystems)) {
-          await apiFetch(`/processes/${processId}/tasks/${data.id}`, {
+          await apiMutate(`/processes/${processId}/tasks/${data.id}`, {
             method: "PUT", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               responsible: s.responsible || "", accountable: s.accountable || "",
@@ -1864,7 +1879,7 @@ export default function App() {
       setTasks(mapped);
       setGateways(snapGateways);
       setSequenceFlows(cleanFlows);
-      await apiFetch(`/processes/${processId}/graph`, {
+      await apiMutate(`/processes/${processId}/graph`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gateways: snapGateways, sequence_flows: cleanFlows }),
       });
@@ -1932,10 +1947,7 @@ export default function App() {
       });
     }
     setSequenceFlows(newFlows);
-    apiFetch(`/processes/${proc.id}/graph`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ gateways: gateways || [], sequence_flows: newFlows })
-    }).catch(() => {});
+    persistGraph(gateways || [], newFlows, proc.id);
   }, [sequenceFlows, gateways, proc]);
 
   async function runOptimize() {
@@ -2057,7 +2069,7 @@ export default function App() {
       if (!saved) { setLoading(false); return; }
 
       try {
-        await apiFetch(`/processes/${processId}/tasks/${task.id}`, { method: "DELETE" });
+        await apiMutate(`/processes/${processId}/tasks/${task.id}`, { method: "DELETE" });
         setTasks(ts => ts.filter(t => t.id !== task.id));
 
         const currentFlows = sequenceFlowsRef.current;
@@ -2074,7 +2086,7 @@ export default function App() {
           });
         }
         setSequenceFlows(newFlows);
-        await apiFetch(`/processes/${processId}/graph`, {
+        await apiMutate(`/processes/${processId}/graph`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ gateways, sequence_flows: newFlows })
         });
@@ -2454,10 +2466,7 @@ export default function App() {
                     setGateways(newGateways);
                     setSequenceFlows(newFlows);
                     if (firstStepsActive && guideStep === 4) setGuideStep(5);
-                    await apiFetch(`/processes/${proc.id}/graph`, {
-                      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ gateways: newGateways, sequence_flows: newFlows })
-                    });
+                    await persistGraph(newGateways, newFlows, proc.id);
                   }}
                   onLayoutChange={saveLayout}
                 />
@@ -2605,10 +2614,7 @@ export default function App() {
                         }}
                         onFlowsChange={(newFlows) => {
                           setSequenceFlows(newFlows);
-                          apiFetch(`/processes/${proc.id}/graph`, {
-                            method: "PUT", headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ gateways, sequence_flows: newFlows })
-                          }).catch(() => {});
+                          persistGraph(gateways, newFlows, proc.id);
                         }}
                         onDone={() => { if (isMobile) setMobileStep(2); else setSelectedId(null); }} />
                     ) : selectedGateway ? (
@@ -2616,10 +2622,7 @@ export default function App() {
                         saveState={saveState} sequenceFlows={sequenceFlows} tasks={tasks} gateways={gateways}
                         onFlowsChange={(newFlows) => {
                           setSequenceFlows(newFlows);
-                          apiFetch(`/processes/${proc.id}/graph`, {
-                            method: "PUT", headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ gateways, sequence_flows: newFlows })
-                          }).then(() => loadMetrics(proc.id)).catch(() => {});
+                          persistGraph(gateways, newFlows, proc.id).then((ok) => { if (ok) loadMetrics(proc.id); });
                         }}
                         onDone={() => { if (isMobile) setMobileStep(2); else setSelectedId(null); }} />
                     ) : (
@@ -2706,10 +2709,7 @@ export default function App() {
                       }}
                       onFlowsChange={(newFlows) => {
                         setSequenceFlows(newFlows);
-                        apiFetch(`/processes/${proc.id}/graph`, {
-                          method: "PUT", headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ gateways, sequence_flows: newFlows })
-                        }).catch(() => {});
+                        persistGraph(gateways, newFlows, proc.id);
                       }}
                       onDone={() => setSelectedId(null)} />
                   ) : selectedGateway ? (
@@ -2717,10 +2717,7 @@ export default function App() {
                       saveState={saveState} sequenceFlows={sequenceFlows} tasks={tasks} gateways={gateways}
                       onFlowsChange={(newFlows) => {
                         setSequenceFlows(newFlows);
-                        apiFetch(`/processes/${proc.id}/graph`, {
-                          method: "PUT", headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ gateways, sequence_flows: newFlows })
-                        }).then(() => loadMetrics(proc.id)).catch(() => {});
+                        persistGraph(gateways, newFlows, proc.id).then((ok) => { if (ok) loadMetrics(proc.id); });
                       }}
                       onDone={() => setSelectedId(null)} />
                   ) : (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Play, Trash2, Plus, PenLine, Network, ChevronUp, ChevronDown, ChevronRight, Layers, LayoutGrid, Bot, ArrowRight, Loader2, FileText, FolderOpen, AlertTriangle, X } from 'lucide-react';
+import { Sparkles, Trash2, Plus, PenLine, ChevronUp, ChevronDown, ChevronRight, Loader2, FileText, FolderOpen, AlertTriangle, X } from 'lucide-react';
 import MacroprocessDiagram from '../diagram/MacroprocessDiagram.jsx';
 import { FlowDiagram } from '../diagram/FlowDiagrams.jsx';
 import ProcessSummaryModal from '../editor/ProcessSummaryModal.jsx';
