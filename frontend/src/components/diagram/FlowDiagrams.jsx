@@ -17,8 +17,14 @@ function VSMLadder({ metrics }) {
   if (lead_time_sec === 0) return null;
   
   const pce = Math.round(pce_percentage);
-  const isPceGood = pce >= 25;
-  const pceColor = isPceGood ? '#1FA463' : '#D9503C';
+  // Umbrales de PCE para procesos TRANSACCIONALES (aprobaciones, solicitudes),
+  // que es el caso de uso de AiProces. Referencia: M. George, "Lean Six Sigma"
+  // (2002): transaccional típico ~10%, clase mundial ~50%. Antes se usaba un
+  // 25% presentado como umbral Lean universal, que corresponde a otro tipo de proceso.
+  const PCE_TIPICO = 10;
+  const PCE_CLASE_MUNDIAL = 50;
+  const isPceGood = pce >= PCE_TIPICO;
+  const pceColor = pce >= PCE_CLASE_MUNDIAL ? '#1FA463' : (isPceGood ? '#C98A12' : '#D9503C');
   
   const cyclePct = (total_cycle_time_sec / lead_time_sec) * 100;
   const waitPct = (total_wait_time_sec / lead_time_sec) * 100;
@@ -34,19 +40,29 @@ function VSMLadder({ metrics }) {
         </div>
         <div style={{ position: 'relative', height: 12, background: '#EBF0EC', borderRadius: 6, overflow: 'hidden' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${Math.min(pce, 100)}%`, background: pceColor, transition: 'width 0.3s ease' }} />
-          {/* Reference marker at 25% */}
-          <div style={{ position: 'absolute', top: 0, left: '25%', height: '100%', width: 2, background: '#13202B', zIndex: 1 }} title="Umbral Lean (25%)" />
+          {/* Referencias para proceso transaccional: típico 10%, clase mundial 50% */}
+          <div style={{ position: 'absolute', top: 0, left: `${PCE_TIPICO}%`, height: '100%', width: 2, background: '#C98A12', zIndex: 1 }} title={`Típico transaccional (${PCE_TIPICO}%)`} />
+          <div style={{ position: 'absolute', top: 0, left: `${PCE_CLASE_MUNDIAL}%`, height: '100%', width: 2, background: '#13202B', zIndex: 1 }} title={`Clase mundial (${PCE_CLASE_MUNDIAL}%)`} />
         </div>
         <div style={{ position: 'relative', height: 16, fontSize: 10, color: '#9AA8A8', marginTop: 4 }}>
-          <span style={{ position: 'absolute', left: '25%', transform: 'translateX(-50%)' }}>25%</span>
+          <span style={{ position: 'absolute', left: `${PCE_TIPICO}%`, transform: 'translateX(-50%)' }}>{PCE_TIPICO}% típico</span>
+          <span style={{ position: 'absolute', left: `${PCE_CLASE_MUNDIAL}%`, transform: 'translateX(-50%)' }}>{PCE_CLASE_MUNDIAL}% clase mundial</span>
         </div>
         <div style={{ marginTop: 12, padding: 12, background: isPceGood ? '#E8F5E9' : '#FFF8E1', borderRadius: 8, fontSize: 12, color: isPceGood ? '#1FA463' : '#C98A12', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
           <Info size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-          <span>{isPceGood 
-            ? "Tu Eficiencia de Ciclo (PCE) es saludable. Estás por encima del umbral Lean del 25%, lo que indica un buen flujo de valor sin excesivas esperas." 
-            : "Tu Eficiencia de Ciclo (PCE) está por debajo del umbral recomendado (25%). Hay demasiados tiempos de espera o tareas que no agregan valor en relación al tiempo de trabajo productivo."}
+          <span>{pce >= PCE_CLASE_MUNDIAL
+            ? `Tu Eficiencia de Ciclo (PCE) es de clase mundial para un proceso transaccional (referencia: ${PCE_CLASE_MUNDIAL}%).`
+            : isPceGood
+              ? `Tu PCE está en el rango típico de un proceso transaccional (${PCE_TIPICO}%). Hay margen de mejora: la referencia de clase mundial es ${PCE_CLASE_MUNDIAL}%.`
+              : `Tu PCE está por debajo del ${PCE_TIPICO}% típico de un proceso transaccional. El tiempo se está yendo en esperas o en pasos que no agregan valor.`}
           </span>
         </div>
+        {metrics.lead_time_is_critical_path === false && (
+          <div style={{ marginTop: 8, padding: 10, background: '#FFF8E1', border: '1px solid #F0D6AE', borderRadius: 8, fontSize: 11.5, color: '#9A6A12' }}>
+            El flujo no está conectado de Inicio a Fin, así que el lead time se estima sumando los tiempos.
+            Conecta el diagrama para obtener el tiempo real del camino crítico.
+          </div>
+        )}
         <div style={{ marginTop: 16, borderTop: '1px solid #E2E7E3', paddingTop: 12 }}>
           <button className="pa-btn pa-btn-ghost" onClick={() => setShowInfo(!showInfo)} style={{ fontSize: 12, width: '100%', justifyContent: 'space-between', color: 'var(--teal)', padding: '8px' }}>
             <span>¿Qué significan estas métricas?</span>
@@ -54,8 +70,8 @@ function VSMLadder({ metrics }) {
           </button>
           {showInfo && (
             <div style={{ padding: 12, background: '#F8F9FA', borderRadius: 8, marginTop: 8, fontSize: 12, color: '#3A4B4B', lineHeight: 1.5 }}>
-              <strong>Eficiencia de Ciclo (PCE):</strong> Mide qué porcentaje de tu tiempo total se dedica realmente a trabajar (Valor Agregado) versus el tiempo que se pierde esperando. Si es menor a 25%, tienes un proceso lento lleno de cuellos de botella.<br/><br/>
-              <strong>Escalera de tiempo (Lead Time):</strong> Es el tiempo total que tarda una solicitud desde que entra al proceso hasta que sale. La barra verde es el trabajo real, y la roja son los tiempos muertos o de espera entre responsables.
+              <strong>Eficiencia de Ciclo (PCE):</strong> Del tiempo total que tarda el proceso de principio a fin, qué porcentaje se dedica a actividades que el cliente valora (VA). El resto se reparte entre <em>esperas</em> y <em>trabajo que no agrega valor</em> (controles, retrabajos, papeleo). Por eso un proceso sin esperas puede igual tener un PCE bajo: si sus pasos no agregan valor, no cuentan en el numerador.<br/><br/>
+              <strong>Escalera de tiempo (Lead Time):</strong> Es el tiempo que transcurre desde que una solicitud entra al proceso hasta que sale. Cuando hay tareas en paralelo, se mide por el <em>camino crítico</em> (la rama más larga), no sumando ambas ramas. La barra verde es el trabajo real y la roja los tiempos de espera.
             </div>
           )}
         </div>

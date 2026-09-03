@@ -1,4 +1,4 @@
-import { VALUE, TYPES } from "../constants.js";
+import { VALUE, TYPES, WASTE } from "../constants.js";
 
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -50,7 +50,7 @@ export function openProcessReport({ proc, tasks = [], gateways = [], sequenceFlo
   const m = metricsData;
   const metricsHtml = m ? `
     <div class="metrics">
-      <div><span>Lead time${m.is_branch_weighted ? " (esperado)" : ""}</span><b>${fmt(m.lead_time_sec)}</b></div>
+      <div><span>Lead time${m.lead_time_is_critical_path ? " (camino crítico)" : " (estimado)"}</span><b>${fmt(m.lead_time_sec)}</b></div>
       <div><span>Tiempo de ciclo</span><b>${fmt(m.total_cycle_time_sec)}</b></div>
       <div><span>Tiempo de espera</span><b>${fmt(m.total_wait_time_sec)}</b></div>
       <div><span>Eficiencia de ciclo (PCE)</span><b>${Math.round(m.pce_percentage || 0)}%</b></div>
@@ -63,8 +63,23 @@ export function openProcessReport({ proc, tasks = [], gateways = [], sequenceFlo
       <tr><td>Tareas VA / NNVA / NVA</td><td class="mono">${m.structural?.va_count ?? 0} / ${m.structural?.nnva_count ?? 0} / ${m.structural?.nva_count ?? 0}</td></tr>
       <tr><td>Traspasos entre roles (handoffs)</td><td class="mono">${m.structural?.handoffs_count ?? 0}</td></tr>
       <tr><td>Saltos entre sistemas</td><td class="mono">${m.structural?.system_jumps ?? 0}</td></tr>
-      <tr><td>Tasa de retrabajo</td><td class="mono">${Math.round(m.structural?.rework_rate_percentage ?? 0)}%</td></tr>
-    </table>` : `<p class="muted">Sin métricas calculadas.</p>`;
+      <tr><td>Tasa de retrabajo (instancias que vuelven atrás)</td><td class="mono">${
+        m.structural?.rework_rate_percentage != null
+          ? Math.round(m.structural.rework_rate_percentage) + "%"
+          : "— (sin ciclo de retrabajo modelado)"
+      }</td></tr>
+      <tr><td>Pasos marcados como defecto</td><td class="mono">${Math.round(m.structural?.defect_tagged_task_ratio ?? 0)}%</td></tr>
+      ${m.constraint ? `<tr><td><b>Restricción del sistema (TOC)</b></td><td class="mono">${esc(m.constraint.name)} — ${fmt(m.constraint.cycle_time_sec)}${
+        m.constraint.theoretical_throughput_per_hour != null
+          ? ` · máx. ${m.constraint.theoretical_throughput_per_hour.toFixed(1)} u/h`
+          : ""
+      }</td></tr>` : ""}
+    </table>
+    ${(m.waste_breakdown || []).length ? `
+    <h2>Desperdicios (DOWNTIME) por impacto</h2>
+    <table><tr><th>Tipo</th><th>Pasos</th><th>Tiempo</th><th>% del lead time</th></tr>
+    ${m.waste_breakdown.map(w => `<tr><td>${esc(WASTE[w.waste_type] || w.waste_type)}</td><td class="mono">${w.task_count}</td><td class="mono">${fmt(w.total_time_sec)}</td><td class="mono">${w.pct_of_lead_time.toFixed(1)}%</td></tr>`).join("")}
+    </table>` : ""}` : `<p class="muted">Sin métricas calculadas.</p>`;
 
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
   <title>Reporte — ${esc(proc.name || "Proceso")}</title>
@@ -98,8 +113,10 @@ export function openProcessReport({ proc, tasks = [], gateways = [], sequenceFlo
   <div class="head-grid">
     <div><span>Objetivo</span>${esc(proc.objective || "—")}</div>
     <div><span>Volumen mensual</span>${proc.monthly_volume != null && proc.monthly_volume !== "" ? esc(proc.monthly_volume) + " ejecuciones/mes" : "—"}</div>
-    <div><span>Evento de inicio</span>${esc(proc.trigger_event || "—")}</div>
-    <div><span>Resultado final</span>${esc(proc.output_result || "—")}</div>
+    <div><span>Proveedores (S)</span>${esc(proc.suppliers || "—")}</div>
+    <div><span>Entrada / evento de inicio (I)</span>${esc(proc.trigger_event || "—")}</div>
+    <div><span>Salida / resultado final (O)</span>${esc(proc.output_result || "—")}</div>
+    <div><span>Clientes (C)</span>${esc(proc.customers || "—")}</div>
   </div>
   <h2>Métricas Lean</h2>
   ${metricsHtml}

@@ -885,7 +885,7 @@ function Optimization({ state, onRun, onApply, onApplyRecommendation, tasks }) {
 
           {!!(d.bottlenecks || []).length && (
             <section>
-              <h4>Cuellos de botella</h4>
+              <h4>Cuellos de botella <span style={{fontWeight:400,textTransform:'none',letterSpacing:0,opacity:.75}}>· Teoría de Restricciones (TOC)</span></h4>
               {d.bottlenecks.map((b, i) => {
                 const sv = SEVERITY[b.severity] || SEVERITY.medium;
                 return (
@@ -907,7 +907,7 @@ function Optimization({ state, onRun, onApply, onApplyRecommendation, tasks }) {
 
           {!!(d.inefficiencies || []).length && (
             <section>
-              <h4>Desperdicios</h4>
+              <h4>Desperdicios <span style={{fontWeight:400,textTransform:'none',letterSpacing:0,opacity:.75}}>· 8 desperdicios Lean (DOWNTIME)</span></h4>
               {d.inefficiencies.map((it, i) => (
                 <div key={i} className="pa-card">
                   <div className="pa-card-top">
@@ -923,7 +923,7 @@ function Optimization({ state, onRun, onApply, onApplyRecommendation, tasks }) {
 
           {!!(d.recommendations || []).length && (
             <section>
-              <h4>Recomendaciones</h4>
+              <h4>Recomendaciones <span style={{fontWeight:400,textTransform:'none',letterSpacing:0,opacity:.75}}>· ECRS (Eliminar · Combinar · Reordenar · Simplificar)</span></h4>
               {[...d.recommendations].sort((a, b) => (a.priority || 9) - (b.priority || 9)).map((r, i) => {
                 const ac = ACTION[r.action_type] || { label: r.action_type, color: "#0E9F9F" };
                 return (

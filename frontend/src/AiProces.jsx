@@ -2340,9 +2340,13 @@ export default function App() {
                 <input className="pa-input ink" value={proc.name || ""} onChange={(e) => setProcField("name", e.target.value)} placeholder="Nombre del proceso" />
                 <input className="pa-input ink mono" value={proc.code || ""} onChange={(e) => setProcField("code", e.target.value)} placeholder="Código" />
                 <textarea className="pa-input ink" rows={2} value={proc.objective || ""} onChange={(e) => setProcField("objective", e.target.value)} placeholder="Objetivo" />
-                <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Límites del Proceso</div>
-                <input className="pa-input ink" value={proc.trigger_event || ""} onChange={(e) => setProcField("trigger_event", e.target.value)} placeholder="Evento de inicio (Ej: Recibe solicitud)" />
-                <input className="pa-input ink" value={proc.output_result || ""} onChange={(e) => setProcField("output_result", e.target.value)} placeholder="Resultado final (Ej: Cliente aprobado)" />
+                <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  SIPOC — Límites del Proceso
+                </div>
+                <input className="pa-input ink" value={proc.suppliers || ""} onChange={(e) => setProcField("suppliers", e.target.value)} placeholder="Proveedores — quién entrega las entradas" title="S (Suppliers): quién provee lo que necesita el proceso" />
+                <input className="pa-input ink" value={proc.trigger_event || ""} onChange={(e) => setProcField("trigger_event", e.target.value)} placeholder="Entrada / evento de inicio (Ej: Recibe solicitud)" title="I (Inputs): lo que entra y dispara el proceso" />
+                <input className="pa-input ink" value={proc.output_result || ""} onChange={(e) => setProcField("output_result", e.target.value)} placeholder="Salida / resultado final (Ej: Cliente aprobado)" title="O (Outputs): lo que el proceso entrega" />
+                <input className="pa-input ink" value={proc.customers || ""} onChange={(e) => setProcField("customers", e.target.value)} placeholder="Clientes — quién recibe el resultado" title="C (Customers): quién recibe la salida del proceso" />
                 <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Volumen</div>
                 <input className="pa-input ink mono" type="number" min="0" value={proc.monthly_volume ?? ""} onChange={(e) => setProcField("monthly_volume", e.target.value)} placeholder="Ejecuciones por mes (Ej: 500)" />
               </div>
@@ -2496,6 +2500,22 @@ export default function App() {
                   <span>Eficiencia de ciclo (VA) <b className="mono">{metricsData ? Math.round(metricsData.pce_percentage) : 0}%</b></span>
                 </div>
               </div>
+
+              {/* TOC: la restricción siempre existe (el paso más lento fija el ritmo). */}
+              {metricsData?.constraint && (
+                <div className="pa-metrics">
+                  <div className="pa-metric wide" style={{ gridColumn: 'span 5', borderColor: 'var(--teal-border-strong)', background: 'var(--teal-tint)' }}>
+                    <span style={{ display: 'block' }}>
+                      <b style={{ color: 'var(--teal-deep)' }}>Restricción del sistema (TOC):</b>{' '}
+                      <b>{metricsData.constraint.name}</b> — es el paso más lento ({fmtLong(metricsData.constraint.cycle_time_sec)}) y por eso marca el ritmo máximo de todo el proceso
+                      {metricsData.constraint.theoretical_throughput_per_hour != null
+                        ? `: ${metricsData.constraint.theoretical_throughput_per_hour.toFixed(1)} unidades/hora.`
+                        : '.'}
+                      {' '}Acelerar cualquier otro paso no aumenta la capacidad total.
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {metricsData?.is_branch_weighted && (
                 <div className="pa-metrics">

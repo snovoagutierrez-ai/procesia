@@ -22,14 +22,25 @@ export default function ProcessSummaryModal({ isOpen, onClose, proc, tasks, gate
             {proc.objective && <p style={{ margin: '4px 0 0', fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.5 }}>{proc.objective}</p>}
           </div>
 
-          <div className="pa-row two" style={{ marginBottom: 20 }}>
+          <div className="pa-label" style={{ marginBottom: 6 }}>SIPOC</div>
+          <div className="pa-row two" style={{ marginBottom: 6 }}>
             <div className="pa-field">
-              <span className="pa-label">Evento de inicio</span>
-              <span style={{ fontSize: 13.5 }}>{proc.trigger_event || '—'}</span>
+              <span className="pa-label">Proveedores (S)</span>
+              <span style={{ fontSize: 13.5 }}>{proc.suppliers || '—'}</span>
             </div>
             <div className="pa-field">
-              <span className="pa-label">Resultado final</span>
+              <span className="pa-label">Entrada / evento de inicio (I)</span>
+              <span style={{ fontSize: 13.5 }}>{proc.trigger_event || '—'}</span>
+            </div>
+          </div>
+          <div className="pa-row two" style={{ marginBottom: 20 }}>
+            <div className="pa-field">
+              <span className="pa-label">Salida / resultado final (O)</span>
               <span style={{ fontSize: 13.5 }}>{proc.output_result || '—'}</span>
+            </div>
+            <div className="pa-field">
+              <span className="pa-label">Clientes (C)</span>
+              <span style={{ fontSize: 13.5 }}>{proc.customers || '—'}</span>
             </div>
           </div>
 

@@ -104,6 +104,104 @@ def _main_path_lead_time(flow_nodes, sequence_flows, task_times):
         return None
 
 
+def _critical_path_lead_time(flow_nodes, sequence_flows, task_times):
+    """Lead time = tiempo TRANSCURRIDO de inicio a fin (camino crítico).
+
+    Distinto de la suma de tiempos, que mide esfuerzo total:
+      - Compuerta PARALELA (AND): las ramas ocurren a la vez -> aporta max(ramas).
+        Sumarlas inflaba el lead time y hundía artificialmente el PCE.
+      - Compuerta EXCLUSIVA (XOR): solo se toma un camino -> valor ESPERADO
+        ponderado por branch_probability (equiprobable si no está definida),
+        coherente con el resto de métricas ponderadas.
+    Devuelve None si no se puede recorrer de 'start' a 'end' (proceso incompleto).
+    """
+    node_type = {fn.bpmn_id: str(fn.node_type.value if hasattr(fn.node_type, "value") else fn.node_type)
+                 for fn in flow_nodes}
+    out_edges = defaultdict(list)
+    for f in sequence_flows:
+        out_edges[f.source_ref].append(f)
+
+    def walk(node, visited):
+        if node == "end":
+            return 0.0
+        if node in visited:
+            return None  # ciclo de retrabajo: no forma parte del camino crítico
+        visited = visited | {node}
+        total = task_times.get(node, 0.0)
+        outs = out_edges.get(node, [])
+        if not outs:
+            return None
+
+        if "parallel" in node_type.get(node, "") and len(outs) > 1:
+            branches = [walk(o.target_ref, visited) for o in outs]
+            branches = [b for b in branches if b is not None]
+            return (total + max(branches)) if branches else None
+
+        if len(outs) == 1:
+            rest = walk(outs[0].target_ref, visited)
+            return (total + rest) if rest is not None else None
+
+        # Exclusiva: valor esperado sobre las ramas alcanzables.
+        probs = [float(o.branch_probability) if o.branch_probability is not None else None for o in outs]
+        defined = [p for p in probs if p is not None]
+        results = [(walk(o.target_ref, visited), p) for o, p in zip(outs, probs)]
+        reachable = [(r, p) for r, p in results if r is not None]
+        if not reachable:
+            return None
+        if not defined:
+            return total + sum(r for r, _ in reachable) / len(reachable)
+        tot_p = sum(p for _, p in reachable if p is not None)
+        if tot_p <= 0:
+            return total + sum(r for r, _ in reachable) / len(reachable)
+        return total + sum(r * ((p or 0.0) / tot_p) for r, p in reachable)
+
+    try:
+        return walk("start", frozenset())
+    except RecursionError:
+        return None
+
+
+def _rework_rate(flow_nodes, sequence_flows):
+    """Tasa de retrabajo REAL: % de instancias que vuelven atrás en el flujo.
+
+    Six Sigma define la tasa de retrabajo sobre UNIDADES procesadas, no sobre
+    pasos del mapa. Se identifican las aristas de retorno (las que reingresan a
+    un nodo ya visitado desde 'start') y se suma su branch_probability.
+    Devuelve None si no hay ciclo de retrabajo modelado: el dato es desconocido
+    y no debe inventarse con un proxy.
+    """
+    out_edges = defaultdict(list)
+    for f in sequence_flows:
+        out_edges[f.source_ref].append(f)
+
+    # Orden de descubrimiento desde 'start' (DFS): una arista hacia un nodo que
+    # ya está en la pila del recorrido es una arista de retorno (back edge).
+    back_edges = []
+    state = {}   # 0 = en pila, 1 = terminado
+
+    def dfs(node):
+        state[node] = 0
+        for e in out_edges.get(node, []):
+            tgt = e.target_ref
+            if state.get(tgt) == 0:
+                back_edges.append(e)
+            elif tgt not in state:
+                dfs(tgt)
+        state[node] = 1
+
+    try:
+        dfs("start")
+    except RecursionError:
+        return None
+
+    if not back_edges:
+        return None
+    probs = [float(e.branch_probability) for e in back_edges if e.branch_probability is not None]
+    if not probs:
+        return None   # hay retrabajo pero sin probabilidad: no se puede cuantificar
+    return min(sum(probs), 100.0)
+
+
 def calculate_process_metrics(db: Session, process_id: int) -> schemas.ProcessMetricsResponse:
     process = (
         db.query(models.Process)
@@ -140,8 +238,8 @@ def calculate_process_metrics(db: Session, process_id: int) -> schemas.ProcessMe
             pce_percentage=0.0,
             structural=schemas.StructuralMetrics(
                 va_count=0, nnva_count=0, nva_count=0, total_tasks=0,
-                rework_rate_percentage=0.0, unique_systems_count=0,
-                system_jumps=0, handoffs_count=0
+                rework_rate_percentage=None, defect_tagged_task_ratio=0.0,
+                unique_systems_count=0, system_jumps=0, handoffs_count=0
             ),
             bottlenecks=[],
             cost=_build_cost(0.0, 0.0, process.monthly_volume)
@@ -162,24 +260,37 @@ def calculate_process_metrics(db: Session, process_id: int) -> schemas.ProcessMe
     total_wait = sum(float(t.std_wait_time_sec) * w(t) for t in tasks)
     lead_time = total_cycle + total_wait
 
-    # 2. PCE
+    # 2. Lead time = tiempo TRANSCURRIDO (camino crítico), no la suma de esfuerzos.
+    # Con compuertas paralelas la suma inflaba el denominador y hundía el PCE.
+    task_times = {t.bpmn_id: float(t.std_cycle_time_sec) + float(t.std_wait_time_sec) for t in tasks}
+    critical_path_lead = _critical_path_lead_time(process.flow_nodes, process.sequence_flows, task_times)
+    lead_time_is_critical_path = critical_path_lead is not None and critical_path_lead > 0
+    if lead_time_is_critical_path:
+        lead_time = critical_path_lead   # el grafo está conectado: usar el elapsed real
+    # else: se mantiene la suma lineal como fallback (proceso a medio construir)
+
+    # 3. PCE = tiempo de valor agregado / lead time
     va_cycle = sum(float(t.std_cycle_time_sec) * w(t) for t in tasks if t.value_classification == models.ValueClass.VA)
     pce = (va_cycle / lead_time * 100) if lead_time > 0 else 0.0
+    pce = min(pce, 100.0)
 
-    # 2b. Lead time del camino principal (solo con grafo ramificado)
+    # 3b. Lead time del camino más probable (informativo, junto al esperado)
     main_path_lead = None
     if is_weighted:
-        task_times = {t.bpmn_id: float(t.std_cycle_time_sec) + float(t.std_wait_time_sec) for t in tasks}
         main_path_lead = _main_path_lead_time(process.flow_nodes, process.sequence_flows, task_times)
 
-    # 3. Structural Metrics
+    # 4. Structural Metrics
     va_count = sum(1 for t in tasks if t.value_classification == models.ValueClass.VA)
     nnva_count = sum(1 for t in tasks if t.value_classification == models.ValueClass.NNVA)
     nva_count = sum(1 for t in tasks if t.value_classification == models.ValueClass.NVA)
-    
+
+    # Tasa de retrabajo REAL (% de instancias que vuelven atrás). None si no hay
+    # ciclo de retrabajo modelado — antes se reportaba un proxy (% de pasos
+    # etiquetados como defecto) bajo el rótulo "tasa de retrabajo", que es otra cosa.
+    rework_rate = _rework_rate(process.flow_nodes, process.sequence_flows)
     rework_count = sum(1 for t in tasks if t.waste_type == models.WasteType.defects)
-    rework_rate = (rework_count / total_tasks * 100)
-    
+    defect_tagged_task_ratio = (rework_count / total_tasks * 100)
+
     systems_used = set()
     prev_system = None
     system_jumps = 0
@@ -231,12 +342,27 @@ def calculate_process_metrics(db: Session, process_id: int) -> schemas.ProcessMe
             if t.value_classification == models.ValueClass.NVA:
                 nva_cost += task_cost
 
-    # 4. Bottlenecks (TOC) — sobre tiempos por tarea SIN ponderar: el cuello de
-    # botella se evalúa cuando la tarea efectivamente se ejecuta, sin importar
-    # cuán probable sea su rama.
+    # 5. TOC — LA RESTRICCIÓN (Goldratt, paso 1 de los 5 de focalización).
+    # En TOC siempre existe una restricción: el recurso más lento gobierna el
+    # throughput del sistema. Antes solo había una heurística estadística que en
+    # una línea balanceada no devolvía ninguna.
+    slowest = max(tasks, key=lambda t: float(t.std_cycle_time_sec))
+    slowest_cycle = float(slowest.std_cycle_time_sec)
+    constraint = schemas.MetricConstraint(
+        task_id=slowest.id,
+        bpmn_id=slowest.bpmn_id,
+        name=slowest.name,
+        cycle_time_sec=slowest_cycle,
+        # Capacidad del sistema: el paso más lento fija el ritmo máximo.
+        theoretical_throughput_per_hour=(3600.0 / slowest_cycle) if slowest_cycle > 0 else None,
+    )
+
+    # 5b. Desbalanceo (heurística 1.5x). NO es "la restricción": señala pasos
+    # atípicos. wait_time se conserva pero es SÍNTOMA (cola que se acumula antes
+    # de la restricción), no la restricción en sí.
     avg_cycle = sum(float(t.std_cycle_time_sec) for t in tasks) / total_tasks
     avg_wait = sum(float(t.std_wait_time_sec) for t in tasks) / total_tasks
-    
+
     bottlenecks = []
     for t in tasks:
         c_time = float(t.std_cycle_time_sec)
@@ -262,18 +388,45 @@ def calculate_process_metrics(db: Session, process_id: int) -> schemas.ProcessMe
                 deviation_factor=w_time / avg_wait
             ))
 
+    # 6. DOWNTIME — impacto cuantificado por tipo de desperdicio.
+    # Las 8 wastes estaban solo como etiqueta; sin agregar tiempo/costo no se
+    # pueden priorizar, que es justamente para lo que sirve la taxonomía.
+    waste_agg = {}
+    for t in tasks:
+        if not t.waste_type:
+            continue
+        key = t.waste_type.value if hasattr(t.waste_type, "value") else str(t.waste_type)
+        freq = w(t)
+        t_time = (float(t.std_cycle_time_sec) + float(t.std_wait_time_sec)) * freq
+        entry = waste_agg.setdefault(key, {"task_count": 0, "time_sec": 0.0})
+        entry["task_count"] += 1
+        entry["time_sec"] += t_time
+    waste_breakdown = [
+        schemas.MetricWasteImpact(
+            waste_type=k,
+            task_count=v["task_count"],
+            total_time_sec=v["time_sec"],
+            pct_of_lead_time=(v["time_sec"] / lead_time * 100) if lead_time > 0 else 0.0,
+        )
+        for k, v in sorted(waste_agg.items(), key=lambda kv: kv[1]["time_sec"], reverse=True)
+    ]
+
     return schemas.ProcessMetricsResponse(
         process_id=process_id,
         total_cycle_time_sec=total_cycle,
         total_wait_time_sec=total_wait,
         lead_time_sec=lead_time,
         pce_percentage=pce,
+        lead_time_is_critical_path=lead_time_is_critical_path,
+        constraint=constraint,
+        waste_breakdown=waste_breakdown,
         structural=schemas.StructuralMetrics(
             va_count=va_count,
             nnva_count=nnva_count,
             nva_count=nva_count,
             total_tasks=total_tasks,
             rework_rate_percentage=rework_rate,
+            defect_tagged_task_ratio=defect_tagged_task_ratio,
             unique_systems_count=len(systems_used),
             system_jumps=system_jumps,
             handoffs_count=handoffs

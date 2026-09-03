@@ -98,8 +98,12 @@ class Process(Base):
     code = Column(String(40), unique=True, nullable=False)
     name = Column(String(200), nullable=False)
     objective = Column(Text)
-    trigger_event = Column(String(200))
-    output_result = Column(String(200))
+    # SIPOC: trigger_event/output_result cubren Inputs y Outputs. Faltaban los
+    # extremos S y C, sin los cuales no es un SIPOC sino un par entrada/salida.
+    suppliers = Column(String(300))   # S — quién provee las entradas
+    trigger_event = Column(String(200))   # I — entrada que dispara el proceso
+    output_result = Column(String(200))   # O — resultado que entrega
+    customers = Column(String(300))   # C — quién recibe el resultado
     monthly_volume = Column(Numeric(12, 2), nullable=True)  # ejecuciones por mes → costo mensual/anualizado
     layout_json = Column(JSONB, nullable=True)  # posiciones manuales de nodos { node_id: {x,y} }
 

@@ -118,8 +118,11 @@ class ProcessBase(BaseModel):
     code: str = Field(..., max_length=40)
     name: str = Field(..., max_length=200)
     objective: Optional[str] = None
+    # SIPOC completo: S y C faltaban en el modelo.
+    suppliers: Optional[str] = Field(None, max_length=300)
     trigger_event: Optional[str] = Field(None, max_length=200)
     output_result: Optional[str] = Field(None, max_length=200)
+    customers: Optional[str] = Field(None, max_length=300)
     monthly_volume: Optional[float] = Field(None, ge=0)  # ejecuciones/mes
     layout_json: Optional[dict] = None  # posiciones manuales de nodos
 
@@ -131,8 +134,10 @@ class ProcessUpdate(BaseModel):
     code: Optional[str] = Field(None, max_length=40)
     name: Optional[str] = Field(None, max_length=200)
     objective: Optional[str] = None
+    suppliers: Optional[str] = Field(None, max_length=300)
     trigger_event: Optional[str] = Field(None, max_length=200)
     output_result: Optional[str] = Field(None, max_length=200)
+    customers: Optional[str] = Field(None, max_length=300)
     monthly_volume: Optional[float] = Field(None, ge=0)
     layout_json: Optional[dict] = None
 
@@ -637,10 +642,30 @@ class StructuralMetrics(BaseModel):
     nnva_count: int
     nva_count: int
     total_tasks: int
-    rework_rate_percentage: float
+    # Tasa de retrabajo REAL (% de instancias que reingresan al flujo).
+    # None = no hay ciclo de retrabajo modelado; el dato es desconocido.
+    rework_rate_percentage: Optional[float] = None
+    # % de PASOS del mapa etiquetados como 'defects'. Es un indicador distinto:
+    # describe el mapa, no las unidades procesadas.
+    defect_tagged_task_ratio: float = 0.0
     unique_systems_count: int
     system_jumps: int
     handoffs_count: int
+
+class MetricConstraint(BaseModel):
+    """TOC: la restricción del sistema (el paso más lento fija el throughput)."""
+    task_id: int
+    bpmn_id: str
+    name: str
+    cycle_time_sec: float
+    theoretical_throughput_per_hour: Optional[float] = None
+
+class MetricWasteImpact(BaseModel):
+    """DOWNTIME: impacto cuantificado por tipo de desperdicio."""
+    waste_type: str
+    task_count: int
+    total_time_sec: float
+    pct_of_lead_time: float
 
 class ProcessMetricsResponse(BaseModel):
     process_id: int
@@ -651,6 +676,13 @@ class ProcessMetricsResponse(BaseModel):
     structural: StructuralMetrics
     bottlenecks: List[MetricBottleneck]
     cost: MetricCost
+    # True cuando lead_time_sec es el camino crítico real del grafo; False cuando
+    # se usó el fallback lineal (proceso sin conectar de Inicio a Fin).
+    lead_time_is_critical_path: bool = False
+    # TOC: siempre presente si hay al menos una tarea.
+    constraint: Optional[MetricConstraint] = None
+    # DOWNTIME: desperdicios ordenados por impacto en tiempo.
+    waste_breakdown: List[MetricWasteImpact] = []
     # True cuando hay compuertas exclusivas con ramas: los tiempos/costos son
     # valores esperados ponderados por probabilidad de rama, no sumas lineales.
     is_branch_weighted: bool = False
