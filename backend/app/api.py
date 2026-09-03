@@ -613,9 +613,35 @@ def tutorial_chat_endpoint(request: Request, chat_request: schemas.ChatRequest,
         try:
             verify_process_access(db, chat_request.process_id, current_user)
             snap = build_process_snapshot(db, chat_request.process_id)
+            # Métricas reales para que el asistente hable de los números del usuario
+            # (restricción TOC, PCE, desperdicios), no solo de definiciones.
+            met = None
+            try:
+                from app.metrics import calculate_process_metrics
+                m = calculate_process_metrics(db, chat_request.process_id)
+                met = {
+                    "lead_time_seg": round(m.lead_time_sec),
+                    "lead_time_es_camino_critico": m.lead_time_is_critical_path,
+                    "pce_pct": round(m.pce_percentage, 1),
+                    "restriccion_toc": ({
+                        "tarea": m.constraint.name,
+                        "ciclo_seg": m.constraint.cycle_time_sec,
+                        "max_unidades_por_hora": (round(m.constraint.theoretical_throughput_per_hour, 2)
+                                                  if m.constraint.theoretical_throughput_per_hour else None),
+                    } if m.constraint else None),
+                    "tasa_retrabajo_pct": m.structural.rework_rate_percentage,
+                    "desperdicios": [{"tipo": w.waste_type, "pct_del_lead_time": round(w.pct_of_lead_time, 1)}
+                                     for w in (m.waste_breakdown or [])][:5],
+                    "handoffs": m.structural.handoffs_count,
+                }
+            except Exception:
+                met = None
+
             process_context = {
                 "nombre": snap.get("name"),
                 "objetivo": snap.get("objective"),
+                "sipoc": snap.get("sipoc"),
+                "metricas": met,
                 "evento_inicio": snap.get("trigger_event"),
                 "resultado_final": snap.get("output_result"),
                 "tareas": [

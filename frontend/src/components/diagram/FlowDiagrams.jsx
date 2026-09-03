@@ -3,7 +3,8 @@ import { Handle, Position, ReactFlow, Controls, MiniMap, Background, useNodesSta
 import dagre from 'dagre';
 import { User, PenLine, Wrench, Clock, RotateCcw, Info, ChevronUp, ChevronDown, Trash2, Rows3 } from 'lucide-react';
 import { fmtShort, fmtLong } from '../editor/Editors.jsx';
-import { VALUE, TYPES } from '../../constants.js';
+import { VALUE, TYPES, WASTE } from '../../constants.js';
+import { InfoPce, InfoCaminoCritico, InfoToc, InfoDowntime } from '../shared/Infographics.jsx';
 
 // Icons per task type (kept local so constants.js stays icon-free)
 const TYPE_ICONS = { user: User, manual: PenLine, service: Wrench };
@@ -70,6 +71,19 @@ function VSMLadder({ metrics }) {
           </button>
           {showInfo && (
             <div style={{ padding: 12, background: '#F8F9FA', borderRadius: 8, marginTop: 8, fontSize: 12, color: '#3A4B4B', lineHeight: 1.5 }}>
+              {/* Infografías: explican el mecanismo antes que el texto. */}
+              <div style={{ background: '#fff', border: '1px solid #E2E7E3', borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
+                <InfoPce />
+              </div>
+              <div style={{ background: '#fff', border: '1px solid #E2E7E3', borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
+                <InfoCaminoCritico />
+              </div>
+              <div style={{ background: '#fff', border: '1px solid #E2E7E3', borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
+                <InfoToc />
+              </div>
+              <div style={{ background: '#fff', border: '1px solid #E2E7E3', borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
+                <InfoDowntime />
+              </div>
               <strong>Eficiencia de Ciclo (PCE):</strong> Del tiempo total que tarda el proceso de principio a fin, qué porcentaje se dedica a actividades que el cliente valora (VA). El resto se reparte entre <em>esperas</em> y <em>trabajo que no agrega valor</em> (controles, retrabajos, papeleo). Por eso un proceso sin esperas puede igual tener un PCE bajo: si sus pasos no agregan valor, no cuentan en el numerador.<br/><br/>
               <strong>Escalera de tiempo (Lead Time):</strong> Es el tiempo que transcurre desde que una solicitud entra al proceso hasta que sale. Cuando hay tareas en paralelo, se mide por el <em>camino crítico</em> (la rama más larga), no sumando ambas ramas. La barra verde es el trabajo real y la roja los tiempos de espera.
             </div>
@@ -77,6 +91,32 @@ function VSMLadder({ metrics }) {
         </div>
       </div>
       
+      {/* DOWNTIME cuantificado: se calcula en el backend pero antes solo salía
+          en el PDF. Ordenado por impacto para poder priorizar. */}
+      {!!(metrics.waste_breakdown || []).length && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 12, marginBottom: 8, color: '#5C6B6B', display: 'flex', alignItems: 'center', gap: 6 }}>
+            Desperdicios por impacto (DOWNTIME)
+          </div>
+          {metrics.waste_breakdown.map((w) => (
+            <div key={w.waste_type} style={{ marginBottom: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
+                <span style={{ color: '#3A4B4B' }}>{WASTE[w.waste_type] || w.waste_type}
+                  <span style={{ color: '#9AA8A8' }}> · {w.task_count} paso{w.task_count === 1 ? '' : 's'}</span>
+                </span>
+                <span style={{ fontWeight: 600, color: '#D9503C' }}>{w.pct_of_lead_time.toFixed(1)}% · {fmtLong(w.total_time_sec)}</span>
+              </div>
+              <div style={{ height: 7, background: '#EBF0EC', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.min(w.pct_of_lead_time, 100)}%`, height: '100%', background: '#D9503C', opacity: 0.85 }} />
+              </div>
+            </div>
+          ))}
+          <div style={{ fontSize: 10.5, color: '#9AA8A8', marginTop: 6 }}>
+            Ataca primero el de mayor porcentaje: es el que más tiempo te está costando.
+          </div>
+        </div>
+      )}
+
       <div>
         <div style={{ fontSize: 12, marginBottom: 8, color: '#5C6B6B' }}>Escalera de Tiempo (Lead Time: {fmtLong(lead_time_sec)})</div>
         

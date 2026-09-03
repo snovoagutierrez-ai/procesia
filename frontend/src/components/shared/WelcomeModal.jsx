@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { X, ChevronRight, ChevronLeft, Map, Settings, Sparkles, Network, MessageSquare, Loader2 } from 'lucide-react';
 import Logo from './Logo';
 import { apiFetch } from '../../api.js';
+import {
+  InfoProceso, InfoCompuerta, InfoSipoc, InfoValor,
+  InfoPce, InfoToc, InfoCaminoCritico, InfoDowntime, InfoConectar,
+} from './Infographics.jsx';
 
 export default function WelcomeModal({ isOpen, onClose }) {
   const [step, setStep] = useState(0);
@@ -24,7 +28,7 @@ export default function WelcomeModal({ isOpen, onClose }) {
     {
       icon: <Logo size={64} />,
       title: "Bienvenido a AiProces",
-      description: "La plataforma definitiva para levantar, conectar y optimizar los procesos de tu empresa a la velocidad del rayo.",
+      description: "Vas a dibujar cómo funciona tu empresa por dentro y descubrir dónde se pierde tiempo y dinero. No necesitas saber nada de procesos: te explicamos cada concepto con un dibujo.",
     },
     {
       icon: <Map size={64} color="#0E9F9F" strokeWidth={1.5} />,
@@ -32,19 +36,59 @@ export default function WelcomeModal({ isOpen, onClose }) {
       description: "Organiza todo creando Macroprocesos (las grandes áreas de tu negocio) y dentro de ellos, detalla tus Procesos específicos.",
     },
     {
-      icon: <Network size={64} color="#0E9F9F" strokeWidth={1.5} />,
-      title: "2. Mapeo Ultrarrápido",
-      description: "Añade tareas en el panel lateral de forma secuencial. Usa el selector al lado de cada tarea para conectarlas entre sí y mira cómo el diagrama se dibuja solo.",
+      art: <InfoProceso />,
+      title: "2. ¿Qué es un proceso?",
+      description: "Una serie de pasos entre un Inicio y un Fin. Cada tarjeta es una tarea y las flechas indican el orden en que ocurren.",
+    },
+    {
+      art: <InfoConectar />,
+      title: "3. Conectar los pasos",
+      description: "Arrastra desde el punto del borde de una tarjeta hasta el punto de la siguiente. Así defines por dónde fluye el trabajo.",
+    },
+    {
+      art: <InfoValor />,
+      title: "4. Clasifica el valor de cada paso",
+      description: "Es la clave del análisis: marca si el paso agrega valor (VA), es un control obligatorio (NNVA) o es desperdicio (NVA).",
+    },
+    {
+      art: <InfoCompuerta />,
+      title: "5. Decisiones: los caminos Sí / No",
+      description: "Cuando el proceso se bifurca, añade una Compuerta (el rombo). Etiqueta cada rama y di qué porcentaje de los casos toma cada camino.",
+    },
+    {
+      art: <InfoSipoc />,
+      title: "6. SIPOC: los límites del proceso",
+      description: "Define quién provee las entradas y quién recibe el resultado. Saber quién es tu Cliente es lo que permite decidir qué pasos realmente agregan valor.",
+    },
+    {
+      art: <InfoPce />,
+      title: "7. Tu eficiencia: el PCE",
+      description: "AiProces calcula solo qué porcentaje del tiempo total agrega valor. El resto son esperas y trabajo que no aporta.",
+    },
+    {
+      art: <InfoCaminoCritico />,
+      title: "8. Tareas en paralelo",
+      description: "Si dos tareas ocurren a la vez, el tiempo total NO es la suma: es la rama más larga. AiProces lo calcula por ti con el camino crítico.",
+    },
+    {
+      art: <InfoToc />,
+      title: "9. La restricción del sistema",
+      description: "El paso más lento fija el ritmo de todo el proceso. Acelerar cualquier otro paso no aumenta la capacidad: hay que mejorar la restricción.",
+    },
+    {
+      art: <InfoDowntime />,
+      title: "10. Los 8 desperdicios",
+      description: "Cuando marcas un paso como desperdicio, eliges de qué tipo es. AiProces suma cuánto tiempo pierde cada uno para que ataques el más costoso.",
     },
     {
       icon: <Sparkles size={64} color="#0E9F9F" strokeWidth={1.5} />,
-      title: "3. Magia con Inteligencia Artificial",
-      description: "Cuando termines de mapear, presiona el botón 'Ir a Optimización IA'. Nuestro motor analizará tu flujo en busca de cuellos de botella y generará un informe al instante.",
+      title: "11. Optimización con IA",
+      description: "Pulsa 'Ir a Optimización IA' y el motor analizará tu flujo: te dirá dónde está mal conectado, cuál es tu restricción y qué mejorar primero.",
     },
     {
       icon: <MessageSquare size={64} color="#0E9F9F" strokeWidth={1.5} />,
       title: "¿Tienes dudas?",
-      description: "Nuestra IA está lista para ayudarte a comprender cómo mapear o qué es un cuello de botella.",
+      description: "El asistente conoce tu proceso: puede señalarte qué le falta conectar y explicarte tus métricas. Está siempre en la burbuja de abajo a la derecha.",
       isChat: true
     }
   ];
@@ -98,8 +142,20 @@ export default function WelcomeModal({ isOpen, onClose }) {
         {/* Main Content Area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 32px' }}>
           <div style={{ maxWidth: '600px', width: '100%', textAlign: 'center', animation: 'fadeInUp 0.5s ease-out' }}>
-            <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'center' }}>
-              {slides[step].icon}
+            <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'center' }}>
+              {slides[step].art
+                ? (
+                  // Infografía: lienzo claro para que el SVG (pensado sobre papel)
+                  // se lea bien contra el fondo oscuro del tutorial.
+                  <div style={{
+                    width: '100%', maxWidth: 560, background: '#FFFFFF',
+                    borderRadius: 14, padding: '14px 16px',
+                    boxShadow: '0 10px 30px rgba(0,0,0,.28)',
+                  }}>
+                    {slides[step].art}
+                  </div>
+                )
+                : slides[step].icon}
             </div>
             <h2 id="welcome-modal-title" style={{ fontSize: '32px', color: 'var(--inv)', marginBottom: '16px', fontWeight: 700 }}>{slides[step].title}</h2>
             <p style={{ fontSize: '18px', color: 'var(--inv-muted)', lineHeight: '1.6', margin: 0, maxWidth: '500px', marginLeft: 'auto', marginRight: 'auto' }}>

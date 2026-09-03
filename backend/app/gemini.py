@@ -26,9 +26,35 @@ y un flujo optimizado (optimized_flow).
 IMPORTANTE: Todo el texto generado en descripciones, motivos, recomendaciones y campos similares DEBE estar estrictamente en Español.
 
 REGLAS DE ANÁLISIS
-1. Cuellos de botella y Summary: En tu respuesta, puedes devolver datos vacíos o replicar lo que 
-   te enviamos. El sistema sobrescribirá esos campos con la matemática exacta, pero dedícate a 
+1. Cuellos de botella y Summary: En tu respuesta, puedes devolver datos vacíos o replicar lo que
+   te enviamos. El sistema sobrescribirá esos campos con la matemática exacta, pero dedícate a
    leer "metrics.bottlenecks" para fundamentar tus recomendaciones.
+1b. RESTRICCIÓN DEL SISTEMA (TOC — Goldratt): "metrics.constraint" identifica LA restricción:
+   el paso más lento, que fija el throughput máximo de TODO el proceso
+   (theoretical_throughput_per_hour). Reglas de uso obligatorias:
+   - Toda recomendación que acelere un paso que NO es la restricción NO aumenta la
+     capacidad del proceso. Dilo explícitamente y baja su prioridad.
+   - Prioriza (priority menor) las acciones sobre metrics.constraint.bpmn_id: elevar la
+     restricción es lo único que sube el throughput del sistema.
+   - "metrics.bottlenecks" es una señal de DESBALANCEO, no la restricción. Los de
+     metric_type="wait_time" son COLA acumulada (síntoma que aparece ANTES de la
+     restricción), nunca la causa: no recomiendes "acelerar la espera", ataca su causa.
+1c. LEAD TIME: si "metrics.lead_time_is_critical_path" es true, lead_time_sec es el tiempo
+   transcurrido real por el camino crítico. Acortar una tarea que NO está en el camino
+   crítico no reduce el lead time — adviértelo si recomiendas algo así. Si es false, el
+   flujo está incompleto y el lead time es una estimación: dilo y baja analysis_confidence.
+1d. DESPERDICIOS CUANTIFICADOS: "metrics.waste_breakdown" trae, por cada tipo de los 8
+   desperdicios (DOWNTIME), el tiempo total y su % del lead time, ordenado por impacto.
+   Fundamenta tus inefficiencies en esa cifra y ataca primero el desperdicio con mayor
+   pct_of_lead_time, no el que más tareas tiene.
+1e. RETRABAJO: "metrics.structural.rework_rate_percentage" es el % de instancias que
+   vuelven atrás (null = no hay ciclo de retrabajo modelado; NO lo inventes). No lo
+   confundas con "defect_tagged_task_ratio", que es solo el % de pasos etiquetados
+   como defecto.
+1f. SIPOC: el campo "sipoc" trae Suppliers / Inputs / Outputs / Customers. Si faltan
+   suppliers o customers, señálalo: sin ellos no se puede validar que la salida cumpla
+   los requisitos del cliente (fase Define). Usa customers para juzgar qué es
+   Valor Agregado: VA es lo que ESE cliente valoraría.
 2. Desperdicios (Inefficiencies): Por cada tarea NVA o cuello de botella encontrado en "metrics",
    clasifica su causa raíz según los 8 desperdicios Lean. El campo waste_type DEBE ser exactamente
    uno de: defects, overproduction, waiting, non_utilized_talent, transportation, inventory,
@@ -269,6 +295,14 @@ def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
         "name": process.name,
         "code": process.code,
         "objective": process.objective,
+        # SIPOC completo: sin S y C la IA no puede razonar sobre proveedores ni
+        # sobre quién recibe la salida (fase Define).
+        "sipoc": {
+            "suppliers": process.suppliers,
+            "inputs": process.trigger_event,
+            "outputs": process.output_result,
+            "customers": process.customers,
+        },
         "trigger_event": process.trigger_event,
         "output_result": process.output_result,
         "monthly_volume": float(process.monthly_volume) if process.monthly_volume is not None else None,
@@ -747,6 +781,15 @@ def tutorial_chat(message: str, history: list | None = None, process_context: di
         "AYUDA A CORREGIR EL FLUJO\n"
         "- Si recibes 'CONTEXTO DEL PROCESO ABIERTO', úsalo para dar respuestas concretas sobre ESE "
         "proceso: nombra sus tareas y compuertas reales.\n"
+        "- El contexto puede traer 'metricas': úsalas con criterio Lean.\n"
+        "  · restriccion_toc = el paso más lento, que fija el ritmo máximo de TODO el proceso. "
+        "Acelerar cualquier otro paso NO aumenta la capacidad: dilo si te preguntan qué mejorar primero.\n"
+        "  · lead_time_es_camino_critico=false significa que el flujo no está conectado de Inicio a "
+        "Fin y el tiempo es una estimación; sugiere completar las conexiones.\n"
+        "  · desperdicios viene ordenado por % del lead time: recomienda atacar el primero.\n"
+        "  · tasa_retrabajo_pct = null significa que no hay ciclo de retrabajo modelado; no lo inventes.\n"
+        "  · sipoc: si faltan suppliers o customers, sugiere completarlos (sin el cliente no se puede "
+        "decidir qué pasos agregan valor).\n"
         "- Si el contexto trae 'errores_de_flujo', explícalos en lenguaje simple y di exactamente qué "
         "hacer en el diagrama para corregir cada uno (qué nodo y qué conexión falta).\n"
         "- Si preguntan por qué sus métricas se ven raras y hay errores de flujo, explica que un flujo "
