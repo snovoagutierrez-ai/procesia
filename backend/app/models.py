@@ -202,6 +202,9 @@ class Role(Base):
     name = Column(String(120), nullable=False)
     area = Column(String(120))
     cost_per_hour = Column(Numeric(10, 2))
+    # Sin dueno, cualquier usuario veia y editaba los roles (y el costo/hora) de
+    # todas las empresas. Nullable por las filas historicas sin atribuir.
+    owner_id = Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True)
 
     raci = relationship("TaskRaci", back_populates="role", cascade="all, delete-orphan", passive_deletes=True)
 
@@ -224,6 +227,7 @@ class System(Base):
     name = Column(String(120), nullable=False)
     system_type = Column(String(80))
     vendor = Column(String(120))
+    owner_id = Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True)
 
     tasks = relationship("TaskSystem", back_populates="system", cascade="all, delete-orphan", passive_deletes=True)
 

@@ -315,24 +315,24 @@ def delete_task(id: int, db: Session = Depends(get_db), current_user: models.Use
 
 @router.get("/roles", response_model=List[schemas.RoleResponse])
 def read_roles(skip: int = 0, limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    return crud.get_roles(db, skip=skip, limit=limit)
+    return crud.get_roles(db, skip=skip, limit=limit, user_id=current_user.id)
 
 @router.get("/roles/{id}", response_model=schemas.RoleResponse)
 def read_role(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    db_role = crud.get_role(db, id)
+    db_role = crud.get_role(db, id, user_id=current_user.id)
     if not db_role:
         raise HTTPException(status_code=404, detail="Role not found")
     return db_role
 
 @router.post("/roles", response_model=schemas.RoleResponse, status_code=status.HTTP_201_CREATED)
 def create_role(role: schemas.RoleCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    return crud.create_role(db, role)
+    return crud.create_role(db, role, owner_id=current_user.id)
 
 @router.put("/roles/{id}", response_model=schemas.RoleResponse)
 def update_role(id: int, role: schemas.RoleUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.role != models.UserRole.admin:
         raise HTTPException(status_code=403, detail="Se requieren permisos de administrador")
-    db_role = crud.get_role(db, id)
+    db_role = crud.get_role(db, id, user_id=current_user.id)
     if not db_role:
         raise HTTPException(status_code=404, detail="Role not found")
     return crud.update_role(db, db_role, role)
@@ -341,31 +341,31 @@ def update_role(id: int, role: schemas.RoleUpdate, db: Session = Depends(get_db)
 def delete_role(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.role != models.UserRole.admin:
         raise HTTPException(status_code=403, detail="Se requieren permisos de administrador")
-    if not crud.delete_role(db, id):
+    if not crud.delete_role(db, id, user_id=current_user.id):
         raise HTTPException(status_code=404, detail="Role not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/systems", response_model=List[schemas.SystemResponse])
 def read_systems(skip: int = 0, limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    return crud.get_systems(db, skip=skip, limit=limit)
+    return crud.get_systems(db, skip=skip, limit=limit, user_id=current_user.id)
 
 @router.get("/systems/{id}", response_model=schemas.SystemResponse)
 def read_system(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    db_system = crud.get_system(db, id)
+    db_system = crud.get_system(db, id, user_id=current_user.id)
     if not db_system:
         raise HTTPException(status_code=404, detail="System not found")
     return db_system
 
 @router.post("/systems", response_model=schemas.SystemResponse, status_code=status.HTTP_201_CREATED)
 def create_system(system: schemas.SystemCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    return crud.create_system(db, system)
+    return crud.create_system(db, system, owner_id=current_user.id)
 
 @router.put("/systems/{id}", response_model=schemas.SystemResponse)
 def update_system(id: int, system: schemas.SystemUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.role != models.UserRole.admin:
         raise HTTPException(status_code=403, detail="Se requieren permisos de administrador")
-    db_system = crud.get_system(db, id)
+    db_system = crud.get_system(db, id, user_id=current_user.id)
     if not db_system:
         raise HTTPException(status_code=404, detail="System not found")
     return crud.update_system(db, db_system, system)
@@ -374,7 +374,7 @@ def update_system(id: int, system: schemas.SystemUpdate, db: Session = Depends(g
 def delete_system(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.role != models.UserRole.admin:
         raise HTTPException(status_code=403, detail="Se requieren permisos de administrador")
-    if not crud.delete_system(db, id):
+    if not crud.delete_system(db, id, user_id=current_user.id):
         raise HTTPException(status_code=404, detail="System not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -398,6 +398,10 @@ def create_task_raci(task_raci: schemas.TaskRaciCreate, db: Session = Depends(ge
     t = crud.get_task(db, task_raci.task_id)
     if not t: raise HTTPException(status_code=404, detail="Task not found")
     verify_process_access(db, t.activity.process_id, current_user)
+    # El rol tambien debe ser propio: si no, se podria enlazar (y leer) el rol
+    # de otra empresa a traves de la respuesta del RACI.
+    if not crud.get_role(db, task_raci.role_id, user_id=current_user.id):
+        raise HTTPException(status_code=404, detail="Role not found")
     return crud.create_task_raci(db, task_raci)
 
 @router.delete("/task-racis/{task_id}/{role_id}/{raci_type}", status_code=status.HTTP_204_NO_CONTENT)
@@ -423,6 +427,8 @@ def create_task_system(task_system: schemas.TaskSystemCreate, db: Session = Depe
     t = crud.get_task(db, task_system.task_id)
     if not t: raise HTTPException(status_code=404, detail="Task not found")
     verify_process_access(db, t.activity.process_id, current_user)
+    if not crud.get_system(db, task_system.system_id, user_id=current_user.id):
+        raise HTTPException(status_code=404, detail="System not found")
     return crud.create_task_system(db, task_system)
 
 @router.delete("/task-systems/{task_id}/{system_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -292,17 +292,24 @@ def delete_task(db: Session, task_id: int):
 # 5. CRUD: Roles
 # ==========================================
 
-def get_role(db: Session, role_id: int):
-    return db.query(models.Role).filter(models.Role.id == role_id).first()
+def get_role(db: Session, role_id: int, user_id: int = None):
+    q = db.query(models.Role).filter(models.Role.id == role_id)
+    if user_id:
+        q = q.filter(models.Role.owner_id == user_id)
+    return q.first()
 
-def get_roles(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Role).offset(skip).limit(limit).all()
+def get_roles(db: Session, skip: int = 0, limit: int = 100, user_id: int = None):
+    q = db.query(models.Role)
+    if user_id:
+        q = q.filter(models.Role.owner_id == user_id)
+    return q.offset(skip).limit(limit).all()
 
-def create_role(db: Session, role: schemas.RoleCreate):
+def create_role(db: Session, role: schemas.RoleCreate, owner_id: int = None):
     db_role = models.Role(
         name=role.name,
         area=role.area,
-        cost_per_hour=role.cost_per_hour
+        cost_per_hour=role.cost_per_hour,
+        owner_id=owner_id
     )
     db.add(db_role)
     db.commit()
@@ -317,8 +324,8 @@ def update_role(db: Session, db_role: models.Role, role_in: schemas.RoleUpdate):
     db.refresh(db_role)
     return db_role
 
-def delete_role(db: Session, role_id: int):
-    db_role = get_role(db, role_id)
+def delete_role(db: Session, role_id: int, user_id: int = None):
+    db_role = get_role(db, role_id, user_id)
     if db_role:
         db.delete(db_role)
         db.commit()
@@ -329,17 +336,24 @@ def delete_role(db: Session, role_id: int):
 # 6. CRUD: Systems
 # ==========================================
 
-def get_system(db: Session, system_id: int):
-    return db.query(models.System).filter(models.System.id == system_id).first()
+def get_system(db: Session, system_id: int, user_id: int = None):
+    q = db.query(models.System).filter(models.System.id == system_id)
+    if user_id:
+        q = q.filter(models.System.owner_id == user_id)
+    return q.first()
 
-def get_systems(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.System).offset(skip).limit(limit).all()
+def get_systems(db: Session, skip: int = 0, limit: int = 100, user_id: int = None):
+    q = db.query(models.System)
+    if user_id:
+        q = q.filter(models.System.owner_id == user_id)
+    return q.offset(skip).limit(limit).all()
 
-def create_system(db: Session, system: schemas.SystemCreate):
+def create_system(db: Session, system: schemas.SystemCreate, owner_id: int = None):
     db_system = models.System(
         name=system.name,
         system_type=system.system_type,
-        vendor=system.vendor
+        vendor=system.vendor,
+        owner_id=owner_id
     )
     db.add(db_system)
     db.commit()
@@ -354,8 +368,8 @@ def update_system(db: Session, db_system: models.System, system_in: schemas.Syst
     db.refresh(db_system)
     return db_system
 
-def delete_system(db: Session, system_id: int):
-    db_system = get_system(db, system_id)
+def delete_system(db: Session, system_id: int, user_id: int = None):
+    db_system = get_system(db, system_id, user_id)
     if db_system:
         db.delete(db_system)
         db.commit()
