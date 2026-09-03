@@ -9,7 +9,7 @@ const SUGGESTIONS = [
   '¿Qué mide la eficiencia de ciclo (PCE)?',
 ];
 
-export default function ConsultAssistantModal({ isOpen, onClose }) {
+export default function ConsultAssistantModal({ isOpen, onClose, processId }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,13 +25,16 @@ export default function ConsultAssistantModal({ isOpen, onClose }) {
     const q = (text ?? input).trim();
     if (!q || loading) return;
     setInput('');
+    // Historial previo (sin el mensaje actual) para que el asistente mantenga el hilo.
+    const history = messages.slice(-10).map((m) => ({ role: m.role, text: m.text }));
     setMessages((m) => [...m, { role: 'user', text: q }]);
     setLoading(true);
     try {
       const res = await apiFetch('/tutorial-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: q }),
+        // process_id permite responder sobre el proceso abierto y señalar sus errores de flujo.
+        body: JSON.stringify({ message: q, history, process_id: processId ?? null }),
       });
       if (res.ok) {
         const data = await res.json();

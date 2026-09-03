@@ -50,8 +50,29 @@ REGLAS DE ANÁLISIS
    (campo priority, menor = más urgente) las recomendaciones por impacto = ahorro por
    instancia × volumen mensual, no solo por % de ahorro. Un ahorro pequeño en un proceso
    de alto volumen supera a un ahorro grande en uno de bajo volumen.
-6. optimized_flow: propón un grafo reestructurado que paralelice tareas o simplifique
-   pasos de acuerdo a tus recomendaciones, manteniendo identificadores BPMN válidos.
+6. ERRORES DE CONSTRUCCIÓN DEL FLUJO (prioridad máxima): el campo "flow_issues" del
+   JSON de entrada lista los nodos mal conectados detectados en el diagrama
+   (isolated = suelto, dead_end = sin salida, unreachable = sin entrada,
+   gateway_not_branching = compuerta con menos de 2 salidas, unlabeled_branches =
+   ramas Sí/No sin etiquetar, probabilities_not_100, start_disconnected,
+   end_disconnected). Si "flow_issues" NO está vacío:
+   - Emite una recomendación por CADA issue, ANTES que cualquier mejora de tiempos,
+     con priority más bajo (1, 2, 3...) porque un flujo mal armado invalida las métricas.
+   - action_type = "STANDARDIZE" y target_node_bpmn_id = el node_bpmn_id del issue.
+   - En description di EXACTAMENTE qué nodo está mal y CÓMO corregirlo en el editor
+     (ej.: "La tarea 'Revisar' no tiene salida: arrastra una flecha desde su punto
+     derecho hacia la siguiente tarea o hacia Fin"). Nombra siempre el nodo por su
+     node_name para que el usuario lo ubique en el diagrama.
+   - Refleja en analysis_confidence que las métricas no son fiables con el flujo roto.
+7. optimized_flow: propón un grafo reestructurado SOLO si aporta una mejora estructural
+   real (paralelizar, fusionar o eliminar pasos). Es una propuesta OPCIONAL que el
+   usuario aplica de forma explícita y que REEMPLAZA su diagrama completo, así que:
+   - Pon "applies": false cuando tus recomendaciones se puedan implementar sobre el
+     flujo existente sin rediseñarlo, o cuando haya flow_issues sin resolver.
+     Ante la duda, "applies": false — nunca reestructures un flujo solo para mostrar
+     un cambio; el usuario perdería el diagrama que construyó a mano.
+   - Si es true, CONSERVA los bpmn_id y nombres de las tareas que no cambian, y
+     mantén las etiquetas/condiciones de las ramas existentes.
 
 Si faltan datos para algún análisis, refléjalo reduciendo analysis_confidence (0.0-1.0).
 La respuesta DEBE ser únicamente el siguiente objeto JSON:
@@ -104,6 +125,69 @@ def clean_json_response(text: str) -> str:
     if text.endswith("```"):
         text = text[:-3]
     return text.strip()
+
+def detect_flow_issues(tasks_data, flow_nodes_data, sequence_flows_data) -> list:
+    """Errores ESTRUCTURALES del diagrama (no de tiempos).
+
+    La IA solo recibía tiempos y RACI, por eso nunca podía decir *dónde* estaba
+    roto el flujo. Aquí se detecta lo mismo que el aviso amarillo del editor, y
+    se le entrega para que señale el nodo exacto y cómo corregirlo.
+    """
+    issues = []
+    name_by_id = {}
+    for t in tasks_data:
+        name_by_id[t["bpmn_id"]] = t["name"]
+    for n in flow_nodes_data:
+        name_by_id[n["bpmn_id"]] = n.get("name") or "Compuerta"
+
+    outgoing, incoming = {}, {}
+    for f in sequence_flows_data:
+        outgoing.setdefault(f["source_ref"], []).append(f)
+        incoming.setdefault(f["target_ref"], []).append(f)
+
+    for t in tasks_data:
+        bid = t["bpmn_id"]
+        has_in, has_out = bool(incoming.get(bid)), bool(outgoing.get(bid))
+        if not has_in and not has_out:
+            issues.append({"node_bpmn_id": bid, "node_name": t["name"], "issue": "isolated",
+                           "detail": "La tarea está suelta: no tiene flecha de entrada ni de salida, por lo que no forma parte del flujo."})
+        elif not has_out:
+            issues.append({"node_bpmn_id": bid, "node_name": t["name"], "issue": "dead_end",
+                           "detail": "La tarea no tiene salida: el proceso se corta aquí y nunca llega al Fin."})
+        elif not has_in:
+            issues.append({"node_bpmn_id": bid, "node_name": t["name"], "issue": "unreachable",
+                           "detail": "La tarea no tiene entrada: nunca se alcanza desde el Inicio."})
+
+    for n in flow_nodes_data:
+        node_type = str(n.get("node_type") or "")
+        if "ateway" not in node_type:
+            continue
+        bid = n["bpmn_id"]
+        outs = outgoing.get(bid, [])
+        if len(outs) < 2:
+            issues.append({"node_bpmn_id": bid, "node_name": n.get("name") or "Compuerta", "issue": "gateway_not_branching",
+                           "detail": f"La compuerta tiene {len(outs)} salida(s); una decisión necesita al menos 2 caminos."})
+        if not incoming.get(bid):
+            issues.append({"node_bpmn_id": bid, "node_name": n.get("name") or "Compuerta", "issue": "unreachable",
+                           "detail": "La compuerta no tiene entrada: nunca se llega a esta decisión."})
+        if "exclusive" in node_type and len(outs) >= 2:
+            sin_etiqueta = [o for o in outs if not (o.get("condition_expression") or o.get("name"))]
+            if sin_etiqueta:
+                issues.append({"node_bpmn_id": bid, "node_name": n.get("name") or "Compuerta", "issue": "unlabeled_branches",
+                               "detail": f"{len(sin_etiqueta)} de {len(outs)} ramas no tienen etiqueta (Sí/No): el criterio de la decisión es ambiguo."})
+            probs = [o.get("branch_probability") for o in outs if o.get("branch_probability") is not None]
+            if probs and abs(sum(probs) - 100) > 1:
+                issues.append({"node_bpmn_id": bid, "node_name": n.get("name") or "Compuerta", "issue": "probabilities_not_100",
+                               "detail": f"Las probabilidades de las ramas suman {round(sum(probs))}% en vez de 100%."})
+
+    if tasks_data and not outgoing.get("start"):
+        issues.append({"node_bpmn_id": "start", "node_name": "Inicio", "issue": "start_disconnected",
+                       "detail": "El evento de Inicio no está conectado a ninguna tarea."})
+    if tasks_data and not incoming.get("end"):
+        issues.append({"node_bpmn_id": "end", "node_name": "Fin", "issue": "end_disconnected",
+                       "detail": "Ninguna tarea conduce al evento de Fin: el proceso no tiene cierre."})
+    return issues
+
 
 def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
     process = db.query(models.Process).filter(models.Process.id == process_id).first()
@@ -179,6 +263,7 @@ def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
             "branch_probability": float(sf.branch_probability) if sf.branch_probability is not None else None
         })
 
+    all_tasks = [t for a in activities_data for t in a["tasks"]]
     snapshot = {
         "process_id": str(process.id),
         "name": process.name,
@@ -189,7 +274,10 @@ def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
         "monthly_volume": float(process.monthly_volume) if process.monthly_volume is not None else None,
         "activities": activities_data,
         "flow_nodes": flow_nodes_data,
-        "sequence_flows": sequence_flows_data
+        "sequence_flows": sequence_flows_data,
+        # Errores estructurales del diagrama, para que la IA pueda señalar
+        # exactamente qué nodo está mal conectado y cómo arreglarlo.
+        "flow_issues": detect_flow_issues(all_tasks, flow_nodes_data, sequence_flows_data),
     }
     return snapshot
 
@@ -242,7 +330,9 @@ def ask_task_assistant(text: str, context: dict) -> dict:
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 response_mime_type="application/json",
-                temperature=0.4
+                temperature=0.4,
+                max_output_tokens=32768,
+                thinking_config=types.ThinkingConfig(thinking_budget=2048),
             )
         )
         data = json.loads(response.text)
@@ -301,7 +391,9 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
                 system_instruction=SYSTEM_PROMPT,
                 response_mime_type="application/json",
                 response_schema=schemas.OptimizationResult,
-                temperature=0.2
+                temperature=0.2,
+                max_output_tokens=32768,
+                thinking_config=types.ThinkingConfig(thinking_budget=2048),
             )
         )
         raw_response_text = response.text
@@ -339,7 +431,9 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
                     system_instruction=SYSTEM_PROMPT,
                     response_mime_type="application/json",
                     response_schema=schemas.OptimizationResult,
-                    temperature=0.2
+                    temperature=0.2,
+                    max_output_tokens=32768,
+                    thinking_config=types.ThinkingConfig(thinking_budget=2048),
                 )
             )
             raw_response_text_retry = response_retry.text
@@ -565,7 +659,9 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
                 system_instruction=MACRO_SYSTEM_PROMPT,
                 response_mime_type="application/json",
                 response_schema=schemas.MacroOptimizationResult,
-                temperature=0.2
+                temperature=0.2,
+                max_output_tokens=32768,
+                thinking_config=types.ThinkingConfig(thinking_budget=2048),
             )
         )
         
@@ -589,7 +685,9 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
                     system_instruction=MACRO_SYSTEM_PROMPT,
                     response_mime_type="application/json",
                     response_schema=schemas.MacroOptimizationResult,
-                    temperature=0.2
+                    temperature=0.2,
+                    max_output_tokens=32768,
+                    thinking_config=types.ThinkingConfig(thinking_budget=2048),
                 )
             )
             raw_response_text = retry_response.text if retry_response.text else ""
@@ -614,7 +712,14 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
 
     return db_run
 
-def tutorial_chat(message: str) -> str:
+def tutorial_chat(message: str, history: list | None = None, process_context: dict | None = None) -> str:
+    """Asistente de consultas.
+
+    Antes: sin memoria (cada pregunta partía de cero), sin contexto del proceso
+    abierto, límite de "1-3 oraciones" y sin control de thinking — el modelo
+    gastaba su presupuesto de salida pensando y devolvía texto vacío, que el
+    usuario veía como "se sobrecarga y no completa la respuesta".
+    """
     import httpx
     http_opts = None
     if not settings.gemini_ssl_verify and os.environ.get("ENVIRONMENT", "development") != "production":
@@ -626,21 +731,70 @@ def tutorial_chat(message: str) -> str:
     client = genai.Client(api_key=settings.gemini_api_key, http_options=http_opts)
 
     system_prompt = (
-        "Eres el asistente amigable de AiProces. Tu objetivo es ayudar a los usuarios a entender la plataforma. "
-        "Responde de forma MUY breve (1-3 oraciones), directa y con tono motivador. "
-        "Si la pregunta no tiene relación con mapas de procesos, bpm, cuellos de botella o AiProces, dile amablemente "
-        "que tu función es exclusiva para optimización de procesos empresariales."
+        "Eres el asistente experto de AiProces, una herramienta de mapeo y optimización de procesos "
+        "(Lean / BPMN). Ayudas a personas que muchas veces NO tienen formación en procesos.\n\n"
+        "CÓMO RESPONDER\n"
+        "- Claro y conversacional, en español. Explica los términos técnicos con palabras simples "
+        "y un ejemplo cotidiano cuando ayude.\n"
+        "- Extensión según la pregunta: 1-2 oraciones para dudas simples; hasta ~2 párrafos o una "
+        "lista corta de pasos si te piden un procedimiento o un diagnóstico. Nunca cortes una "
+        "explicación a la mitad.\n"
+        "- Si te preguntan CÓMO hacer algo en la app, responde con los pasos concretos de la interfaz "
+        "(botones del panel izquierdo '+ Tarea' y '+ Compuerta', arrastrar entre los puntos de los "
+        "nodos para conectar, el botón rojo de papelera sobre una flecha para borrarla, la pestaña "
+        "'Optimización IA', el botón 'Versiones' para restaurar, 'Reporte' para el PDF).\n"
+        "- Mantienes el hilo de la conversación: puedes referirte a lo que ya se habló.\n\n"
+        "AYUDA A CORREGIR EL FLUJO\n"
+        "- Si recibes 'CONTEXTO DEL PROCESO ABIERTO', úsalo para dar respuestas concretas sobre ESE "
+        "proceso: nombra sus tareas y compuertas reales.\n"
+        "- Si el contexto trae 'errores_de_flujo', explícalos en lenguaje simple y di exactamente qué "
+        "hacer en el diagrama para corregir cada uno (qué nodo y qué conexión falta).\n"
+        "- Si preguntan por qué sus métricas se ven raras y hay errores de flujo, explica que un flujo "
+        "incompleto distorsiona los tiempos.\n\n"
+        "LÍMITES\n"
+        "- Si la pregunta no tiene relación con procesos, mejora continua o AiProces, dilo amablemente "
+        "y reconduce. Nunca inventes funciones que no existen en la herramienta."
     )
-    
+
+    contents = []
+    # Historial (memoria de la conversación) — sin esto no podía ser interactivo.
+    for turn in (history or [])[-10:]:
+        role = "model" if turn.get("role") in ("assistant", "model") else "user"
+        text = (turn.get("text") or "").strip()
+        if text:
+            contents.append(types.Content(role=role, parts=[types.Part(text=text[:4000])]))
+
+    user_text = message
+    if process_context:
+        try:
+            ctx = json.dumps(process_context, ensure_ascii=False, default=str)[:6000]
+            user_text = f"CONTEXTO DEL PROCESO ABIERTO (JSON):\n{ctx}\n\nPREGUNTA DEL USUARIO:\n{message}"
+        except Exception:
+            pass
+    contents.append(types.Content(role="user", parts=[types.Part(text=user_text)]))
+
     try:
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=message,
+            contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
-                temperature=0.3
+                temperature=0.3,
+                # Techo alto + thinking acotado: el modelo ya no se queda sin
+                # presupuesto a mitad de la respuesta.
+                max_output_tokens=2048,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
             )
         )
-        return response.text if response.text else "Lo siento, no pude formular una respuesta."
+        text = (response.text or "").strip() if hasattr(response, "text") else ""
+        if not text:
+            # Rescate: recuperar el texto de las partes si .text viene vacío.
+            try:
+                parts = response.candidates[0].content.parts or []
+                text = "".join(getattr(p, "text", "") or "" for p in parts).strip()
+            except Exception:
+                text = ""
+        return text or ("No logré completar la respuesta. ¿Puedes reformular la pregunta "
+                        "o hacerla en partes más pequeñas?")
     except Exception as e:
         return "Hubo un problema temporal con nuestra IA. ¡Intenta de nuevo en unos minutos!"

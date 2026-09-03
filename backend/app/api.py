@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 import os
+from jose import jwt
 
 from app import crud, schemas, models, gemini, bpmn, mermaid_export, auth
 from app.database import get_db
@@ -79,7 +80,30 @@ def logout(response: Response):
     return {"message": "Logged out successfully"}
 
 @router.get("/auth/me", response_model=schemas.UserResponse)
-def get_me(current_user: models.User = Depends(auth.get_current_user)):
+def get_me(request: Request, response: Response, current_user: models.User = Depends(auth.get_current_user)):
+    # Refresh deslizante: si al token le queda poco, se emite uno nuevo en cada
+    # verificación de sesión. Así el usuario activo nunca es expulsado a mitad
+    # del trabajo (el frontend llama /auth/me al cargar y al recuperar el foco).
+    try:
+        token = request.cookies.get("access_token")
+        if token:
+            payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+            exp = payload.get("exp")
+            if exp is not None:
+                remaining = datetime.fromtimestamp(exp, tz=timezone.utc) - datetime.now(timezone.utc)
+                if remaining < timedelta(minutes=auth.TOKEN_REFRESH_THRESHOLD_MINUTES):
+                    new_token = auth.create_access_token(
+                        data={"sub": current_user.email},
+                        expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES),
+                    )
+                    is_production = os.environ.get("ENV", "development").lower() == "production" or os.environ.get("RENDER") == "true"
+                    response.set_cookie(
+                        key="access_token", value=new_token, httponly=True,
+                        secure=is_production, samesite="lax",
+                        max_age=auth.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                    )
+    except Exception:
+        pass  # nunca romper la verificación de sesión por un fallo al renovar
     return current_user
 
 
@@ -575,11 +599,45 @@ def sync_graph(id: int, graph_data: schemas.GraphSync, db: Session = Depends(get
 # ==========================================
 
 @router.post("/tutorial-chat")
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 def tutorial_chat_endpoint(request: Request, chat_request: schemas.ChatRequest,
+        db: Session = Depends(get_db),
         current_user: models.User = Depends(auth.get_current_user)):
-    from app.gemini import tutorial_chat
-    reply = tutorial_chat(chat_request.message)
+    from app.gemini import tutorial_chat, build_process_snapshot
+
+    # Contexto del proceso abierto: permite que el asistente hable de las tareas
+    # reales del usuario y le indique cómo corregir su flujo, en vez de dar solo
+    # definiciones genéricas.
+    process_context = None
+    if chat_request.process_id:
+        try:
+            verify_process_access(db, chat_request.process_id, current_user)
+            snap = build_process_snapshot(db, chat_request.process_id)
+            process_context = {
+                "nombre": snap.get("name"),
+                "objetivo": snap.get("objective"),
+                "evento_inicio": snap.get("trigger_event"),
+                "resultado_final": snap.get("output_result"),
+                "tareas": [
+                    {"nombre": t.get("name"), "tipo": t.get("task_type"),
+                     "valor": t.get("value_classification"),
+                     "ciclo_seg": t.get("std_cycle_time_sec"),
+                     "espera_seg": t.get("std_wait_time_sec"),
+                     "responsable": next((r.get("role_name") for r in (t.get("raci") or [])
+                                          if str(r.get("raci_type")).endswith("R")), None)}
+                    for a in snap.get("activities", []) for t in a.get("tasks", [])
+                ][:40],
+                "compuertas": [{"nombre": n.get("name"), "tipo": str(n.get("node_type"))}
+                               for n in snap.get("flow_nodes", [])][:20],
+                "errores_de_flujo": snap.get("flow_issues", []),
+            }
+        except HTTPException:
+            process_context = None   # sin acceso: se responde sin contexto
+        except Exception:
+            process_context = None
+
+    history = [t.model_dump() for t in (chat_request.history or [])]
+    reply = tutorial_chat(chat_request.message, history=history, process_context=process_context)
     return {"reply": reply}
 
 # ==========================================

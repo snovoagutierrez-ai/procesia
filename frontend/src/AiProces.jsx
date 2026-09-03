@@ -1102,6 +1102,8 @@ export default function App() {
 
   const debounceTimeoutRef = useRef(null);
   const updateTaskTimeoutRefs = useRef({});
+  // Identifica la carga de proceso en curso; descarta respuestas de cargas viejas.
+  const loadRequestRef = useRef(0);
 
   const procRef = useRef(proc);
   useEffect(() => { procRef.current = proc; }, [proc]);
@@ -1114,6 +1116,18 @@ export default function App() {
       if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
     };
   }, []);
+
+  // Cancela cualquier guardado diferido pendiente (tareas, proceso, layout).
+  // Se llama al cambiar de proceso: sin esto, un temporizador del proceso anterior
+  // disparaba ya con otro proceso abierto y el guardado se perdía en silencio.
+  const cancelPendingSaves = () => {
+    Object.keys(updateTaskTimeoutRefs.current).forEach((key) => {
+      if (!key.endsWith("_flush")) clearTimeout(updateTaskTimeoutRefs.current[key]);
+      delete updateTaskTimeoutRefs.current[key];
+    });
+    if (debounceTimeoutRef.current) { clearTimeout(debounceTimeoutRef.current); debounceTimeoutRef.current = null; }
+    if (layoutTimeoutRef.current) { clearTimeout(layoutTimeoutRef.current); layoutTimeoutRef.current = null; }
+  };
 
   const flushAllSaves = async () => {
     const promises = [];
@@ -1142,9 +1156,15 @@ export default function App() {
 
   const goBackToDashboard = async () => {
     await flushAllSaves();
+    // Invalida cargas en vuelo y descarta el estado del proceso que se abandona.
+    loadRequestRef.current++;
+    cancelPendingSaves();
     setView("dashboard");
     setProc(null);
     setTasks([]);
+    setGateways([]);
+    setSequenceFlows([]);
+    setMetricsData(null);
     setSelectedId(null);
     setOpt({ status: "idle" });
     loadProcesses();
@@ -1174,11 +1194,13 @@ export default function App() {
     }
   };
 
-  const loadMetrics = useCallback(async (processId) => {
+  const loadMetrics = useCallback(async (processId, isStale) => {
     try {
       const res = await apiFetch(`/processes/${processId}/metrics`);
+      if (isStale && isStale()) return;   // el usuario ya abrió otro proceso
       if (res.ok) {
         const m = await res.json();
+        if (isStale && isStale()) return;
         setMetricsData(m);
       }
     } catch(e) {
@@ -1187,21 +1209,32 @@ export default function App() {
   }, []);
 
   const loadProcessTasks = async (process) => {
+    // Guarda contra respuestas obsoletas: si el usuario abre el proceso A y antes
+    // de que responda abre el B, la respuesta (más lenta) de A llegaba después y
+    // pisaba el estado del B — el encabezado decía "B" pero se veía el flujo de A.
+    const reqId = ++loadRequestRef.current;
+    const isStale = () => reqId !== loadRequestRef.current;
+
     setLoading(true);
     try {
       const resTasks = await apiFetch(`/processes/${process.id}/tasks`);
+      if (isStale()) return;
       if (!resTasks.ok) throw new Error(`Error ${resTasks.status} al cargar tareas`);
       const dbTasks = await resTasks.json();
+      if (isStale()) return;
       const mapped = dbTasks.map(mapBackendTaskToFrontend);
       setTasks(mapped);
-      
-      await loadMetrics(process.id);
-      
+
+      await loadMetrics(process.id, () => reqId !== loadRequestRef.current);
+      if (isStale()) return;
+
       // Graph is optional — don't crash if it fails
       try {
         const resGraph = await apiFetch(`/processes/${process.id}/graph`);
+        if (isStale()) return;
         if (resGraph.ok) {
           const graphData = await resGraph.json();
+          if (isStale()) return;
           setGateways(graphData.gateways || []);
           setSequenceFlows(graphData.sequence_flows || []);
         } else {
@@ -1209,23 +1242,34 @@ export default function App() {
           setSequenceFlows([]);
         }
       } catch {
+        if (isStale()) return;
         setGateways([]);
         setSequenceFlows([]);
       }
-      
+
+      if (isStale()) return;
       setSelectedId(mapped[0]?.id || null);
       setOpt({ status: "idle" });
     } catch (e) {
+      if (isStale()) return;
       setError("Error al cargar tareas: " + (e.message || ""));
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   };
 
   const selectProcess = (p) => {
+    // Cancela guardados pendientes del proceso anterior antes de cambiar de
+    // contexto, para que ningún temporizador dispare sobre el proceso nuevo.
+    cancelPendingSaves();
     setProc(p);
     setView("editor");
     setTab("detalle");
+    setTasks([]);
+    setGateways([]);
+    setSequenceFlows([]);
+    setSelectedId(null);
+    setMetricsData(null);
     loadProcessTasks(p);
   };
 
@@ -1389,17 +1433,22 @@ export default function App() {
   }, []);
 
   const updateTask = (id, patch) => {
+    // El id del proceso se captura AHORA (al editar), no dentro del temporizador:
+    // antes se leía procRef.current al disparar, así que si el usuario cambiaba de
+    // proceso dentro de los 500 ms el PUT se enviaba al proceso equivocado y el
+    // backend lo rechazaba (400) — la edición se perdía sin aviso.
+    const ownerProcessId = procRef.current?.id;
     setTasks((ts) => {
       const updatedTasks = ts.map((t) => (t.id === id ? { ...t, ...patch } : t));
       if (updateTaskTimeoutRefs.current[id]) clearTimeout(updateTaskTimeoutRefs.current[id]);
-      
+
       setSaveState({ status: 'saving' });
       updateTaskTimeoutRefs.current[id] = setTimeout(async () => {
-        if (!procRef.current?.id) return;
+        if (!ownerProcessId) return;
         const t = updatedTasks.find((x) => x.id === id);
         if (!t) return;
         try {
-          await apiFetch(`/processes/${procRef.current.id}/tasks/${id}`, {
+          await apiFetch(`/processes/${ownerProcessId}/tasks/${id}`, {
             method: "PUT", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               bpmn_id: t.bpmnId, name: t.name, description: t.description || "",
@@ -1410,7 +1459,8 @@ export default function App() {
               consulted: t.consulted, informed: t.informed, systems: t.systems,
             }),
           });
-          await loadMetrics(procRef.current.id);
+          // Solo refrescar métricas si el proceso sigue siendo el que se editó.
+          if (procRef.current?.id === ownerProcessId) await loadMetrics(ownerProcessId);
           setSaveState({ status: 'saved' });
           setTimeout(() => setSaveState(s => s.status === 'saved' ? { status: 'idle' } : s), 2000);
         } catch (e) {
@@ -1804,6 +1854,11 @@ export default function App() {
         target_ref: f.target_ref,
         name: f.name || "",
         condition_expression: f.condition_expression || f.condition || null,
+        // Preservar las ramas Sí/No y los puntos de conexión del rombo: sin esto,
+        // restaurar una versión borraba las probabilidades y reubicaba las flechas.
+        branch_probability: f.branch_probability ?? null,
+        source_handle: f.source_handle ?? null,
+        target_handle: f.target_handle ?? null,
       }));
 
       setTasks(mapped);
@@ -2080,6 +2135,7 @@ export default function App() {
       <ConsultAssistantModal
         isOpen={consultAssistantOpen}
         onClose={() => setConsultAssistantOpen(false)}
+        processId={proc?.id}
       />
       {toast && (
         <div className={"pa-toast " + toast.type} role="alert">

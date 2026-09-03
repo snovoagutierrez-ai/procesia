@@ -77,7 +77,12 @@ SECRET_KEY = os.environ.get("JWT_SECRET")
 if not SECRET_KEY:
     raise RuntimeError("JWT_SECRET no configurado")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+# 12 h: con 60 min la sesión se cerraba en medio del levantamiento de un proceso
+# (el usuario perdía el trabajo al recargar). Se renueva sola — ver refresh deslizante
+# en /auth/me — así una sesión activa no expira nunca por uso continuado.
+ACCESS_TOKEN_EXPIRE_MINUTES = 720
+# Si al token le queda menos de esto, /auth/me emite una cookie nueva.
+TOKEN_REFRESH_THRESHOLD_MINUTES = 240
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)

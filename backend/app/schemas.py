@@ -35,8 +35,16 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+class ChatTurn(BaseModel):
+    role: Literal["user", "assistant", "model"]
+    text: str = Field(..., max_length=4000)
+
 class ChatRequest(BaseModel):
-    message: str = Field(..., max_length=500)
+    message: str = Field(..., max_length=2000)
+    # Historial para que el asistente mantenga el hilo de la conversación.
+    history: Optional[List[ChatTurn]] = None
+    # Proceso abierto: permite responder sobre las tareas reales del usuario.
+    process_id: Optional[int] = None
     
 class TaskAssistantRequest(BaseModel):
     text: str = Field(..., max_length=1000)
