@@ -68,9 +68,45 @@ REGLAS DE ANÁLISIS
    rara vez justifica recomendaciones de alto esfuerzo.
 4. Sistemas: detecta saltos innecesarios entre sistemas (context switching) y
    oportunidades de automatización o integración.
+4b. CÓMO ESCRIBIR PARA EL USUARIO (obligatorio en todo texto visible:
+   description, root_cause, summary, recommendations):
+   - DURACIONES: usa SIEMPRE el campo *_display de la tarea ("5m", "1h 20m"). NUNCA
+     escribas segundos crudos ("300 segundos"): esa unidad no existe en la pantalla
+     del usuario y le obliga a hacer la conversión mental.
+   - NUNCA cites nombres internos de campos ni rutas del JSON
+     ("metrics.structural.rework_rate_percentage", "value_classification",
+     "flow_issues"). Traduce la idea a lenguaje llano: "el 80% de los documentos
+     vuelve atrás para corrección".
+   - Nombra los nodos por su NOMBRE visible, nunca por su bpmn_id ("Task_qy02").
+   - Escribe para alguien que nunca estudió Lean: sin jerga sin explicar.
+
+4c. NO REACLASIFIQUES EL VALOR DE LAS TAREAS. El campo value_classification lo
+   decidió la persona que conoce el proceso (VA = agrega valor, NNVA = necesario
+   sin valor, NVA = desperdicio puro). Es un dato de entrada, no una conclusión
+   tuya. Prohibido:
+   - Tratar como desperdicio una tarea marcada VA o NNVA.
+   - Decir "esta tarea es NVA" de una tarea que no lo es.
+   Si crees que una clasificación está mal, NO la cambies: dilo como pregunta en
+   la description ("¿el cliente pagaría por este paso? Si no, quizá sea NNVA") y
+   deja que el usuario decida.
+
 5. Recomendaciones: por cada hallazgo cualitativo o matemático, propón una acción concreta.
    - action_type DEBE ser exactamente uno de: ELIMINATE, AUTOMATE, SIMPLIFY, MERGE, PARALLELIZE, REASSIGN, STANDARDIZE
    - implementation_complexity DEBE ser exactamente uno de: low, medium, high
+   - MODO ORIENTACIÓN, NO INTERVENCIÓN: la description debe decirle al usuario QUÉ
+     hacer y DÓNDE, con pasos que él ejecuta en el editor ("conecta el punto
+     derecho de 'Revisar documentos' con la compuerta '¿Está aprobado?'"). No
+     redactes como si tú fueras a aplicar el cambio.
+   - ELIMINATE es la acción más restringida. Solo puedes proponerla si se cumple
+     TODO: (a) la tarea está marcada NVA por el usuario, (b) no es un control
+     legal, normativo ni de calidad, y (c) el flujo sigue siendo válido sin ella,
+     y explicas con qué conexión se cierra el hueco. Una tarea NNVA NUNCA se
+     elimina: es necesaria aunque no agregue valor (controles, requisitos). Y una
+     tarea que existe por un problema aguas arriba (retrabajo, corrección) no se
+     elimina primero: primero se ataca la causa; hasta entonces esa tarea sostiene
+     la calidad del proceso. En ese caso usa SIMPLIFY o AUTOMATE y di
+     explícitamente que eliminarla solo es posible después de corregir la causa.
+     Ante la duda, NO uses ELIMINATE.
    Estima estimated_time_saving_pct (0-100).
    PRIORIZACIÓN POR IMPACTO ANUALIZADO: si "monthly_volume" está presente, prioriza
    (campo priority, menor = más urgente) las recomendaciones por impacto = ahorro por
@@ -151,6 +187,65 @@ def clean_json_response(text: str) -> str:
     if text.endswith("```"):
         text = text[:-3]
     return text.strip()
+
+class IncompleteAnswer(Exception):
+    """La respuesta del modelo llego cortada o vacia, no mal formada.
+
+    Se distingue del JSON invalido porque el remedio es distinto: reintentar con
+    el mismo prompt vuelve a cortarse, hay que pedir una respuesta mas corta.
+    """
+
+
+def extract_response_text(response) -> str:
+    """Devuelve el texto del modelo o explica por que no lo hay.
+
+    `response.text` puede venir vacio cuando el modelo agota el presupuesto de
+    tokens o el contenido se bloquea. Antes eso caia como JSONDecodeError, el
+    reintento reenviaba el mismo prompt y la optimizacion terminaba en "failed"
+    sin que nadie supiera por que.
+    """
+    text = getattr(response, "text", None)
+    if text and text.strip():
+        return text
+
+    reason = ""
+    try:
+        candidate = (response.candidates or [None])[0]
+        reason = str(getattr(candidate, "finish_reason", "") or "")
+    except (AttributeError, IndexError):
+        pass
+
+    if "MAX_TOKENS" in reason.upper():
+        raise IncompleteAnswer(
+            "El analisis se corto por longitud antes de terminar."
+        )
+    if "SAFETY" in reason.upper() or "BLOCK" in reason.upper():
+        raise IncompleteAnswer(
+            "El proveedor de IA bloqueo la respuesta."
+        )
+    raise IncompleteAnswer(
+        f"La IA devolvio una respuesta vacia{f' ({reason})' if reason else ''}."
+    )
+
+
+def human_duration(seconds) -> str:
+    """Convierte segundos a la unidad que usa la interfaz (30s, 5m, 1h 20m).
+
+    El modelo recibia solo el valor crudo y lo copiaba literal a sus textos
+    ("consume 300 segundos"), una cifra que el usuario nunca ve en pantalla.
+    """
+    try:
+        total = int(round(float(seconds or 0)))
+    except (TypeError, ValueError):
+        return "0s"
+    if total < 60:
+        return f"{total}s"
+    minutes, secs = divmod(total, 60)
+    if minutes < 60:
+        return f"{minutes}m" if not secs else f"{minutes}m {secs}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h" if not minutes else f"{hours}h {minutes}m"
+
 
 def detect_flow_issues(tasks_data, flow_nodes_data, sequence_flows_data) -> list:
     """Errores ESTRUCTURALES del diagrama (no de tiempos).
@@ -259,6 +354,9 @@ def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
                 "waste_type": task.waste_type,
                 "std_cycle_time_sec": float(task.std_cycle_time_sec) if task.std_cycle_time_sec is not None else 0.0,
                 "std_wait_time_sec": float(task.std_wait_time_sec) if task.std_wait_time_sec is not None else 0.0,
+                # Version legible: es la unica que el modelo puede citar en sus textos.
+                "cycle_time_display": human_duration(task.std_cycle_time_sec),
+                "wait_time_display": human_duration(task.std_wait_time_sec),
                 "raci": raci_assignments,
                 "systems": system_assignments
             })
@@ -430,13 +528,7 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
                 thinking_config=types.ThinkingConfig(thinking_budget=2048),
             )
         )
-        raw_response_text = response.text
-
-
-
-
-
-
+        raw_response_text = extract_response_text(response)
         cleaned_text = clean_json_response(raw_response_text)
         parsed_json = json.loads(cleaned_text)
         
@@ -451,12 +543,24 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
 
         # Attempt retry exactly once
         try:
-            retry_prompt = (
-                f"El JSON anterior falló la validación.\n"
-                f"Error de validación:\n{str(first_err)}\n\n"
-                f"Por favor, corrige el JSON y devuélvelo estrictamente de acuerdo con el esquema especificado en el system prompt.\n"
-                f"Datos del proceso original:\n{json.dumps(snapshot, indent=2)}"
-            )
+            # Si la respuesta se corto por longitud, repetir el mismo encargo la
+            # vuelve a cortar: hay que pedir explicitamente una version compacta.
+            if isinstance(first_err, IncompleteAnswer):
+                retry_prompt = (
+                    f"El intento anterior no se pudo completar: {first_err}\n\n"
+                    "Responde otra vez, pero mas compacto para que quepa entero: "
+                    "como maximo 5 recomendaciones (las de mayor impacto), "
+                    "descripciones de 2 frases y \"optimized_flow\": {\"applies\": false}. "
+                    "Es preferible un analisis breve y completo que uno extenso y cortado.\n\n"
+                    f"Datos del proceso:\n{json.dumps(snapshot, indent=2, default=str)}"
+                )
+            else:
+                retry_prompt = (
+                    f"El JSON anterior falló la validación.\n"
+                    f"Error de validación:\n{str(first_err)}\n\n"
+                    f"Por favor, corrige el JSON y devuélvelo estrictamente de acuerdo con el esquema especificado en el system prompt.\n"
+                    f"Datos del proceso original:\n{json.dumps(snapshot, indent=2, default=str)}"
+                )
 
             response_retry = client.models.generate_content(
                 model='gemini-2.5-flash',
@@ -470,13 +574,7 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
                     thinking_config=types.ThinkingConfig(thinking_budget=2048),
                 )
             )
-            raw_response_text_retry = response_retry.text
-
-
-
-
-
-
+            raw_response_text_retry = extract_response_text(response_retry)
             cleaned_text_retry = clean_json_response(raw_response_text_retry)
             parsed_json_retry = json.loads(cleaned_text_retry)
             
@@ -486,7 +584,14 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
             print(f"[Optimization] Retry also failed for process {process_id}: {retry_err}")
             # Second validation failure - mark status as failed
             db_run.status = models.OptStatus.failed
-            db_run.result = {"error": f"First attempt failed: {str(first_err)}. Retry attempt failed: {str(retry_err)}"}
+            db_run.result = {
+                # `message` es lo que ve el usuario; `error` queda para el log.
+                "message": (
+                    "El analisis no pudo completarse. Vuelve a intentarlo en un minuto; "
+                    "si el proceso es muy grande, divide el analisis por macroproceso."
+                ),
+                "error": f"First attempt failed: {str(first_err)}. Retry attempt failed: {str(retry_err)}",
+            }
             db_run.completed_at = func.now()
             db.commit()
             db.refresh(db_run)

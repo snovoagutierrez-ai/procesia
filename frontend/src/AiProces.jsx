@@ -348,12 +348,30 @@ const newBpmnId = () => "Task_" + Math.random().toString(36).slice(2, 6);
 
 
 
+// Guia de practica: cada paso dice donde hacer clic y que va a pasar despues,
+// para alguien que nunca ha modelado un proceso. Los 5 pasos coinciden con las
+// acciones reales del editor, que son las que hacen avanzar la guia sola.
 const GUIDE_STEPS = [
-  { icon: "➕", text: <>Haz clic en <strong>+ Tarea</strong> para crear tu primer paso del proceso.</> },
-  { icon: "✏️", text: <>Ponle nombre y elige la <strong>Clasificación de valor</strong> de la tarea.</> },
-  { icon: "🔀", text: <>¿Hay una decisión? Añade una <strong>+ Compuerta</strong> para ramificar el flujo.</> },
-  { icon: "🔗", text: <>Conecta los nodos en el diagrama <strong>arrastrando desde sus bordes</strong> laterales.</> },
-  { icon: "✨", text: <>¡Todo listo! Haz clic en <strong>4. Ir a Optimización IA</strong> para analizar el proceso.</> },
+  {
+    icon: "➕",
+    text: <>Abajo a la izquierda, pulsa <strong>+ Tarea</strong>. Cada tarea es un paso real del trabajo, como "Revisar documentos". Aparecerá en la lista y en el diagrama.</>,
+  },
+  {
+    icon: "✏️",
+    text: <>En el panel derecho ponle <strong>nombre</strong> y responde la pregunta de <strong>valor</strong>: si el cliente pagaría por ese paso es <strong>VA</strong>; si no, pero hace falta (un control, la ley), es <strong>NNVA</strong>; si sobra, es <strong>NVA</strong>. De aquí sale tu eficiencia.</>,
+  },
+  {
+    icon: "⏱️",
+    text: <>En ese mismo panel anota el <strong>tiempo de ciclo</strong> (lo que dura el paso) y el <strong>tiempo de espera</strong> (lo que el trabajo pasa detenido antes de empezarlo). Sin esos dos números no hay métricas.</>,
+  },
+  {
+    icon: "🔀",
+    text: <>¿El proceso se bifurca? Pulsa <strong>+ Compuerta</strong> y ponle la pregunta ("¿Está aprobado?"). Después, en <strong>Ramas de salida</strong>, etiqueta cada camino <strong>Sí / No</strong> y el % de casos que toma cada uno.</>,
+  },
+  {
+    icon: "🔗",
+    text: <>Une los pasos en el diagrama: arrastra desde el <strong>punto relleno</strong> del borde derecho (salida) hasta el <strong>punto hueco</strong> del siguiente (entrada). Cuando todo esté unido, pulsa <strong>4. Ir a Optimización IA</strong>.</>,
+  },
 ];
 
 function GuideTicket({ step, onStep, onDismiss }) {
@@ -1055,6 +1073,14 @@ export default function App() {
     if (proc) localStorage.setItem(`first_steps_${proc.id}`, 'true');
   }, [proc]);
 
+  // La guia solo aparecia una vez por proceso y no habia forma de recuperarla,
+  // asi que quien la cerraba sin querer se quedaba sin acompanamiento.
+  const restartGuide = useCallback(() => {
+    if (proc) localStorage.removeItem(`first_steps_${proc.id}`);
+    setGuideStep(1);
+    setFirstStepsActive(true);
+  }, [proc]);
+
   useEffect(() => {
     if (proc) {
       const dismissed = localStorage.getItem(`first_steps_${proc.id}`);
@@ -1526,10 +1552,7 @@ export default function App() {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gateways: newGateways, sequence_flows: newFlows })
       });
-      if (firstStepsActive) {
-        if (guideStep === 3) setGuideStep(4);
-        else if (guideStep < 4 && gateways.length >= 1) dismissGuide();
-      }
+      if (firstStepsActive && guideStep <= 4) setGuideStep(4);
     } catch (e) {
       console.error(e);
       setSaveState({ status: 'error' });
@@ -1607,10 +1630,9 @@ export default function App() {
         setMobileStep(3);
       }
 
-      if (firstStepsActive) {
-        if (guideStep === 1) setGuideStep(2);
-        else if (guideStep < 3 && tasks.length >= 1) dismissGuide();
-      }
+      // Antes la guia se cerraba sola al crear la segunda tarea, dejando al
+      // usuario sin los pasos de valor, tiempos y conexiones.
+      if (firstStepsActive && guideStep === 1) setGuideStep(2);
     } catch (e) {
       setError("Error al añadir tarea.");
     }
@@ -1712,8 +1734,30 @@ export default function App() {
       if (!res.ok) throw new Error("Status error");
       return true;
     } catch (e) {
-      showToast("No se pudo guardar el punto de retorno, optimización cancelada por seguridad. Intenta de nuevo.");
+      showToast("No se pudo guardar el punto de retorno. Revisa tu conexión e intenta de nuevo.");
       return false;
+    }
+  };
+
+  // Guardado manual de versión. El historial solo se escribía antes de acciones
+  // destructivas (aplicar IA, restaurar, borrar una tarea), asi que una jornada
+  // entera de edición podía no dejar ningún punto de retorno. Esto da una acción
+  // explícita que no depende de que el autoguardado haya hecho su trabajo.
+  const [savingVersion, setSavingVersion] = useState(false);
+  const saveManualVersion = async () => {
+    if (!proc?.id || savingVersion) return;
+    setSavingVersion(true);
+    try {
+      // Primero se persiste el estado actual: la versión debe reflejar lo que
+      // hay en pantalla, no lo último que alcanzó a guardar el autoguardado.
+      const ok = await persistGraph(gateways, sequenceFlows, proc.id);
+      if (!ok) return;
+      const stamp = new Date().toLocaleString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      if (await saveAutoSnapshot(`Versión guardada manualmente — ${stamp}`)) {
+        showToast("Versión guardada. Puedes volver a este punto desde Versiones.");
+      }
+    } finally {
+      setSavingVersion(false);
     }
   };
 
@@ -1933,6 +1977,28 @@ export default function App() {
     return flows.length > 0 ? flows[0].target_ref : "";
   }, [sequenceFlows]);
 
+  // Las compuertas tienen varias salidas. El selector unico las reemplazaba
+  // todas por una, asi que definir una rama borraba la otra ya configurada; por
+  // eso la unica forma de quitar una linea sobrante era borrar la compuerta.
+  // Aqui la rama se anade sin tocar las demas (se quitan una a una desde
+  // "Ramas de salida" en el panel de detalle).
+  const addOutgoingTarget = useCallback((sourceBpmnId, newTarget) => {
+    if (!newTarget || newTarget === sourceBpmnId) return;
+    const flows = sequenceFlows || [];
+    if (flows.some(f => f.source_ref === sourceBpmnId && f.target_ref === newTarget)) {
+      showToast("Esa rama ya existe.");
+      return;
+    }
+    const newFlows = [...flows, {
+      bpmn_id: "Flow_" + Math.random().toString(36).slice(2, 8).toUpperCase(),
+      source_ref: sourceBpmnId,
+      target_ref: newTarget,
+      name: ""
+    }];
+    setSequenceFlows(newFlows);
+    persistGraph(gateways || [], newFlows, proc.id);
+  }, [sequenceFlows, gateways, proc, persistGraph, showToast]);
+
   const setOutgoingTarget = useCallback((sourceBpmnId, newTarget) => {
     let newFlows = [...(sequenceFlows || [])];
     if (!newTarget) {
@@ -2028,6 +2094,21 @@ export default function App() {
       showToast("Error al exportar BPMN: " + e.message);
     }
   }
+
+  // Lleva al usuario al paso que menciona una recomendacion. La IA se limita a
+  // orientar, asi que el atajo es "ver donde", no "hacerlo por ti".
+  const focusNodeByBpmnId = useCallback((bpmnId) => {
+    if (!bpmnId) return;
+    const task = tasks.find(t => t.bpmnId === bpmnId || String(t.id) === String(bpmnId));
+    const gw = (gateways || []).find(g => g.bpmn_id === bpmnId);
+    if (!task && !gw) {
+      showToast("Ese paso ya no existe en el proceso.");
+      return;
+    }
+    setSelectedId(task ? task.id : gw.bpmn_id);
+    setTab("detalle");
+    setMobileStep(3);
+  }, [tasks, gateways, showToast]);
 
   const onNodeSelect = useCallback((taskId) => {
     if (taskId === "start" || taskId === "end") {
@@ -2265,6 +2346,15 @@ export default function App() {
                   <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver tutorial" onClick={() => setShowTutorial(true)} aria-label="Tutorial">
                     <Info size={16} /><span className="pa-editor-action-label"> Tutorial</span>
                   </button>
+                  <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={restartGuide}
+                    title="Te acompaña paso a paso mientras construyes el proceso" aria-label="Practicar paso a paso">
+                    <Lightbulb size={16} /><span className="pa-editor-action-label"> Practicar</span>
+                  </button>
+                  <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={saveManualVersion} disabled={savingVersion}
+                    title="Guarda una versión del proceso tal como está ahora" aria-label="Guardar versión">
+                    {savingVersion ? <Loader2 size={16} className="spin" /> : <Check size={16} />}
+                    <span className="pa-editor-action-label"> Guardar versión</span>
+                  </button>
                   <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => setSnapshotsModalOpen(true)} aria-label="Versiones">
                     <Clock size={16} /><span className="pa-editor-action-label"> Versiones</span>
                   </button>
@@ -2290,6 +2380,12 @@ export default function App() {
                       <div role="menu" className="pa-editor-menu">
                         <button role="menuitem" onClick={() => { setShowTutorial(true); setMobileMenuOpen(false); }}>
                           <Info size={16} /> Tutorial
+                        </button>
+                        <button role="menuitem" onClick={() => { restartGuide(); setMobileMenuOpen(false); }}>
+                          <Lightbulb size={16} /> Practicar paso a paso
+                        </button>
+                        <button role="menuitem" onClick={() => { saveManualVersion(); setMobileMenuOpen(false); }}>
+                          <Check size={16} /> Guardar versión
                         </button>
                         <button role="menuitem" onClick={() => { setSnapshotsModalOpen(true); setMobileMenuOpen(false); }}>
                           <Clock size={16} /> Versiones
@@ -2367,28 +2463,36 @@ export default function App() {
                 <div className="pa-side-title">Tareas <span className="pa-count">{tasks.length}</span></div>
                 <div className="pa-steplist">
                   {tasks.map((t, i) => (
-                    <div key={t.id} className={"pa-step" + (t.id === selectedId ? " sel" : "")} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                    <div key={t.id} className={"pa-step" + (t.id === selectedId ? " sel" : "")}>
+                      {/* Dos filas: el paso arriba y su direccion debajo. En una sola fila el
+                          <select> no podia encogerse por debajo del ancho de su contenido y
+                          terminaba montado sobre el nombre del paso. */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                       <div onClick={() => { setSelectedId(t.id); setTab("detalle"); setMobileStep(3); }} style={{ display: "flex", alignItems: "center", gap: 9, flex: 1, minWidth: 0, cursor: "pointer" }}>
                         <span className="pa-step-bar" style={{ background: VALUE[t.valueClass]?.color || "#EEF3F0" }} />
                         <span className="pa-step-n mono">{String(i + 1).padStart(2, "0")}</span>
                         <span className="pa-step-name">{t.name}</span>
                         <span className="pa-step-t mono">{fmtShort((Number(t.cycleTime) || 0) + (Number(t.waitTime) || 0))}</span>
                       </div>
-                      <select 
-                         value={getOutgoingTarget(t.bpmnId)} 
-                         onChange={(e) => setOutgoingTarget(t.bpmnId, e.target.value)}
-                         style={{ background: "transparent", border: "1px solid var(--line-ink)", color: "var(--inv-muted)", borderRadius: 4, padding: "2px 4px", fontSize: 11, maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis" }}
-                         onClick={(e) => e.stopPropagation()}
-                      >
-                         <option value="">(Desconectado)</option>
-                         <option value="end">🏁 Fin</option>
-                         {tasks.filter(tk => tk.id !== t.id).map((tk) => {
-                           const tIdx = String(tasks.findIndex(x => x.id === tk.id) + 1).padStart(2, "0");
-                           return <option key={tk.bpmnId} value={tk.bpmnId}>Hacia {tIdx}. {tk.name}</option>
-                         })}
-                         {gateways.map(g => <option key={g.bpmn_id} value={g.bpmn_id}>Hacia {g.name}</option>)}
-                      </select>
                       <button onClick={async (e) => { e.stopPropagation(); const ok = await confirm("Eliminar tarea", `\u00bfEliminar "${t.name}"?`, { danger: true }); if (ok) deleteTask(t.id); }} title="Eliminar tarea" aria-label="Eliminar tarea" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
+                      </div>
+                      <div className="pa-step-dir">
+                        <span className="pa-step-dir-label">Continua en</span>
+                        <select
+                           value={getOutgoingTarget(t.bpmnId)}
+                           onChange={(e) => setOutgoingTarget(t.bpmnId, e.target.value)}
+                           aria-label={`Siguiente paso despues de ${t.name}`}
+                           onClick={(e) => e.stopPropagation()}
+                        >
+                           <option value="">(Desconectado)</option>
+                           <option value="end">🏁 Fin</option>
+                           {tasks.filter(tk => tk.id !== t.id).map((tk) => {
+                             const tIdx = String(tasks.findIndex(x => x.id === tk.id) + 1).padStart(2, "0");
+                             return <option key={tk.bpmnId} value={tk.bpmnId}>{tIdx}. {tk.name}</option>
+                           })}
+                           {gateways.map(g => <option key={g.bpmn_id} value={g.bpmn_id}>{g.name || "Compuerta"}</option>)}
+                        </select>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2397,27 +2501,37 @@ export default function App() {
                     <div className="pa-side-title" style={{ marginTop: '16px' }}>Compuertas <span className="pa-count">{gateways.length}</span></div>
                     <div className="pa-steplist">
                       {gateways.map((g) => (
-                        <div key={g.bpmn_id} className={"pa-step" + (g.bpmn_id === selectedId ? " sel" : "")} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                        <div key={g.bpmn_id} className={"pa-step" + (g.bpmn_id === selectedId ? " sel" : "")}>
+                          {/* Dos filas: el paso arriba y su direccion debajo. En una sola fila el
+                              <select> no podia encogerse por debajo del ancho de su contenido y
+                              terminaba montado sobre el nombre del paso. */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                           <div onClick={() => { setSelectedId(g.bpmn_id); setTab("detalle"); setMobileStep(3); }} style={{ display: "flex", alignItems: "center", gap: 9, flex: 1, minWidth: 0, cursor: "pointer" }}>
                             <span className="pa-step-bar" style={{ background: "#8C8C8C" }} />
                             <span className="pa-step-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name || "Compuerta"}</span>
                             <span className="pa-step-t mono">{g.node_type === "exclusiveGateway" ? "EXC" : "PAR"}</span>
                           </div>
-                          <select 
-                             value={getOutgoingTarget(g.bpmn_id)} 
-                             onChange={(e) => setOutgoingTarget(g.bpmn_id, e.target.value)}
-                             style={{ background: "transparent", border: "1px solid var(--line-ink)", color: "var(--inv-muted)", borderRadius: 4, padding: "2px 4px", fontSize: 11, maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis" }}
-                             onClick={(e) => e.stopPropagation()}
-                          >
-                             <option value="">(Desconectado)</option>
-                             <option value="end">🏁 Fin</option>
-                             {tasks.map(tk => {
-                               const tIdx = String(tasks.findIndex(x => x.id === tk.id) + 1).padStart(2, "0");
-                               return <option key={tk.bpmnId} value={tk.bpmnId}>Hacia {tIdx}. {tk.name}</option>
-                             })}
-                             {gateways.filter(gx => gx.bpmn_id !== g.bpmn_id).map(gx => <option key={gx.bpmn_id} value={gx.bpmn_id}>Hacia {gx.name}</option>)}
-                          </select>
                           <button onClick={async (e) => { e.stopPropagation(); const ok = await confirm("Eliminar compuerta", `\u00bfEliminar "${g.name || 'esta compuerta'}"?`, { danger: true }); if (ok) deleteGateway(g.bpmn_id); }} title="Eliminar compuerta" aria-label="Eliminar compuerta" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
+                          </div>
+                          <div className="pa-step-dir">
+                            <span className="pa-step-dir-label">
+                              {(sequenceFlows || []).filter(f => f.source_ref === g.bpmn_id).length} ramas
+                            </span>
+                            <select
+                               value=""
+                               onChange={(e) => { addOutgoingTarget(g.bpmn_id, e.target.value); e.target.value = ""; }}
+                               aria-label={`Anadir una rama de salida a la compuerta ${g.name || "sin nombre"}`}
+                               onClick={(e) => e.stopPropagation()}
+                            >
+                               <option value="">+ Anadir rama hacia...</option>
+                               <option value="end">🏁 Fin</option>
+                               {tasks.map(tk => {
+                                 const tIdx = String(tasks.findIndex(x => x.id === tk.id) + 1).padStart(2, "0");
+                                 return <option key={tk.bpmnId} value={tk.bpmnId}>{tIdx}. {tk.name}</option>
+                               })}
+                               {gateways.filter(gx => gx.bpmn_id !== g.bpmn_id).map(gx => <option key={gx.bpmn_id} value={gx.bpmn_id}>{gx.name || "Compuerta"}</option>)}
+                            </select>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2462,10 +2576,11 @@ export default function App() {
                   sequenceFlows={sequenceFlows}
                   selectedId={selectedId} 
                   onSelect={onNodeSelect}
+                  onConnectionRejected={showToast}
                   onGraphChange={async (newGateways, newFlows) => {
                     setGateways(newGateways);
                     setSequenceFlows(newFlows);
-                    if (firstStepsActive && guideStep === 4) setGuideStep(5);
+                    if (firstStepsActive && guideStep >= 4) setGuideStep(5);
                     await persistGraph(newGateways, newFlows, proc.id);
                   }}
                   onLayoutChange={saveLayout}
@@ -2631,7 +2746,7 @@ export default function App() {
                     </div>
                   )
                 ) : (
-                  <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onApplyRecommendation={handleApplyRecommendation} />
+                  <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onApplyRecommendation={handleApplyRecommendation} onFocusNode={focusNodeByBpmnId} />
                 )}
               </div>
             </div>
@@ -2726,7 +2841,7 @@ export default function App() {
                   </div>
                 )
               ) : (
-                <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onApplyRecommendation={handleApplyRecommendation} />
+                <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onApplyRecommendation={handleApplyRecommendation} onFocusNode={focusNodeByBpmnId} />
               )}
               </div>
             </div>

@@ -663,7 +663,7 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
 
 /* Fila de rama saliente de una compuerta: etiqueta (Sí/No) + probabilidad %.
    Estado local con commit onBlur para no disparar un PUT del grafo por tecla. */
-function BranchRow({ flow, targetName, isExclusive, onCommit }) {
+function BranchRow({ flow, targetName, isExclusive, onCommit, onRemove }) {
   const [label, setLabel] = useState(flow.condition_expression || flow.condition || "");
   const [prob, setProb] = useState(flow.branch_probability != null ? String(flow.branch_probability) : "");
 
@@ -702,6 +702,16 @@ function BranchRow({ flow, targetName, isExclusive, onCommit }) {
         <div style={{ display: 'flex', gap: 4 }}>
           <button type="button" className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => { setLabel("Sí"); commit("Sí", prob); }}>Sí</button>
           <button type="button" className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => { setLabel("No"); commit("No", prob); }}>No</button>
+          {/* Borrar SOLO esta rama. Antes la unica salida era cambiar la
+              direccion en la lista lateral (lo que pisaba otra rama ya
+              definida) o eliminar la compuerta entera. */}
+          <button type="button" className="pa-btn pa-btn-ghost pa-btn-sm"
+            style={{ color: '#D9503C', borderColor: '#D9503C' }}
+            title={`Eliminar la rama hacia ${targetName}`}
+            aria-label={`Eliminar la rama hacia ${targetName}`}
+            onClick={() => onRemove && onRemove(flow)}>
+            <Trash2 size={14} />
+          </button>
         </div>
       </div>
     </div>
@@ -762,6 +772,12 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
             );
             onFlowsChange(newFlows);
           };
+          const removeBranch = (flow) => {
+            if (!onFlowsChange) return;
+            onFlowsChange((sequenceFlows || []).filter(f =>
+              !((f.bpmn_id && f.bpmn_id === flow.bpmn_id) || f === flow)
+            ));
+          };
           const probs = outgoing.map(f => f.branch_probability).filter(p => p != null && p !== "");
           const probSum = probs.reduce((a, p) => a + Number(p), 0);
           const showSumWarning = isExclusive && outgoing.length > 1 && probs.length > 0 && Math.round(probSum) !== 100;
@@ -773,7 +789,7 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
               </div>
               {outgoing.map((f, i) => (
                 <BranchRow key={f.bpmn_id || i} flow={f} isExclusive={isExclusive}
-                  targetName={targetName(f.target_ref)} onCommit={commitBranch} />
+                  targetName={targetName(f.target_ref)} onCommit={commitBranch} onRemove={removeBranch} />
               ))}
               {showSumWarning && (
                 <Banner variant="warning" title="Las probabilidades no suman 100%">
@@ -810,7 +826,7 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
   );
 }
 
-function Optimization({ state, onRun, onApply, onApplyRecommendation, tasks }) {
+function Optimization({ state, onRun, onApply, onApplyRecommendation, onFocusNode, tasks }) {
   const d = state.data;
   const [appliedIds, setAppliedIds] = useState(new Set());
   const incompleteTasks = tasks?.filter(t => !t.responsible || !t.valueClass || t.cycleTime === undefined);
@@ -935,18 +951,41 @@ function Optimization({ state, onRun, onApply, onApplyRecommendation, tasks }) {
                     <p>{r.description}</p>
                     <div className="pa-meta">Complejidad: {r.implementation_complexity || "—"}</div>
 
-                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-                      <button
-                        className="pa-btn pa-btn-primary"
-                        style={{ padding: '6px 12px', fontSize: 12 }}
-                        disabled={appliedIds.has(r.target_node_bpmn_id || r.title)}
-                        onClick={() => {
-                          if (onApplyRecommendation) onApplyRecommendation(r, () => setAppliedIds(prev => new Set([...prev, r.target_node_bpmn_id || r.title])));
-                        }}
-                      >
-                        {appliedIds.has(r.target_node_bpmn_id || r.title) ? <><Check size={14} style={{ marginRight: 4 }} /> Aplicada</> : 'Aplicar recomendación'}
-                      </button>
+                    {/* La IA orienta, no interviene. Antes cada recomendacion
+                        traia un boton que ejecutaba el cambio sobre el flujo del
+                        usuario, incluido eliminar tareas que si eran necesarias.
+                        Ahora la accion primaria lleva al paso en el diagrama para
+                        que la persona decida y lo haga; ELIMINATE ni siquiera
+                        ofrece atajo, porque borra trabajo. */}
+                    <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {r.target_node_bpmn_id && onFocusNode && (
+                        <button
+                          className="pa-btn pa-btn-ghost pa-btn-sm"
+                          onClick={() => onFocusNode(r.target_node_bpmn_id)}
+                        >
+                          Ver el paso en el diagrama
+                        </button>
+                      )}
+                      {r.action_type !== 'ELIMINATE' && onApplyRecommendation && (
+                        <button
+                          className="pa-btn pa-btn-ghost pa-btn-sm"
+                          disabled={appliedIds.has(r.target_node_bpmn_id || r.title)}
+                          title="Aplica este cambio por ti. Puedes deshacerlo desde Versiones."
+                          onClick={() => {
+                            onApplyRecommendation(r, () => setAppliedIds(prev => new Set([...prev, r.target_node_bpmn_id || r.title])));
+                          }}
+                        >
+                          {appliedIds.has(r.target_node_bpmn_id || r.title) ? <><Check size={14} style={{ marginRight: 4 }} /> Aplicada</> : 'Aplicar por mí'}
+                        </button>
+                      )}
                     </div>
+                    {r.action_type === 'ELIMINATE' && (
+                      <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)', background: '#F8F9FA', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px' }}>
+                        Eliminar un paso cambia el proceso real: hazlo tú desde el
+                        diagrama solo si estás de acuerdo, y reconecta el paso anterior
+                        con el siguiente para no cortar el flujo.
+                      </div>
+                    )}
                   </div>
                 );
               })}

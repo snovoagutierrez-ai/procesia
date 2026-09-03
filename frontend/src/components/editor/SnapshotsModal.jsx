@@ -73,13 +73,12 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestore, 
               <Clock size={16} style={{ flexShrink: 0, marginTop: 2 }} />
               <div>
                 <strong style={{ display: 'block', marginBottom: 4 }}>¿Cómo se guarda una versión?</strong>
-                Las versiones se crean <strong>automáticamente</strong> (no de forma manual) como punto de retorno justo <strong>antes</strong> de una acción que reemplaza tu flujo. Cada versión es una copia completa de las tareas, compuertas y conexiones tal como estaban en ese momento. Se guarda automáticamente antes de:
+                Cada versión es una copia completa de las tareas, compuertas y conexiones tal como estaban en ese momento. Hay dos formas de crearla:
                 <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-                  <li>Aplicar un <strong>flujo optimizado por IA</strong>.</li>
-                  <li><strong>Restaurar</strong> otra versión anterior.</li>
-                  <li><strong>Eliminar una tarea</strong> del proceso.</li>
+                  <li><strong>Tú, cuando quieras</strong>: con el botón <strong>Guardar versión</strong> de la barra superior del editor. Úsalo al terminar una sesión de trabajo.</li>
+                  <li><strong>Automáticamente</strong>, como punto de retorno justo <strong>antes</strong> de una acción que reemplaza tu flujo: aplicar un <strong>flujo optimizado por IA</strong>, <strong>restaurar</strong> otra versión o <strong>eliminar una tarea</strong>.</li>
                 </ul>
-                <div style={{ marginTop: 6, opacity: 0.85 }}>Editar campos, mover pasos o conectar nodos <em>no</em> genera una versión: esos cambios se guardan sobre el proceso actual.</div>
+                <div style={{ marginTop: 6, opacity: 0.85 }}>Editar campos, mover pasos o conectar nodos <em>no</em> genera una versión por sí solo: esos cambios se guardan sobre el proceso actual. Si quieres poder volver a este punto exacto, guarda la versión a mano.</div>
               </div>
             </div>
           </div>

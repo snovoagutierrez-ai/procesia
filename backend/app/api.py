@@ -155,8 +155,12 @@ def optimize_macroprocess(request: Request, id: int, db: Session = Depends(get_d
         raise HTTPException(status_code=404, detail=str(e))
 
     if db_run.status == models.OptStatus.failed:
-        error_msg = db_run.result.get("error", "") if isinstance(db_run.result, dict) else str(db_run.result)
-        display_msg = error_msg if "2 procesos" in error_msg else "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos."
+        result = db_run.result if isinstance(db_run.result, dict) else {}
+        error_msg = result.get("error", "") if result else str(db_run.result)
+        display_msg = result.get("message") or (
+            error_msg if "2 procesos" in error_msg
+            else "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos."
+        )
         
         raise HTTPException(
             status_code=503,
@@ -455,8 +459,12 @@ def optimize_process(request: Request, id: int, db: Session = Depends(get_db), c
     # Note: Exceptions are caught globally by our middleware in main.py to prevent leak
 
     if db_run.status == models.OptStatus.failed:
-        error_msg = db_run.result.get("error", "") if isinstance(db_run.result, dict) else str(db_run.result)
-        display_msg = error_msg if error_msg else "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos."
+        # `message` es la explicacion redactada para el usuario; `error` es la
+        # traza tecnica, que antes se mostraba tal cual en pantalla.
+        result = db_run.result if isinstance(db_run.result, dict) else {}
+        display_msg = result.get("message") or result.get("error") or str(db_run.result) or (
+            "La IA de Google rechazo la peticion (Servidores saturados o Limite de Cuota excedido). Intenta de nuevo en unos minutos."
+        )
         
         raise HTTPException(
             status_code=503,
