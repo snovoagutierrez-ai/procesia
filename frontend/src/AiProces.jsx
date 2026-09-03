@@ -2250,8 +2250,8 @@ export default function App() {
               </div>
               {!isMobile ? (
                 <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver guía paso a paso" onClick={() => { setFirstStepsActive(true); setGuideStep(1); }} aria-label="Guía">
-                    <Lightbulb size={16} /><span className="pa-editor-action-label"> Guía</span>
+                  <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Ver tutorial" onClick={() => setShowTutorial(true)} aria-label="Tutorial">
+                    <Info size={16} /><span className="pa-editor-action-label"> Tutorial</span>
                   </button>
                   <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => setSnapshotsModalOpen(true)} aria-label="Versiones">
                     <Clock size={16} /><span className="pa-editor-action-label"> Versiones</span>
@@ -2276,8 +2276,8 @@ export default function App() {
                     <>
                       <div onClick={() => setMobileMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
                       <div role="menu" className="pa-editor-menu">
-                        <button role="menuitem" onClick={() => { setFirstStepsActive(true); setGuideStep(1); setMobileMenuOpen(false); }}>
-                          <Lightbulb size={16} /> Guía paso a paso
+                        <button role="menuitem" onClick={() => { setShowTutorial(true); setMobileMenuOpen(false); }}>
+                          <Info size={16} /> Tutorial
                         </button>
                         <button role="menuitem" onClick={() => { setSnapshotsModalOpen(true); setMobileMenuOpen(false); }}>
                           <Clock size={16} /> Versiones
