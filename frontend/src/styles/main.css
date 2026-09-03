@@ -217,6 +217,24 @@ button{font-family:inherit}
   overflow:hidden;text-overflow:ellipsis;text-align:center}
 .rf-handle{background:#9AA8A8 !important;width:20px !important;height:20px !important;border:3px solid #fff !important;cursor:crosshair !important;transition:all 0.2s ease !important;box-shadow: 0 0 0 4px rgba(14, 159, 159, 0) !important;}
 .rf-handle:hover{background:#0E9F9F !important;transform:scale(1.2) !important;box-shadow: 0 0 0 8px rgba(14, 159, 159, 0.25) !important;}
+/* Entrada vs salida: todos los conectores se veian iguales y no habia forma de
+   saber por donde entra y por donde sale el flujo. La salida es un punto lleno
+   (de aqui sale la flecha); la entrada es un anillo hueco (aqui se suelta). */
+.rf-handle-out{background:#0E9F9F !important;border-color:#fff !important;}
+.rf-handle-in{background:#fff !important;border:3px solid #9AA8A8 !important;}
+.rf-handle-in:hover{background:#fff !important;border-color:#0E9F9F !important;}
+.rf-legend{position:absolute;left:10px;bottom:10px;z-index:20;display:flex;align-items:center;gap:14px;background:rgba(255,255,255,.92);border:1px solid #E2E7E3;border-radius:8px;padding:5px 10px;font-size:11.5px;color:var(--muted);box-shadow:0 2px 8px rgba(0,0,0,.06);}
+.rf-legend span{display:inline-flex;align-items:center;gap:5px;}
+.rf-legend i{width:11px;height:11px;border-radius:50%;display:inline-block;}
+.rf-legend i.out{background:#0E9F9F;}
+.rf-legend i.in{background:#fff;border:2.5px solid #9AA8A8;}
+
+/* Fila de la barra lateral: la direccion va en su propia linea. Antes compartia
+   fila con el nombre y el <select> se montaba encima al estrecharse el panel. */
+.pa-step-dir{display:flex;align-items:center;gap:7px;margin-top:6px;padding-left:2px;}
+.pa-step-dir-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--inv-muted);opacity:.75;flex-shrink:0;}
+.pa-step-dir select{flex:1;min-width:0;background:transparent;border:1px solid var(--line-ink);color:var(--inv-muted);border-radius:5px;padding:3px 5px;font-size:11.5px;}
+.pa-step-dir select:focus{outline:none;border-color:var(--teal);}
 
 .rf-task-node{background:#fff;border:1.5px solid #E2E7E3;border-left:5px solid #1FA463;border-radius:10px;
   padding:10px 14px;min-width:180px;max-width:220px;cursor:pointer;transition:.15s;font-family:var(--body)}

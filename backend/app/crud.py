@@ -575,6 +575,46 @@ def _update_task_systems_direct(db: Session, task_id: int, systems_str: str):
 # 8. Graph (Nodes & Edges) sync for Phase 3
 # ==========================================
 
+def repair_stored_flows(db: Session, process_id: int, gateways, sequence_flows) -> bool:
+    """Sanea en el sitio las conexiones ya guardadas mal.
+
+    Los procesos creados antes de la validacion arrastran dos defectos: flechas
+    que apuntan a la tarea por su id numerico (invisibles para todo lo que
+    indexa por bpmn_id, de ahi el "sin entrada" permanente) y etiquetas de
+    decision colgando de una tarea. Se corrigen al leer el grafo para que el
+    usuario no tenga que rehacer el flujo. Devuelve True si cambio algo.
+    """
+    tasks = (
+        db.query(models.Task)
+        .join(models.Activity)
+        .filter(models.Activity.process_id == process_id)
+        .all()
+    )
+    ref_by_numeric_id = {str(t.id): t.bpmn_id for t in tasks}
+    gateway_refs = {gw.bpmn_id for gw in gateways}
+    changed = False
+
+    for sf in sequence_flows:
+        canonical_source = ref_by_numeric_id.get(sf.source_ref, sf.source_ref)
+        canonical_target = ref_by_numeric_id.get(sf.target_ref, sf.target_ref)
+        if canonical_source != sf.source_ref:
+            sf.source_ref = canonical_source
+            changed = True
+        if canonical_target != sf.target_ref:
+            sf.target_ref = canonical_target
+            changed = True
+        if sf.source_ref not in gateway_refs and (
+            sf.condition_expression or sf.branch_probability is not None
+        ):
+            sf.condition_expression = None
+            sf.branch_probability = None
+            changed = True
+
+    if changed:
+        db.commit()
+    return changed
+
+
 def get_graph(db: Session, process_id: int) -> schemas.GraphResponse:
     gateways = db.query(models.FlowNode).filter(
         models.FlowNode.process_id == process_id,
@@ -585,6 +625,8 @@ def get_graph(db: Session, process_id: int) -> schemas.GraphResponse:
         models.SequenceFlow.process_id == process_id
     ).all()
     
+    repair_stored_flows(db, process_id, gateways, sequence_flows)
+
     return schemas.GraphResponse(
         gateways=gateways,
         sequence_flows=sequence_flows
@@ -611,6 +653,83 @@ def sync_macro_graph(db: Session, macroprocess_id: int, graph_data: schemas.Macr
     db.commit()
     
     return get_macro_graph(db, macroprocess_id)
+
+# Tipos de nodo que pueden originar una decision. Solo desde ellos tiene sentido
+# una rama etiquetada (Si/No) con probabilidad.
+_GATEWAY_TYPES = {
+    models.BpmnNodeType.exclusiveGateway,
+    models.BpmnNodeType.parallelGateway,
+    models.BpmnNodeType.inclusiveGateway,
+}
+
+
+def normalize_sequence_flows(db: Session, process_id: int, gateways, flows):
+    """Normaliza y valida las conexiones antes de persistirlas.
+
+    Tres problemas reales que se colaban hasta la base de datos:
+
+    1. Referencias mezcladas. El canvas construye los nodos como `task-<id>` y
+       al soltar una conexion guardaba el id numerico ("42"), mientras el resto
+       del sistema (barra lateral, aviso de problemas de flujo y la IA) indexa
+       por `bpmn_id` ("Task_qy02"). La flecha se dibujaba pero nadie la
+       reconocia: la tarea quedaba marcada "sin entrada" para siempre.
+    2. Auto-conexiones. Una compuerta podia conectarse a si misma y aparecia
+       como una tercera rama de salida invalida, imposible de borrar sin
+       eliminar la compuerta entera.
+    3. Ramas de decision naciendo de una tarea. Solo una compuerta decide, asi
+       que la etiqueta y la probabilidad se descartan en cualquier otro origen.
+
+    Devuelve (flujos_validos, descartes) donde descartes es una lista de textos
+    explicando que se elimino, para poder avisar al cliente.
+    """
+    tasks = (
+        db.query(models.Task)
+        .join(models.Activity)
+        .filter(models.Activity.process_id == process_id)
+        .all()
+    )
+    ref_by_numeric_id = {str(t.id): t.bpmn_id for t in tasks}
+    gateway_refs = {gw.bpmn_id for gw in gateways}
+
+    def canonical(ref):
+        ref = (ref or "").strip()
+        return ref_by_numeric_id.get(ref, ref)
+
+    result, discarded, seen = [], [], set()
+    for sf in flows:
+        sf.source_ref = canonical(sf.source_ref)
+        sf.target_ref = canonical(sf.target_ref)
+
+        if not sf.source_ref or not sf.target_ref:
+            discarded.append("Se descarto una conexion sin origen o sin destino.")
+            continue
+        if sf.source_ref == sf.target_ref:
+            discarded.append(
+                f"'{sf.source_ref}' no puede conectarse consigo mismo: se descarto esa rama."
+            )
+            continue
+
+        pair = (sf.source_ref, sf.target_ref)
+        if pair in seen:
+            discarded.append(
+                f"Ya existia una conexion de '{sf.source_ref}' a '{sf.target_ref}': se descarto la duplicada."
+            )
+            continue
+        seen.add(pair)
+
+        if sf.source_ref not in gateway_refs and (
+            sf.condition_expression or sf.branch_probability is not None
+        ):
+            discarded.append(
+                f"'{sf.source_ref}' no es una compuerta: se quito la etiqueta de decision de su salida."
+            )
+            sf.condition_expression = None
+            sf.branch_probability = None
+
+        result.append(sf)
+
+    return result, discarded
+
 
 def sync_graph(db: Session, process_id: int, graph_data: schemas.GraphSync) -> schemas.GraphResponse:
     # 1. Upsert Gateways
@@ -644,11 +763,16 @@ def sync_graph(db: Session, process_id: int, graph_data: schemas.GraphSync) -> s
             db.delete(gw)
 
     # 2. Upsert Sequence Flows
+    # Las compuertas entrantes ya se registraron arriba pero aun no estan en la
+    # sesion consultable, por eso se normaliza contra graph_data.gateways.
+    incoming_flows, discarded = normalize_sequence_flows(
+        db, process_id, graph_data.gateways, graph_data.sequence_flows
+    )
     existing_flows = db.query(models.SequenceFlow).filter(models.SequenceFlow.process_id == process_id).all()
     existing_sf_map = {sf.bpmn_id: sf for sf in existing_flows}
     incoming_sf_ids = set()
     
-    for sf in graph_data.sequence_flows:
+    for sf in incoming_flows:
         incoming_sf_ids.add(sf.bpmn_id)
         if sf.bpmn_id in existing_sf_map:
             existing_sf_map[sf.bpmn_id].source_ref = sf.source_ref
@@ -678,7 +802,9 @@ def sync_graph(db: Session, process_id: int, graph_data: schemas.GraphSync) -> s
             db.delete(sf)
 
     db.commit()
-    return get_graph(db, process_id)
+    response = get_graph(db, process_id)
+    response.discarded = discarded
+    return response
 
 
 # ==========================================

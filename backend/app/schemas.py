@@ -469,6 +469,10 @@ class MacroGraphSync(BaseModel):
 class GraphResponse(BaseModel):
     gateways: List[FlowNodeResponse]
     sequence_flows: List[SequenceFlowResponse]
+    # Conexiones que el servidor rechazo al normalizar (auto-conexiones, ramas
+    # de decision naciendo de una tarea, duplicados). El editor las muestra para
+    # que el usuario entienda por que su ultima conexion no quedo guardada.
+    discarded: List[str] = []
 
 # ========= NODE COMMENTS =========
 

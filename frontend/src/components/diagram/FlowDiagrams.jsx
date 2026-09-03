@@ -151,7 +151,7 @@ function StartNode({ data }) {
         <div className="rf-start-inner" />
       </div>
       <div className="rf-event-label">{data.label}</div>
-      <Handle type="source" position={Position.Right} className="rf-handle" />
+      <Handle type="source" position={Position.Right} className="rf-handle rf-handle-out" title="Salida: arrastra desde aqui hacia el siguiente paso" />
     </div>
   );
 }
@@ -163,7 +163,7 @@ function EndNode({ data }) {
         <div className="rf-end-inner" />
       </div>
       <div className="rf-event-label">{data.label}</div>
-      <Handle type="target" position={Position.Left} className="rf-handle" />
+      <Handle type="target" position={Position.Left} className="rf-handle rf-handle-in" title="Entrada: suelta aqui la flecha del paso anterior" />
     </div>
   );
 }
@@ -177,7 +177,7 @@ function TaskNode({ data }) {
       style={{ borderLeftColor: v.color }}
       onClick={() => data.onSelect && data.onSelect(data.taskId)}
     >
-      <Handle type="target" position={Position.Left} className="rf-handle" id="left" />
+      <Handle type="target" position={Position.Left} className="rf-handle rf-handle-in" id="left" title="Entrada: suelta aqui la flecha del paso anterior" />
       <div className="rf-task-header">
         <span className="rf-task-name">{data.label}</span>
       </div>
@@ -191,7 +191,7 @@ function TaskNode({ data }) {
         <span>ciclo {fmtShort(data.cycleTime)}</span>
         {data.waitTime > 0 && <span>| espera {fmtShort(data.waitTime)}</span>}
       </div>
-      <Handle type="source" position={Position.Right} className="rf-handle" id="right" />
+      <Handle type="source" position={Position.Right} className="rf-handle rf-handle-out" id="right" title="Salida: arrastra desde aqui hacia el siguiente paso" />
     </div>
   );
 }
@@ -336,6 +336,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
       data: {
         label: t.name,
         taskId: t.id,
+        bpmnId: t.bpmnId,
         taskType: t.type,
         valueClass: t.valueClass,
         cycleTime: t.cycleTime,
@@ -432,7 +433,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
   return getLayoutedElements(rfNodes, rfEdges, "LR", savedPositions);
 }
 
-function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange }) {
+function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected }) {
   const savedPositions = proc?.layout_json || null;
   const [laneMode, setLaneMode] = useState(false);
   const onEdgesDelete = useCallback(
@@ -472,14 +473,50 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
     setEdges(layoutedEdges);
   }, [nodesWithSelection, layoutedEdges, setNodes, setEdges]);
 
+  // El id del nodo en el canvas ("task-42", "gw-Gateway_ab") no es la
+  // referencia que guarda el resto del sistema: la barra lateral, el aviso de
+  // problemas de flujo y la IA indexan por bpmn_id. Antes se guardaba el id
+  // numerico de la tarea, asi que la flecha se dibujaba pero ningun chequeo la
+  // reconocia y el paso quedaba "sin entrada" de forma permanente.
+  const refFor = useCallback((nodeId) => {
+    if (nodeId === "start" || nodeId === "end") return nodeId;
+    if (nodeId.startsWith("gw-")) return nodeId.slice(3);
+    const t = (tasks || []).find((t) => `task-${t.id}` === nodeId);
+    return t ? (t.bpmnId || String(t.id)) : nodeId;
+  }, [tasks]);
+
+  // Reglas de conexion, evaluadas mientras se arrastra para que React Flow
+  // marque el destino como invalido en vez de dejar crear la linea.
+  const connectionError = useCallback((source, target) => {
+    if (!source || !target) return null;
+    if (source === target) return "Un paso no puede conectarse consigo mismo.";
+    const s = refFor(source), t = refFor(target);
+    if (s === t) return "Un paso no puede conectarse consigo mismo.";
+    if (t === "start") return "El Inicio no puede recibir flechas.";
+    if (s === "end") return "El Fin no puede tener salidas.";
+    const dup = (sequenceFlows || []).some((f) => f.source_ref === s && f.target_ref === t);
+    if (dup) return "Esa conexion ya existe.";
+    return null;
+  }, [refFor, sequenceFlows]);
+
+  const isValidConnection = useCallback(
+    (c) => !connectionError(c.source, c.target),
+    [connectionError]
+  );
+
   const onConnect = useCallback(
     (params) => {
+      const problem = connectionError(params.source, params.target);
+      if (problem) {
+        if (onConnectionRejected) onConnectionRejected(problem);
+        return;
+      }
       // bpmn_id es obligatorio en el backend (SequenceFlowSync): sin él, el PUT
       // de /graph falla con 422 y la conexión arrastrada no persiste al recargar.
       const newFlow = {
         bpmn_id: "Flow_" + Math.random().toString(36).slice(2, 8).toUpperCase(),
-        source_ref: params.source.replace("task-", "").replace("gw-", ""),
-        target_ref: params.target.replace("task-", "").replace("gw-", ""),
+        source_ref: refFor(params.source),
+        target_ref: refFor(params.target),
         name: "",
         condition_expression: null,
         // Persistir desde qué punto se dibujó la conexión, para que al
@@ -496,7 +533,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         onGraphChange(gateways, [...(sequenceFlows||[]), newFlow]);
       }
     },
-    [gateways, sequenceFlows, onGraphChange, setEdges]
+    [gateways, sequenceFlows, onGraphChange, setEdges, refFor, connectionError, onConnectionRejected]
   );
 
   // #5 Persistir posiciones manuales: al soltar un nodo, guarda el mapa completo
@@ -524,6 +561,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        isValidConnection={isValidConnection}
         onNodeDragStop={onNodeDragStop}
         onEdgesDelete={onEdgesDelete}
         nodeTypes={nodeTypes}
@@ -542,6 +580,12 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         <Background color="#E7ECE8" gap={22} size={1} />
         <Controls showInteractive={false} />
       </ReactFlow>
+      {/* Sin esta leyenda los dos tipos de conector se veian identicos y no
+          habia forma de saber por donde se empieza a arrastrar. */}
+      <div className="rf-legend">
+        <span><i className="out" /> Salida (arrastra desde aqui)</span>
+        <span><i className="in" /> Entrada (suelta aqui)</span>
+      </div>
     </div>
   );
 }
@@ -567,10 +611,10 @@ function GatewayNode({ data }) {
         }}>
           {data.label}
         </div>
-        <Handle type="target" position={Position.Left} className="rf-handle" id="left" />
-        <Handle type="source" position={Position.Right} className="rf-handle" id="right" />
-        <Handle type="source" position={Position.Bottom} className="rf-handle" id="bottom" />
-        <Handle type="target" position={Position.Top} className="rf-handle" id="top" />
+        <Handle type="target" position={Position.Left} className="rf-handle rf-handle-in" id="left" title="Entrada de la compuerta" />
+        <Handle type="source" position={Position.Right} className="rf-handle rf-handle-out" id="right" title="Salida: rama de la decision" />
+        <Handle type="source" position={Position.Bottom} className="rf-handle rf-handle-out" id="bottom" title="Salida: rama de la decision" />
+        <Handle type="target" position={Position.Top} className="rf-handle rf-handle-in" id="top" title="Entrada de la compuerta" />
       </div>
     );
   }
