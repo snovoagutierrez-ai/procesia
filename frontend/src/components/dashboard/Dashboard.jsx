@@ -123,7 +123,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
             </button>
             {onLoadDemo && (
               <button className="pa-btn pa-btn-ghost" style={{ padding: '12px 24px', fontSize: 15, border: '1px solid var(--teal)', color: 'var(--teal-deep)', width: isMobile ? '100%' : 'auto' }} onClick={onLoadDemo}>
-                <FileText size={18} style={{ marginRight: 6 }}/> Ver proceso de ejemplo
+                <FileText size={18} style={{ marginRight: 6 }}/> Practicar con un ejemplo
               </button>
             )}
           </div>
@@ -139,7 +139,15 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
           <h2>Mis procesos</h2>
           <p>Organiza tus procesos en grandes macroprocesos o búscalos en la biblioteca unitaria.</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {/* La zona de practica solo se ofrecia cuando no habia ningun proceso:
+              quien ya tenia uno se quedaba sin sitio donde ensayar. */}
+          {onLoadDemo && (
+            <button className="pa-btn pa-btn-ghost" onClick={onLoadDemo}
+              title="Crea un proceso de ejemplo, ya conectado, para practicar sin tocar tus procesos reales">
+              <FileText size={16} /> Zona de práctica
+            </button>
+          )}
           <button className="pa-btn pa-btn-primary" onClick={onCreateMacro}>
             <Plus size={16} /> Nuevo macroproceso
           </button>

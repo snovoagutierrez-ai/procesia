@@ -684,11 +684,12 @@ def tutorial_chat_endpoint(request: Request, chat_request: schemas.ChatRequest,
 # 9b. Node Comments (colaboración por nodo)
 # ==========================================
 
-def _comment_out(c: models.NodeComment) -> schemas.NodeCommentOut:
+def _comment_out(c: models.NodeComment, current_user=None) -> schemas.NodeCommentOut:
     return schemas.NodeCommentOut(
         id=c.id, node_bpmn_id=c.node_bpmn_id, text=c.text,
         author_email=c.author.email if c.author else None,
         created_at=c.created_at,
+        is_mine=bool(current_user and c.author_id == current_user.id),
     )
 
 @router.get("/processes/{id}/comments", response_model=List[schemas.NodeCommentOut])
@@ -698,7 +699,7 @@ def list_node_comments(id: int, node: str = Query(None), db: Session = Depends(g
     q = db.query(models.NodeComment).filter(models.NodeComment.process_id == id)
     if node:
         q = q.filter(models.NodeComment.node_bpmn_id == node)
-    return [_comment_out(c) for c in q.order_by(models.NodeComment.created_at.asc()).all()]
+    return [_comment_out(c, current_user) for c in q.order_by(models.NodeComment.created_at.asc()).all()]
 
 @router.post("/processes/{id}/comments", response_model=schemas.NodeCommentOut, status_code=status.HTTP_201_CREATED)
 def create_node_comment(id: int, data: schemas.NodeCommentCreate, db: Session = Depends(get_db),
@@ -709,7 +710,25 @@ def create_node_comment(id: int, data: schemas.NodeCommentCreate, db: Session = 
     db.add(c)
     db.commit()
     db.refresh(c)
-    return _comment_out(c)
+    return _comment_out(c, current_user)
+
+@router.put("/processes/{id}/comments/{comment_id}", response_model=schemas.NodeCommentOut)
+def update_node_comment(id: int, comment_id: int, data: schemas.NodeCommentUpdate,
+                        db: Session = Depends(get_db),
+                        current_user: models.User = Depends(auth.get_current_user)):
+    """Edita un comentario. Solo su autor: sobre el comentario de otro se deja
+    una sugerencia de cambio (un comentario nuevo), no una modificacion."""
+    verify_process_access(db, id, current_user)
+    c = db.query(models.NodeComment).filter(models.NodeComment.id == comment_id,
+                                            models.NodeComment.process_id == id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    if c.author_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Solo el autor puede editar su comentario")
+    c.text = data.text.strip()
+    db.commit()
+    db.refresh(c)
+    return _comment_out(c, current_user)
 
 @router.delete("/processes/{id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_node_comment(id: int, comment_id: int, db: Session = Depends(get_db),

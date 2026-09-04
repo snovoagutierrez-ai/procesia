@@ -173,12 +173,16 @@ function TaskNode({ data }) {
   const TypeIcon = TYPE_ICONS[data.taskType] || User;
   return (
     <div
-      className={`rf-task-node ${data.selected ? "selected" : ""}`}
+      className={`rf-task-node ${data.selected ? "selected" : ""} ${data.hasIssue ? "has-issue" : ""}`}
+      title={data.hasIssue ? "Este paso tiene un problema de conexión" : undefined}
       style={{ borderLeftColor: v.color }}
       onClick={() => data.onSelect && data.onSelect(data.taskId)}
     >
       <Handle type="target" position={Position.Left} className="rf-handle rf-handle-in" id="left" title="Entrada: suelta aqui la flecha del paso anterior" />
       <div className="rf-task-header">
+        {/* Mismo numero que en la lista lateral: permite seguir el orden de los
+            pasos sin ir contando las flechas. */}
+        {data.order != null && <span className="rf-task-order mono">{String(data.order).padStart(2, "0")}</span>}
         <span className="rf-task-name">{data.label}</span>
       </div>
       <div className="rf-task-meta">
@@ -201,6 +205,9 @@ function DeletableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
   return (
     <>
       <BaseEdge path={edgePath} style={style} markerEnd={markerEnd} id={id} />
+      {/* Flecha a mitad de linea. Con solo la punta en el extremo, en tramos
+          largos o superpuestos no se distinguia hacia donde va el flujo. */}
+      <path d={edgePath} fill="none" stroke="transparent" strokeWidth={1} markerMid="url(#rf-dir-arrow)" />
       <EdgeLabelRenderer>
         <div
           style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`, pointerEvents: 'all', display: 'flex', alignItems: 'center', gap: 4 }}
@@ -329,7 +336,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
   const rfEdges = [];
 
   // Task nodes
-  tasks.forEach((t) => {
+  tasks.forEach((t, idx) => {
     rfNodes.push({
       id: `task-${t.id}`,
       type: "taskNode",
@@ -337,6 +344,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
         label: t.name,
         taskId: t.id,
         bpmnId: t.bpmnId,
+        order: idx + 1,
         taskType: t.type,
         valueClass: t.valueClass,
         cycleTime: t.cycleTime,
@@ -433,7 +441,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
   return getLayoutedElements(rfNodes, rfEdges, "LR", savedPositions);
 }
 
-function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected }) {
+function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected, issueNodeIds }) {
   const savedPositions = proc?.layout_json || null;
   const [laneMode, setLaneMode] = useState(false);
   const onEdgesDelete = useCallback(
@@ -460,9 +468,12 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   const nodesWithSelection = useMemo(
     () => layoutedNodes.map(n => ({
       ...n,
-      selected: n.id === selectedId || n.data?.bpmnId === selectedId
+      selected: n.id === selectedId || n.data?.bpmnId === selectedId,
+      // El aviso de problemas solo se leia como lista al pie del canvas: habia
+      // que buscar el nodo a ojo. Marcado aqui, se ve de inmediato cual es.
+      data: { ...n.data, hasIssue: !!issueNodeIds && issueNodeIds.has(n.id) },
     })),
-    [layoutedNodes, selectedId]
+    [layoutedNodes, selectedId, issueNodeIds]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(nodesWithSelection);
@@ -577,6 +588,15 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
       >
+        {/* Marcador reutilizado por todas las aristas para la flecha intermedia. */}
+        <svg style={{ position: 'absolute', width: 0, height: 0 }} aria-hidden="true">
+          <defs>
+            <marker id="rf-dir-arrow" viewBox="0 0 10 10" refX="5" refY="5"
+              markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M 0 1 L 8 5 L 0 9 z" fill="#9AA8A8" />
+            </marker>
+          </defs>
+        </svg>
         <Background color="#E7ECE8" gap={22} size={1} />
         <Controls showInteractive={false} />
       </ReactFlow>
@@ -593,7 +613,8 @@ function GatewayNode({ data }) {
     const isExclusive = data.gatewayType === "exclusive";
     return (
       <div
-        className={`rf-task-node ${data.selected ? "selected" : ""}`}
+        className={`rf-task-node ${data.selected ? "selected" : ""} ${data.hasIssue ? "has-issue" : ""}`}
+        title={data.hasIssue ? "Esta compuerta tiene un problema de conexión" : undefined}
         onClick={() => data.onSelect && data.onSelect(data.gatewayId)}
         style={{
           width: 60, height: 60, padding: 0,

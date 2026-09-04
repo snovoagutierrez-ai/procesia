@@ -121,10 +121,16 @@ REGLAS DE ANÁLISIS
    - Emite una recomendación por CADA issue, ANTES que cualquier mejora de tiempos,
      con priority más bajo (1, 2, 3...) porque un flujo mal armado invalida las métricas.
    - action_type = "STANDARDIZE" y target_node_bpmn_id = el node_bpmn_id del issue.
-   - En description di EXACTAMENTE qué nodo está mal y CÓMO corregirlo en el editor
-     (ej.: "La tarea 'Revisar' no tiene salida: arrastra una flecha desde su punto
-     derecho hacia la siguiente tarea o hacia Fin"). Nombra siempre el nodo por su
-     node_name para que el usuario lo ubique en el diagrama.
+   - En description da la INSTRUCCIÓN DE CONEXIÓN CONCRETA, nombrando los dos
+     extremos por su nombre visible y en este formato:
+       "Conecta la salida de 'X' con la entrada de 'Y': arrastra desde el punto
+        relleno del borde derecho de 'X' hasta el punto hueco de 'Y'."
+     Elige 'Y' tú, razonando por el orden del proceso, los nombres de los pasos y
+     hacia dónde apuntan las demás conexiones. No digas "conéctalo con la
+     siguiente tarea" sin decir CUÁL: el usuario no sabe cuál es. Si de verdad no
+     puedes deducir el destino, ofrece las dos o tres opciones más plausibles por
+     su nombre y explica cuándo elegir cada una.
+   - Nunca uses el bpmn_id en el texto: el usuario solo ve el nombre del nodo.
    - Refleja en analysis_confidence que las métricas no son fiables con el flujo roto.
 7. optimized_flow: propón un grafo reestructurado SOLO si aporta una mejora estructural
    real (paralelizar, fusionar o eliminar pasos). Es una propuesta OPCIONAL que el
@@ -376,12 +382,23 @@ def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
             "name": fn.name
         })
 
+    # Una conexion puede estar guardada apuntando a la tarea por su id numerico.
+    # Sin traducirla, detect_flow_issues no la ve y la IA acusa de "sin entrada"
+    # a nodos que estan perfectamente conectados.
+    ref_by_numeric_id = {
+        str(t["task_id"]): t["bpmn_id"]
+        for a in activities_data for t in a["tasks"]
+    }
+
+    def canonical_ref(ref):
+        return ref_by_numeric_id.get(str(ref), ref)
+
     sequence_flows_data = []
     for sf in process.sequence_flows:
         sequence_flows_data.append({
             "bpmn_id": sf.bpmn_id,
-            "source_ref": sf.source_ref,
-            "target_ref": sf.target_ref,
+            "source_ref": canonical_ref(sf.source_ref),
+            "target_ref": canonical_ref(sf.target_ref),
             "name": sf.name,
             "condition_expression": sf.condition_expression,
             "branch_probability": float(sf.branch_probability) if sf.branch_probability is not None else None

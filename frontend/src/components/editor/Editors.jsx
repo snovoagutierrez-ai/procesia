@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Clock, Trash2, Check, ChevronUp, ChevronDown, Sparkles, Loader2, ArrowRight, AlertTriangle, X, Lightbulb, Info, Send } from 'lucide-react';
+import { ArrowLeft, Clock, Trash2, PenLine, Check, ChevronUp, ChevronDown, Sparkles, Loader2, ArrowRight, AlertTriangle, X, Lightbulb, Info, Send } from 'lucide-react';
 import { VALUE, WASTE, TYPES, ACTION, SEVERITY, WASTE_QUESTIONS } from '../../constants.js';
 import { apiFetch } from '../../api.js';
 import { Seg, Field, TimeField } from '../shared/uiAtoms.jsx';
@@ -400,6 +400,10 @@ function NodeComments({ processId, nodeBpmnId }) {
   const [items, setItems] = useState([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [suggestingId, setSuggestingId] = useState(null);
+  const [suggestDraft, setSuggestDraft] = useState("");
 
   useEffect(() => {
     if (!processId || !nodeBpmnId) return;
@@ -432,6 +436,49 @@ function NodeComments({ processId, nodeBpmnId }) {
     if (res.ok || res.status === 204) setItems(prev => prev.filter(c => c.id !== id));
   };
 
+  // Editar solo lo propio. Sobre el comentario de otra persona no se modifica el
+  // texto ajeno: se deja una sugerencia de cambio, que es un comentario nuevo
+  // enlazado al original, para que el autor decida.
+  const saveEdit = async (id) => {
+    const text = editDraft.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/processes/${processId}/comments/${id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setItems(prev => prev.map(c => (c.id === id ? updated : c)));
+        setEditingId(null);
+        setEditDraft("");
+      }
+    } finally { setBusy(false); }
+  };
+
+  const suggestChange = async (comment) => {
+    const text = suggestDraft.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    try {
+      const quoted = comment.text.length > 60 ? comment.text.slice(0, 60) + "…" : comment.text;
+      const res = await apiFetch(`/processes/${processId}/comments`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_bpmn_id: nodeBpmnId,
+          text: `Sugerencia sobre el comentario de ${comment.author_email || "otro usuario"} ("${quoted}"): ${text}`,
+        }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setItems(prev => [...prev, created]);
+        setSuggestingId(null);
+        setSuggestDraft("");
+      }
+    } finally { setBusy(false); }
+  };
+
   if (!processId || !nodeBpmnId) return null;
   return (
     <div style={{ marginBottom: 16, border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}>
@@ -444,13 +491,55 @@ function NodeComments({ processId, nodeBpmnId }) {
           {items.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 10 }}>Anota dudas, acuerdos o contexto sobre este paso para quien revise el proceso.</div>}
           {items.map(c => (
             <div key={c.id} style={{ padding: '8px 10px', background: '#F8FAF8', border: '1px solid var(--line)', borderRadius: 8, marginBottom: 8 }}>
-              <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{c.text}</div>
+              {editingId === c.id ? (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input className="pa-input" value={editDraft} style={{ flex: 1 }} autoFocus
+                    aria-label="Editar comentario"
+                    onChange={e => setEditDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(c.id); if (e.key === 'Escape') setEditingId(null); }} />
+                  <button type="button" className="pa-btn pa-btn-primary pa-btn-sm" disabled={busy || !editDraft.trim()}
+                    onClick={() => saveEdit(c.id)}>Guardar</button>
+                  <button type="button" className="pa-btn pa-btn-ghost pa-btn-sm"
+                    onClick={() => { setEditingId(null); setEditDraft(""); }}>Cancelar</button>
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{c.text}</div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, fontSize: 11, color: 'var(--muted)' }}>
                 <span>{c.author_email || 'anónimo'}</span>
                 {c.created_at && <span>· {new Date(c.created_at).toLocaleDateString()}</span>}
-                <button type="button" onClick={() => remove(c.id)} aria-label="Eliminar comentario"
-                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex', padding: 2 }}><Trash2 size={12} /></button>
+                {editingId !== c.id && (
+                  <span style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
+                    {c.is_mine ? (
+                      <>
+                        <button type="button" onClick={() => { setEditingId(c.id); setEditDraft(c.text); setSuggestingId(null); }}
+                          title="Editar mi comentario" aria-label="Editar comentario"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex', padding: 2 }}><PenLine size={12} /></button>
+                        <button type="button" onClick={() => remove(c.id)} aria-label="Eliminar comentario"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex', padding: 2 }}><Trash2 size={12} /></button>
+                      </>
+                    ) : (
+                      <button type="button" onClick={() => { setSuggestingId(c.id); setSuggestDraft(""); setEditingId(null); }}
+                        title="No puedes editar el comentario de otra persona, pero sí proponerle un cambio"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--teal)', fontSize: 11, padding: 2 }}>
+                        Sugerir cambio
+                      </button>
+                    )}
+                  </span>
+                )}
               </div>
+              {suggestingId === c.id && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                  <input className="pa-input" value={suggestDraft} style={{ flex: 1 }} autoFocus
+                    placeholder="¿Qué cambiarías de este comentario?" aria-label="Sugerencia de cambio"
+                    onChange={e => setSuggestDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') suggestChange(c); if (e.key === 'Escape') setSuggestingId(null); }} />
+                  <button type="button" className="pa-btn pa-btn-primary pa-btn-sm" disabled={busy || !suggestDraft.trim()}
+                    onClick={() => suggestChange(c)}>Enviar</button>
+                  <button type="button" className="pa-btn pa-btn-ghost pa-btn-sm"
+                    onClick={() => setSuggestingId(null)}>Cancelar</button>
+                </div>
+              )}
             </div>
           ))}
           <div style={{ display: 'flex', gap: 8 }}>
@@ -568,7 +657,7 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
     <div className="pa-editor">
       <div className="pa-editor-head">
         <span className="pa-tag" style={{ fontFamily: "var(--body)", background: "#E8F5E9", color: "#1FA463", padding: "4px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600 }}>Tarea</span>
-        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', marginRight: '16px', fontSize: '13px', gap: '6px' }}>
+        <div className="pa-editor-status" style={{ fontSize: '13px' }}>
           {saveState.status === 'saving' && <span style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Loader2 size={14} className="spin" /> Guardando...</span>}
           {(saveState.status === 'saved' || showSaved) && <span style={{ color: 'var(--teal)', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 500 }}><Check size={14} /> ¡Guardado!</span>}
           {saveState.status === 'error' && <span style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={14} /> Error</span>}
@@ -731,11 +820,12 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
     <div className="pa-editor">
       <div className="pa-editor-head">
         <span className="pa-tag" style={{ fontFamily: "var(--body)", background: "#EBF0EC", color: "#0E9F9F", padding: "4px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600 }}>Compuerta</span>
-        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', marginRight: '16px', fontSize: '12px', color: saveState.status === 'error' ? 'var(--danger)' : 'var(--teal)', gap: '4px' }}>
+        <div className="pa-editor-status" title="Los cambios de esta compuerta se guardan solos"
+          style={{ fontSize: '12px', color: saveState.status === 'error' ? 'var(--danger)' : 'var(--teal)' }}>
           {saveState.status === 'saving' && <><Loader2 size={12} className="spin" /> Guardando...</>}
           {saveState.status === 'saved' && <><Check size={12} /> Guardado</>}
           {saveState.status === 'error' && <><AlertTriangle size={12} /> Error al guardar</>}
-          {saveState.status === 'idle' && 'Guardado automático activado'}
+          {saveState.status === 'idle' && 'Guardado automático'}
         </div>
         <div className="pa-editor-actions">
           <button className="pa-btn pa-btn-ghost" onClick={() => onDelete(gateway.bpmn_id)}>Eliminar</button>
@@ -826,7 +916,7 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
   );
 }
 
-function Optimization({ state, onRun, onApply, onApplyRecommendation, onFocusNode, tasks }) {
+function Optimization({ state, onRun, onApply, onShowRecommendation, tasks }) {
   const d = state.data;
   const [appliedIds, setAppliedIds] = useState(new Set());
   const incompleteTasks = tasks?.filter(t => !t.responsible || !t.valueClass || t.cycleTime === undefined);
@@ -951,41 +1041,24 @@ function Optimization({ state, onRun, onApply, onApplyRecommendation, onFocusNod
                     <p>{r.description}</p>
                     <div className="pa-meta">Complejidad: {r.implementation_complexity || "—"}</div>
 
-                    {/* La IA orienta, no interviene. Antes cada recomendacion
-                        traia un boton que ejecutaba el cambio sobre el flujo del
-                        usuario, incluido eliminar tareas que si eran necesarias.
-                        Ahora la accion primaria lleva al paso en el diagrama para
-                        que la persona decida y lo haga; ELIMINATE ni siquiera
-                        ofrece atajo, porque borra trabajo. */}
-                    <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {r.target_node_bpmn_id && onFocusNode && (
-                        <button
-                          className="pa-btn pa-btn-ghost pa-btn-sm"
-                          onClick={() => onFocusNode(r.target_node_bpmn_id)}
-                        >
-                          Ver el paso en el diagrama
-                        </button>
-                      )}
-                      {r.action_type !== 'ELIMINATE' && onApplyRecommendation && (
-                        <button
-                          className="pa-btn pa-btn-ghost pa-btn-sm"
-                          disabled={appliedIds.has(r.target_node_bpmn_id || r.title)}
-                          title="Aplica este cambio por ti. Puedes deshacerlo desde Versiones."
-                          onClick={() => {
-                            onApplyRecommendation(r, () => setAppliedIds(prev => new Set([...prev, r.target_node_bpmn_id || r.title])));
-                          }}
-                        >
-                          {appliedIds.has(r.target_node_bpmn_id || r.title) ? <><Check size={14} style={{ marginRight: 4 }} /> Aplicada</> : 'Aplicar por mí'}
-                        </button>
-                      )}
+                    {/* Un solo boton. Antes habia dos ("Ver el paso" y
+                        "Aplicar por mi") que terminaban en el mismo sitio y no
+                        ejecutaban nada distinto. */}
+                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        className="pa-btn pa-btn-primary"
+                        style={{ padding: '6px 12px', fontSize: 12 }}
+                        onClick={() => {
+                          if (onShowRecommendation) {
+                            onShowRecommendation(r, () => setAppliedIds(prev => new Set([...prev, r.target_node_bpmn_id || r.title])));
+                          }
+                        }}
+                      >
+                        {appliedIds.has(r.target_node_bpmn_id || r.title)
+                          ? <><Check size={14} style={{ marginRight: 4 }} /> Revisada</>
+                          : 'Ver el paso y cómo aplicarlo'}
+                      </button>
                     </div>
-                    {r.action_type === 'ELIMINATE' && (
-                      <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)', background: '#F8F9FA', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px' }}>
-                        Eliminar un paso cambia el proceso real: hazlo tú desde el
-                        diagrama solo si estás de acuerdo, y reconecta el paso anterior
-                        con el siguiente para no cortar el flujo.
-                      </div>
-                    )}
                   </div>
                 );
               })}

@@ -480,12 +480,18 @@ class NodeCommentCreate(BaseModel):
     node_bpmn_id: str = Field(..., max_length=60)
     text: str = Field(..., min_length=1, max_length=2000)
 
+class NodeCommentUpdate(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
+
 class NodeCommentOut(BaseModel):
     id: int
     node_bpmn_id: str
     text: str
     author_email: Optional[str] = None
     created_at: Optional[datetime] = None
+    # El cliente no puede deducir la autoria por el correo (no conoce el suyo con
+    # certeza), asi que el servidor dice quien puede editar cada comentario.
+    is_mine: bool = False
 
     class Config:
         from_attributes = True

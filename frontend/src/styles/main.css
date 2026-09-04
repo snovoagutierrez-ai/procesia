@@ -237,10 +237,15 @@ button{font-family:inherit}
 .pa-step-dir select:focus{outline:none;border-color:var(--teal);}
 
 .rf-task-node{background:#fff;border:1.5px solid #E2E7E3;border-left:5px solid #1FA463;border-radius:10px;
-  padding:10px 14px;min-width:180px;max-width:220px;cursor:pointer;transition:.15s;font-family:var(--body)}
+  padding:10px 14px;min-width:180px;max-width:220px;cursor:pointer;transition:.15s;font-family:var(--body);position:relative}
 .rf-task-node:hover{border-color:#BFE6E6;box-shadow:0 2px 12px rgba(14,159,159,.1)}
 .rf-task-node.selected{border-color:#0E9F9F;background:#F1FBFB;box-shadow:0 0 0 2px rgba(14,159,159,.2)}
-.rf-task-header{margin-bottom:6px}
+/* Nodo con problema de conexion: antes solo se listaba en el aviso al pie y
+   habia que buscarlo a ojo en el diagrama. */
+.rf-task-node.has-issue{border-color:#D9503C;box-shadow:0 0 0 4px rgba(217,80,60,.16)}
+.rf-task-node.has-issue::after{content:"!";position:absolute;top:-9px;right:-9px;width:18px;height:18px;border-radius:50%;background:#D9503C;color:#fff;font-size:12px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.25);z-index:5}
+.rf-task-header{margin-bottom:6px;display:flex;align-items:baseline;gap:6px}
+.rf-task-order{flex-shrink:0;font-size:10.5px;font-weight:700;color:#fff;background:#9AA8A8;border-radius:4px;padding:1px 4px;line-height:1.35}
 .rf-task-name{font-size:12.5px;font-weight:600;color:#15232E;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rf-task-meta{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted);margin-bottom:4px}
 .rf-task-badge{color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;letter-spacing:.03em}
@@ -294,9 +299,18 @@ textarea.pa-input{resize:vertical;line-height:1.45}
 .pa-seg button:hover{border-color:#BFE6E6}
 .pa-seg button.on{background:var(--teal);border-color:var(--teal);color:#fff}
 
-.pa-editor-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+/* La cabecera no tenia gap ni control de desbordamiento: en el panel estrecho
+   "Guardado automatico activado" se partia en tres lineas y aplastaba el boton
+   de la derecha. Ahora el estado se recorta y los extremos no se encogen. */
+.pa-editor-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.pa-editor-head > .pa-tag{flex-shrink:0}
+.pa-editor-status{display:flex;align-items:center;gap:4px;margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:520px){
+  /* Sin sitio para las tres piezas: el estado baja a su propia linea completa. */
+  .pa-editor-status{order:3;margin-left:0;width:100%}
+}
 .pa-tag{font-size:11px;background:#EEF3F0;color:var(--muted);border-radius:6px;padding:3px 8px}
-.pa-editor-actions{display:flex;gap:6px}
+.pa-editor-actions{display:flex;gap:6px;flex-shrink:0;align-items:center}
 .pa-icon{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;
   border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer}
 .pa-icon:hover:not(:disabled){background:#F5F7F5}

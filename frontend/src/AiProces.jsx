@@ -419,6 +419,29 @@ function GuideTicket({ step, onStep, onDismiss }) {
   );
 }
 
+// Una conexion puede venir de la base apuntando a la tarea por su id numerico
+// ("246") en vez de por su bpmn_id ("Task_7sge"). El diagrama las dibuja igual
+// —resuelve ambas formas— pero la deteccion de problemas, el selector lateral y
+// la IA solo entienden bpmn_id, asi que esos nodos salian marcados "sin entrada"
+// aunque en pantalla estuvieran conectados, y no habia forma de arreglarlo desde
+// la interfaz. Se normaliza al cargar: el proximo guardado deja la base limpia.
+function canonicalizeFlows(flows, tasks) {
+  if (!flows || !flows.length) return flows || [];
+  const byNumericId = new Map();
+  for (const t of tasks || []) {
+    if (t.id != null && t.bpmnId) byNumericId.set(String(t.id), t.bpmnId);
+  }
+  if (!byNumericId.size) return flows;
+  const canon = (ref) => byNumericId.get(String(ref)) ?? ref;
+  return flows.map((f) => {
+    const source_ref = canon(f.source_ref);
+    const target_ref = canon(f.target_ref);
+    return (source_ref === f.source_ref && target_ref === f.target_ref)
+      ? f
+      : { ...f, source_ref, target_ref };
+  });
+}
+
 function mapBackendTaskToFrontend(t) {
   return {
     id: t.id, bpmnId: t.bpmn_id, name: t.name, type: t.task_type,
@@ -1277,8 +1300,15 @@ export default function App() {
         if (resGraph.ok) {
           const graphData = await resGraph.json();
           if (isStale()) return;
+          const rawFlows = graphData.sequence_flows || [];
+          const canonFlows = canonicalizeFlows(rawFlows, mapped);
           setGateways(graphData.gateways || []);
-          setSequenceFlows(graphData.sequence_flows || []);
+          setSequenceFlows(canonFlows);
+          // Si habia referencias antiguas, se devuelven ya corregidas para que el
+          // proceso deje de arrastrar el problema en la proxima carga.
+          if (canonFlows.some((f, i) => f !== rawFlows[i])) {
+            persistGraph(graphData.gateways || [], canonFlows, process.id);
+          }
         } else {
           setGateways([]);
           setSequenceFlows([]);
@@ -1315,43 +1345,77 @@ export default function App() {
     loadProcessTasks(p);
   };
 
+  // Proceso de practica. Antes creaba 3 tareas sueltas, sin compuerta y sin
+  // ninguna conexion, asi que no servia para ensayar lo que mas cuesta: unir los
+  // pasos y etiquetar una decision. Ahora deja un flujo completo y abre el
+  // editor con la guia paso a paso encendida.
   const loadDemoData = async () => {
     setLoading(true);
     try {
-      const demoCode = "DEMO-" + Math.random().toString(36).slice(2, 6).toUpperCase();
-      const resM = await apiFetch(`/macroprocesses`, {
+      const code = "PRACTICA-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+      const resM = await apiMutate(`/macroprocesses`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: demoCode, name: "Alta de Cliente Demo", description: "Macroproceso de ejemplo generado automáticamente" }),
+        body: JSON.stringify({ code, name: "Zona de práctica", description: "Macroproceso de ejemplo para ensayar sin tocar tus procesos reales" }),
       });
-      if (!resM.ok) throw new Error("No se pudo crear macroproceso");
       const mData = await resM.json();
 
-      const resP = await apiFetch(`/processes`, {
+      const resP = await apiMutate(`/processes`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          macroprocess_id: mData.id, code: demoCode + "-PROC", name: "Evaluación Crediticia",
-          objective: "Evaluar y aprobar solicitud", trigger_event: "Recibe solicitud", output_result: "Cliente aprobado"
+          macroprocess_id: mData.id, code: code + "-01", name: "Práctica: evaluación crediticia",
+          objective: "Proceso de ejemplo para practicar. Puedes romperlo y borrarlo sin consecuencias.",
+          trigger_event: "Se recibe la solicitud", output_result: "Cliente aprobado",
+          suppliers: "Cliente", customers: "Área comercial",
         }),
       });
-      if (!resP.ok) throw new Error("No se pudo crear proceso");
       const pData = await resP.json();
 
       const tasksToCreate = [
-        { bpmn_id: "T1", name: "Revisar documentos", task_type: "user", value_classification: "NVA", waste_type: "waiting", std_cycle_time_sec: 300, std_wait_time_sec: 3600 },
-        { bpmn_id: "T2", name: "Consultar buró", task_type: "service", value_classification: "NNVA", std_cycle_time_sec: 120, std_wait_time_sec: 0 },
-        { bpmn_id: "T3", name: "Aprobar crédito", task_type: "user", value_classification: "VA", std_cycle_time_sec: 600, std_wait_time_sec: 1800 },
+        { bpmn_id: `${code}_T1`, name: "Revisar documentos", task_type: "user", value_classification: "NNVA", std_cycle_time_sec: 300, std_wait_time_sec: 3600 },
+        { bpmn_id: `${code}_T2`, name: "Consultar buró", task_type: "service", value_classification: "NNVA", std_cycle_time_sec: 120, std_wait_time_sec: 0 },
+        { bpmn_id: `${code}_T3`, name: "Aprobar crédito", task_type: "user", value_classification: "VA", std_cycle_time_sec: 600, std_wait_time_sec: 1800 },
+        { bpmn_id: `${code}_T4`, name: "Corregir documentos", task_type: "manual", value_classification: "NVA", waste_type: "defects", std_cycle_time_sec: 900, std_wait_time_sec: 0 },
       ];
-
-      for (let t of tasksToCreate) {
+      for (const t of tasksToCreate) {
         await apiMutate(`/processes/${pData.id}/tasks`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(t),
         });
       }
-      
+
+      // Una compuerta con sus dos ramas etiquetadas: el caso que el tutorial
+      // explica y que hasta ahora no se podia ver funcionando en ningun sitio.
+      const gwId = `${code}_GW`;
+      const flow = (n, src, tgt, cond, prob) => ({
+        bpmn_id: `${code}_F${n}`, source_ref: src, target_ref: tgt, name: "",
+        condition_expression: cond || null, branch_probability: prob ?? null,
+      });
+      await apiMutate(`/processes/${pData.id}/graph`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gateways: [{ bpmn_id: gwId, node_type: "exclusiveGateway", name: "¿Documentación completa?" }],
+          sequence_flows: [
+            flow(1, "start", `${code}_T1`),
+            flow(2, `${code}_T1`, gwId),
+            flow(3, gwId, `${code}_T2`, "Sí", 70),
+            flow(4, gwId, `${code}_T4`, "No", 30),
+            flow(5, `${code}_T4`, `${code}_T2`),
+            flow(6, `${code}_T2`, `${code}_T3`),
+            flow(7, `${code}_T3`, "end"),
+          ],
+        }),
+      });
+
       await loadProcesses();
-    } catch(e) {
-      showToast("Error creando datos demo: " + e.message);
+      const mapped = mapBackendProcessToFrontend(pData);
+      setAllProcesses((prev) => prev.some(x => x.id === mapped.id) ? prev : [...prev, mapped]);
+      selectProcess(mapped);
+      setGuideStep(1);
+      setFirstStepsActive(true);
+      showToast("Zona de práctica lista. Rompe, conecta y borra lo que quieras: no afecta a tus procesos reales.");
+    } catch (e) {
+      showToast("No se pudo crear el proceso de práctica: " + (e.message || "error de conexión"));
+    } finally {
       setLoading(false);
     }
   };
@@ -1427,6 +1491,13 @@ export default function App() {
 
   const selectedTask = tasks.find((t) => t.id === selectedId) || null;
   const selectedGateway = gateways.find((g) => g.bpmn_id === selectedId) || null;
+  // ¿El consejo de la IA se refiere al nodo abierto? Vale tanto para tareas como
+  // para compuertas: las recomendaciones de conexión suelen apuntar a estas.
+  const aiTipMatchesSelection = !!aiTip && (
+    (selectedTask && (selectedTask.bpmnId === aiTip.rec.target_node_bpmn_id
+                      || String(selectedTask.id) === String(aiTip.rec.target_node_bpmn_id)))
+    || (selectedGateway && selectedGateway.bpmn_id === aiTip.rec.target_node_bpmn_id)
+  );
 
   const saveProcessDebounced = (updatedProc) => {
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
@@ -1953,19 +2024,28 @@ export default function App() {
     for (const t of tasks) {
       const id = t.bpmnId;
       const out = hasOut(id), inc = hasIn(id);
-      if (!out && !inc) issues.push({ type: "isolated", name: t.name, sev: "high" });
-      else if (!out) issues.push({ type: "deadend", name: t.name, sev: "high" });
-      else if (!inc) issues.push({ type: "unreachable", name: t.name, sev: "medium" });
+      // `nodeId` es el id del nodo en el canvas: permite pintar el problema
+      // sobre el diagrama, no solo listarlo en el aviso de abajo.
+      const nodeId = `task-${t.id}`;
+      if (!out && !inc) issues.push({ type: "isolated", name: t.name, sev: "high", nodeId });
+      else if (!out) issues.push({ type: "deadend", name: t.name, sev: "high", nodeId });
+      else if (!inc) issues.push({ type: "unreachable", name: t.name, sev: "medium", nodeId });
     }
     for (const g of gateways || []) {
       const branches = flows.filter((f) => f.source_ref === g.bpmn_id).length;
-      if (branches < 2) issues.push({ type: "gateway", name: g.name || "Compuerta", sev: "medium" });
+      if (branches < 2) issues.push({ type: "gateway", name: g.name || "Compuerta", sev: "medium", nodeId: `gw-${g.bpmn_id}` });
     }
     return issues;
   }, [tasks, gateways, sequenceFlows]);
 
   // Firma del conjunto de problemas: si cambia (aparecen/desaparecen problemas),
   // el aviso vuelve a mostrarse aunque el usuario lo hubiera cerrado antes.
+  // Conjunto de nodos en problemas, para resaltarlos en el canvas.
+  const issueNodeIds = useMemo(
+    () => new Set(flowIssues.map((i) => i.nodeId).filter(Boolean)),
+    [flowIssues]
+  );
+
   const flowIssuesSig = useMemo(
     () => flowIssues.map((i) => `${i.type}:${i.name}`).join("|"),
     [flowIssues]
@@ -2095,21 +2175,6 @@ export default function App() {
     }
   }
 
-  // Lleva al usuario al paso que menciona una recomendacion. La IA se limita a
-  // orientar, asi que el atajo es "ver donde", no "hacerlo por ti".
-  const focusNodeByBpmnId = useCallback((bpmnId) => {
-    if (!bpmnId) return;
-    const task = tasks.find(t => t.bpmnId === bpmnId || String(t.id) === String(bpmnId));
-    const gw = (gateways || []).find(g => g.bpmn_id === bpmnId);
-    if (!task && !gw) {
-      showToast("Ese paso ya no existe en el proceso.");
-      return;
-    }
-    setSelectedId(task ? task.id : gw.bpmn_id);
-    setTab("detalle");
-    setMobileStep(3);
-  }, [tasks, gateways, showToast]);
-
   const onNodeSelect = useCallback((taskId) => {
     if (taskId === "start" || taskId === "end") {
       setSelectedId(null);
@@ -2130,66 +2195,23 @@ export default function App() {
   }, []);
 
   
-  const handleApplyRecommendation = async (rec, markAsApplied) => {
+  // La IA orienta: lleva al paso y explica que hacer, pero no toca el flujo.
+  // Antes ELIMINATE borraba la tarea (y llego a proponer borrar tareas
+  // necesarias), y el resto de acciones no hacian nada distinto a seleccionar
+  // el nodo: por eso los dos botones parecian el mismo y "no ejecutaban nada".
+  const showRecommendation = (rec, markAsReviewed) => {
     const tBpmnId = rec.target_node_bpmn_id;
-    const task = tasks.find(t => t.bpmnId === tBpmnId || t.id.toString() === tBpmnId);
-    const processId = procRef.current?.id;
-    if (!processId) return;
+    const task = tasks.find(t => t.bpmnId === tBpmnId || String(t.id) === String(tBpmnId));
+    const gateway = (gateways || []).find(g => g.bpmn_id === tBpmnId);
 
-    if (rec.action_type === 'ELIMINATE') {
-      if (!task) return;
-      const ok = await confirm(
-        "Eliminar tarea",
-        `¿Eliminar "${task.name}" del flujo? Se intentará reconectar el paso anterior con el siguiente.`,
-        { danger: true, confirmLabel: "Eliminar" }
-      );
-      if (!ok) return;
-
-      setLoading(true);
-      const saved = await saveAutoSnapshot(`Antes de eliminar: ${task.name}`);
-      if (!saved) { setLoading(false); return; }
-
-      try {
-        await apiMutate(`/processes/${processId}/tasks/${task.id}`, { method: "DELETE" });
-        setTasks(ts => ts.filter(t => t.id !== task.id));
-
-        const currentFlows = sequenceFlowsRef.current;
-        const incoming = currentFlows.find(f => f.target_ref === tBpmnId);
-        const outgoing = currentFlows.find(f => f.source_ref === tBpmnId);
-        let newFlows = currentFlows.filter(f => f.source_ref !== tBpmnId && f.target_ref !== tBpmnId);
-        if (incoming && outgoing) {
-          // Fix: usar bpmn_id, no id — el backend PUT /graph lo requiere
-          newFlows.push({
-            bpmn_id: `Flow_${Date.now()}`,
-            source_ref: incoming.source_ref,
-            target_ref: outgoing.target_ref,
-            name: "",
-          });
-        }
-        setSequenceFlows(newFlows);
-        await apiMutate(`/processes/${processId}/graph`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ gateways, sequence_flows: newFlows })
-        });
-        markAsApplied();
-        setShowUndoBanner(true);
-      } catch (e) {
-        setSaveState({ status: "error", message: "No se pudo eliminar la tarea." });
-      } finally {
-        setLoading(false);
-      }
-
-    } else if (rec.action_type === 'MERGE') {
-      // MERGE requiere decisión del usuario: mostrar guía, no ejecutar ciegamente
-      setAiTip({ rec, markAsApplied });
-      if (task) { setSelectedId(task.id); setTab("detalle"); if (isMobile) setMobileStep(3); }
-
-    } else {
-      // AUTOMATE, SIMPLIFY, PARALLELIZE, REASSIGN, STANDARDIZE
-      // Son instrucciones cualitativas — guiar al usuario en el panel de detalle
-      if (task) { setSelectedId(task.id); setTab("detalle"); if (isMobile) setMobileStep(3); }
-      setAiTip({ rec, markAsApplied });
+    if (!task && !gateway) {
+      showToast("Esa recomendación no apunta a ningún paso del proceso.");
+      return;
     }
+    setSelectedId(task ? task.id : gateway.bpmn_id);
+    setTab("detalle");
+    if (isMobile) setMobileStep(3);
+    setAiTip({ rec, markAsApplied: markAsReviewed });
   };
 
   // Loading screen
@@ -2577,6 +2599,7 @@ export default function App() {
                   selectedId={selectedId} 
                   onSelect={onNodeSelect}
                   onConnectionRejected={showToast}
+                  issueNodeIds={issueNodeIds}
                   onGraphChange={async (newGateways, newFlows) => {
                     setGateways(newGateways);
                     setSequenceFlows(newFlows);
@@ -2678,8 +2701,7 @@ export default function App() {
                   </div>
                 )}
                 <div className="pa-panel-body">
-                  {tab === "detalle" && aiTip && selectedTask &&
-                    (selectedTask.bpmnId === aiTip.rec.target_node_bpmn_id || selectedTask.id.toString() === aiTip.rec.target_node_bpmn_id) && (
+                  {tab === "detalle" && aiTipMatchesSelection && (
                     <div style={{ marginBottom: 16, padding: '12px 14px', background: '#F0FAFA', border: '1px solid var(--teal)', borderRadius: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                         <div style={{ flex: 1 }}>
@@ -2746,7 +2768,7 @@ export default function App() {
                     </div>
                   )
                 ) : (
-                  <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onApplyRecommendation={handleApplyRecommendation} onFocusNode={focusNodeByBpmnId} />
+                  <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onShowRecommendation={showRecommendation} />
                 )}
               </div>
             </div>
@@ -2773,8 +2795,7 @@ export default function App() {
                 </div>
               </div>
               <div className="pa-panel-body">
-                {tab === "detalle" && aiTip && selectedTask &&
-                  (selectedTask.bpmnId === aiTip.rec.target_node_bpmn_id || selectedTask.id.toString() === aiTip.rec.target_node_bpmn_id) && (
+                {tab === "detalle" && aiTipMatchesSelection && (
                   <div style={{ marginBottom: 16, padding: '12px 14px', background: '#F0FAFA', border: '1px solid var(--teal)', borderRadius: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                       <div style={{ flex: 1 }}>
@@ -2841,7 +2862,7 @@ export default function App() {
                   </div>
                 )
               ) : (
-                <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onApplyRecommendation={handleApplyRecommendation} onFocusNode={focusNodeByBpmnId} />
+                <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onShowRecommendation={showRecommendation} />
               )}
               </div>
             </div>
