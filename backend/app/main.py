@@ -8,6 +8,8 @@ from slowapi.middleware import SlowAPIMiddleware
 import logging
 import os
 
+from sqlalchemy.exc import IntegrityError
+
 from app.api import router as api_router
 from app.limiter import limiter
 
@@ -55,6 +57,18 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Security-Policy"] = "frame-ancestors 'none'"
     return response
+
+# Una violacion de restriccion es culpa de la peticion, no del servidor. Sin este
+# manejador, un `bpmn_id` repetido (unico en toda la tabla, no por proceso) salia
+# como 500 "Internal server error" y el usuario no sabia que bastaba reintentar.
+# Tiene que ir ANTES del manejador genérico de Exception para que gane.
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request: Request, exc: IntegrityError):
+    logger.warning("Conflicto de integridad en %s: %s", request.url.path, getattr(exc, "orig", exc))
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": "Ese elemento entra en conflicto con otro que ya existe. Vuelve a intentarlo."},
+    )
 
 # Global Exception Handler (To prevent leaking stacktraces)
 @app.exception_handler(Exception)

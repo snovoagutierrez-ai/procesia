@@ -916,7 +916,7 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
   );
 }
 
-function Optimization({ state, onRun, onApply, onShowRecommendation, tasks }) {
+function Optimization({ state, onRun, onApply, onShowRecommendation, tasks, longLoading }) {
   const d = state.data;
   const [appliedIds, setAppliedIds] = useState(new Set());
   const incompleteTasks = tasks?.filter(t => !t.responsible || !t.valueClass || t.cycleTime === undefined);
@@ -941,6 +941,16 @@ function Optimization({ state, onRun, onApply, onShowRecommendation, tasks }) {
           {state.status === "loading" ? "Analizando…" : "Optimizar proceso"}
         </button>
       </div>
+      {state.status === "loading" && longLoading && (
+        <div style={{ marginBottom: 16 }}>
+          {/* El aviso se calculaba desde hacia tiempo pero nunca llegaba a la
+              pantalla: el usuario veia un boton girando sin saber si seguia vivo. */}
+          <Banner variant="info" title="El análisis está tardando más de lo normal">
+            El servidor puede estar despertando tras un rato inactivo. Suele
+            resolverse en menos de un minuto; no cierres esta pestaña.
+          </Banner>
+        </div>
+      )}
       {!isReady && hasAnyTask && (
         <div style={{ marginBottom: '16px' }}>
           <Banner variant="warning" title={canRunPartial ? "Datos incompletos — confianza reducida" : "Sin datos para analizar"}>

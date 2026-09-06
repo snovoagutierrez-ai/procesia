@@ -35,3 +35,12 @@ dist/
 .DS_Store
 Thumbs.db
 
+
+# Bases de datos locales
+*.db
+*.sqlite3
+
+# Resultados de tests y cobertura
+.coverage
+htmlcov/
+coverage.xml

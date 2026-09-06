@@ -13,7 +13,9 @@ def _sanitize_label(text: str) -> str:
     # Remove or replace problematic chars
     text = text.replace('"', "'").replace('\n', ' ').strip()
     # If it contains special Mermaid chars, wrap in quotes
-    if re.search(r'[[\]{}()|<>&]', text):
+    # El '[' inicial debe ir escapado: sin la barra, Python lo interpreta como un
+    # juego de caracteres anidado y avisa por FutureWarning.
+    if re.search(r'[\[\]{}()|<>&]', text):
         text = text.replace('"', "'")
     return text
 

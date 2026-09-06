@@ -77,7 +77,7 @@ class Macroprocess(Base):
     __tablename__ = 'macroprocesses'
 
     id = Column(BigInteger, primary_key=True)
-    owner_id = Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    owner_id = Column(BigInteger, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     code = Column(String(40), unique=True, nullable=False)
     name = Column(String(200), nullable=False)
     owner_area = Column(String(120))
@@ -124,7 +124,7 @@ class NodeComment(Base):
     id = Column(BigInteger, primary_key=True)
     process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False, index=True)
     node_bpmn_id = Column(String(60), nullable=False, index=True)
-    author_id = Column(BigInteger, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    author_id = Column(BigInteger, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     text = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -186,7 +186,7 @@ class TimeMeasurement(Base):
     __tablename__ = 'time_measurements'
 
     id = Column(BigInteger, primary_key=True)
-    task_id = Column(BigInteger, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False)
+    task_id = Column(BigInteger, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
     observed_cycle_sec = Column(Numeric(12, 2), nullable=False)
     observed_wait_sec = Column(Numeric(12, 2), nullable=False, server_default='0.00')
     case_ref = Column(String(80))
@@ -212,8 +212,8 @@ class Role(Base):
 class TaskRaci(Base):
     __tablename__ = 'task_raci'
 
-    task_id = Column(BigInteger, ForeignKey('tasks.id', ondelete='CASCADE'), primary_key=True)
-    role_id = Column(BigInteger, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
+    task_id = Column(BigInteger, ForeignKey('tasks.id', ondelete='CASCADE'), primary_key=True)  # el indice de la PK compuesta ya cubre esta columna
+    role_id = Column(BigInteger, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True, index=True)
     raci_type = Column(ENUM(RaciType, name='raci_type'), primary_key=True)
 
     task = relationship("Task", back_populates="raci")
@@ -235,8 +235,8 @@ class System(Base):
 class TaskSystem(Base):
     __tablename__ = 'task_systems'
 
-    task_id = Column(BigInteger, ForeignKey('tasks.id', ondelete='CASCADE'), primary_key=True)
-    system_id = Column(BigInteger, ForeignKey('systems.id', ondelete='CASCADE'), primary_key=True)
+    task_id = Column(BigInteger, ForeignKey('tasks.id', ondelete='CASCADE'), primary_key=True)  # el indice de la PK compuesta ya cubre esta columna
+    system_id = Column(BigInteger, ForeignKey('systems.id', ondelete='CASCADE'), primary_key=True, index=True)
     interaction_type = Column(String(40))
 
     task = relationship("Task", back_populates="systems")
@@ -247,7 +247,7 @@ class FlowNode(Base):
     __tablename__ = 'flow_nodes'
 
     id = Column(BigInteger, primary_key=True)
-    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False, index=True)
     bpmn_id = Column(String(60), unique=True, nullable=False)
     node_type = Column(ENUM(BpmnNodeType, name='bpmn_node_type'), nullable=False)
     name = Column(String(200))
@@ -259,7 +259,7 @@ class SequenceFlow(Base):
     __tablename__ = 'sequence_flows'
 
     id = Column(BigInteger, primary_key=True)
-    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False, index=True)
     bpmn_id = Column(String(60), unique=True, nullable=False)
     source_ref = Column(String(60), nullable=False)
     target_ref = Column(String(60), nullable=False)
@@ -279,7 +279,7 @@ class MacroSequenceFlow(Base):
     __tablename__ = 'macro_sequence_flows'
 
     id = Column(BigInteger, primary_key=True)
-    macroprocess_id = Column(BigInteger, ForeignKey('macroprocesses.id', ondelete='CASCADE'), nullable=False)
+    macroprocess_id = Column(BigInteger, ForeignKey('macroprocesses.id', ondelete='CASCADE'), nullable=False, index=True)
     source_ref = Column(String(60), nullable=False)
     target_ref = Column(String(60), nullable=False)
     condition = Column(String(200))
@@ -322,7 +322,7 @@ class BpmnArtifact(Base):
     __tablename__ = 'bpmn_artifacts'
 
     id = Column(BigInteger, primary_key=True)
-    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False, index=True)
     version = Column(Integer, nullable=False)
     source = Column(ENUM(ArtifactSource, name='artifact_source'), nullable=False, server_default='manual')
     xml_content = Column(Text, nullable=False)

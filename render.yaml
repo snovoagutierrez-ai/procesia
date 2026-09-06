@@ -4,7 +4,16 @@ services:
     env: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
+    # El `&&` es intencionado: si la migración falla, el servicio NO arranca.
+    # Es preferible un despliegue caído y visible a una API sirviendo contra un
+    # esquema que no corresponde al código (que es como se llegó a tener
+    # producción con alembic_version desfasado y comportamiento incoherente).
+    # Si un despliegue no sube, mira primero el log de `alembic upgrade head`.
     startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    # OJO: en el plan gratuito el servicio se suspende tras ~15 min sin tráfico y
+    # la siguiente petición espera al arranque en frío. Es la causa del síntoma
+    # "después de un rato la página tarda en cargar"; subir de plan lo elimina.
     plan: free
     envVars:
       - key: PYTHON_VERSION
@@ -13,3 +22,12 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      # Obligatorio: app/auth.py aborta el arranque si falta. No estaba
+      # declarado, así que un despliegue nuevo desde este repositorio no
+      # levantaba hasta añadirlo a mano en el panel.
+      - key: JWT_SECRET
+        sync: false
+      # Restringe el CORS a los orígenes de producción y desactiva los rangos de
+      # red local que se permiten en desarrollo.
+      - key: ENV
+        value: production

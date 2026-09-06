@@ -4,6 +4,10 @@ from datetime import datetime
 from decimal import Decimal
 from app.models import ValueClass, WasteType, TaskType, RaciType, BpmnNodeType, OptStatus, ArtifactSource, UserRole
 
+# Nota: los campos de texto obligatorios llevan min_length=1. Sin el, Pydantic
+# acepta la cadena vacia y se creaban macroprocesos, procesos y tareas sin nombre
+# (indistinguibles en las listas) y conexiones con un extremo vacio.
+
 # ==========================================
 # 0. Auth & Users Schemas
 # ==========================================
@@ -90,8 +94,8 @@ class TaskSystemResponse(TaskSystemBase):
 # ==========================================
 
 class MacroprocessBase(BaseModel):
-    code: str = Field(..., max_length=40)
-    name: str = Field(..., max_length=200)
+    code: str = Field(..., min_length=1, max_length=40)
+    name: str = Field(..., min_length=1, max_length=200)
     owner_area: Optional[str] = Field(None, max_length=120)
 
 class MacroprocessCreate(MacroprocessBase):
@@ -115,8 +119,8 @@ class MacroprocessResponse(MacroprocessBase):
 
 class ProcessBase(BaseModel):
     macroprocess_id: int
-    code: str = Field(..., max_length=40)
-    name: str = Field(..., max_length=200)
+    code: str = Field(..., min_length=1, max_length=40)
+    name: str = Field(..., min_length=1, max_length=200)
     objective: Optional[str] = None
     # SIPOC completo: S y C faltaban en el modelo.
     suppliers: Optional[str] = Field(None, max_length=300)
@@ -153,7 +157,7 @@ class ProcessResponse(ProcessBase):
 
 class ActivityBase(BaseModel):
     process_id: int
-    name: str = Field(..., max_length=200)
+    name: str = Field(..., min_length=1, max_length=200)
     position_order: int
 
 class ActivityCreate(ActivityBase):
@@ -176,8 +180,8 @@ class ActivityResponse(ActivityBase):
 
 class TaskBase(BaseModel):
     activity_id: int
-    bpmn_id: str = Field(..., max_length=60)
-    name: str = Field(..., max_length=200)
+    bpmn_id: str = Field(..., min_length=1, max_length=60)
+    name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
     position_order: int
     task_type: TaskType = TaskType.user
@@ -191,8 +195,8 @@ class TaskCreate(TaskBase):
     systems: Optional[List[TaskSystemCreateNested]] = None
 
 class TaskCreateDirect(BaseModel):
-    bpmn_id: str = Field(..., max_length=60)
-    name: str = Field(..., max_length=200)
+    bpmn_id: str = Field(..., min_length=1, max_length=60)
+    name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
     position_order: int
     task_type: TaskType = TaskType.user
@@ -330,7 +334,7 @@ class TaskCreateValidated(TaskCreate):
 # ==========================================
 
 class RoleBase(BaseModel):
-    name: str = Field(..., max_length=120)
+    name: str = Field(..., min_length=1, max_length=120)
     area: Optional[str] = Field(None, max_length=120)
     cost_per_hour: Optional[Decimal] = None
 
@@ -350,7 +354,7 @@ class RoleResponse(RoleBase):
 
 
 class SystemBase(BaseModel):
-    name: str = Field(..., max_length=120)
+    name: str = Field(..., min_length=1, max_length=120)
     system_type: Optional[str] = Field(None, max_length=80)
     vendor: Optional[str] = Field(None, max_length=120)
 
@@ -397,7 +401,7 @@ class TimeMeasurementResponse(TimeMeasurementBase):
 
 class FlowNodeBase(BaseModel):
     process_id: int
-    bpmn_id: str = Field(..., max_length=60)
+    bpmn_id: str = Field(..., min_length=1, max_length=60)
     node_type: BpmnNodeType
     name: Optional[str] = Field(None, max_length=200)
 
@@ -413,9 +417,9 @@ class FlowNodeResponse(FlowNodeBase):
 
 class SequenceFlowBase(BaseModel):
     process_id: int
-    bpmn_id: str = Field(..., max_length=60)
-    source_ref: str = Field(..., max_length=60)
-    target_ref: str = Field(..., max_length=60)
+    bpmn_id: str = Field(..., min_length=1, max_length=60)
+    source_ref: str = Field(..., min_length=1, max_length=60)
+    target_ref: str = Field(..., min_length=1, max_length=60)
     name: Optional[str] = Field(None, max_length=200)
     condition_expression: Optional[str] = None
     branch_probability: Optional[float] = Field(None, ge=0, le=100)
@@ -432,14 +436,14 @@ class SequenceFlowResponse(SequenceFlowBase):
         from_attributes = True
 
 class FlowNodeSync(BaseModel):
-    bpmn_id: str = Field(..., max_length=60)
+    bpmn_id: str = Field(..., min_length=1, max_length=60)
     node_type: BpmnNodeType
     name: Optional[str] = Field(None, max_length=200)
 
 class SequenceFlowSync(BaseModel):
-    bpmn_id: str = Field(..., max_length=60)
-    source_ref: str = Field(..., max_length=60)
-    target_ref: str = Field(..., max_length=60)
+    bpmn_id: str = Field(..., min_length=1, max_length=60)
+    source_ref: str = Field(..., min_length=1, max_length=60)
+    target_ref: str = Field(..., min_length=1, max_length=60)
     name: Optional[str] = Field(None, max_length=200)
     condition_expression: Optional[str] = None
     branch_probability: Optional[float] = Field(None, ge=0, le=100)
@@ -452,8 +456,8 @@ class GraphSync(BaseModel):
 
 class MacroSequenceFlowSync(BaseModel):
     id: Optional[str] = None # Acepta IDs del frontend ("sf-1234") y el id int de la BD
-    source_ref: str = Field(..., max_length=60)
-    target_ref: str = Field(..., max_length=60)
+    source_ref: str = Field(..., min_length=1, max_length=60)
+    target_ref: str = Field(..., min_length=1, max_length=60)
     condition: Optional[str] = Field(None, max_length=200)
 
     class Config:
@@ -477,7 +481,7 @@ class GraphResponse(BaseModel):
 # ========= NODE COMMENTS =========
 
 class NodeCommentCreate(BaseModel):
-    node_bpmn_id: str = Field(..., max_length=60)
+    node_bpmn_id: str = Field(..., min_length=1, max_length=60)
     text: str = Field(..., min_length=1, max_length=2000)
 
 class NodeCommentUpdate(BaseModel):

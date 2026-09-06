@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Handle, Position, ReactFlow, Controls, MiniMap, Background, useNodesState, useEdgesState, MarkerType, addEdge, BaseEdge, getSmoothStepPath, EdgeLabelRenderer } from '@xyflow/react';
+import { Handle, Position, ReactFlow, Controls, Background, useNodesState, useEdgesState, MarkerType, addEdge, BaseEdge, getSmoothStepPath, EdgeLabelRenderer } from '@xyflow/react';
 import dagre from 'dagre';
-import { User, PenLine, Wrench, Clock, RotateCcw, Info, ChevronUp, ChevronDown, Trash2, Rows3 } from 'lucide-react';
+import { connectionError } from '../../utils/flowGraph.js';
+import { User, PenLine, Wrench, Clock, Info, ChevronUp, ChevronDown, Trash2, Rows3 } from 'lucide-react';
 import { fmtShort, fmtLong } from '../editor/Editors.jsx';
 import { VALUE, TYPES, WASTE } from '../../constants.js';
 import { InfoPce, InfoCaminoCritico, InfoToc, InfoDowntime } from '../shared/Infographics.jsx';
@@ -496,28 +497,22 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
     return t ? (t.bpmnId || String(t.id)) : nodeId;
   }, [tasks]);
 
-  // Reglas de conexion, evaluadas mientras se arrastra para que React Flow
-  // marque el destino como invalido en vez de dejar crear la linea.
-  const connectionError = useCallback((source, target) => {
-    if (!source || !target) return null;
-    if (source === target) return "Un paso no puede conectarse consigo mismo.";
-    const s = refFor(source), t = refFor(target);
-    if (s === t) return "Un paso no puede conectarse consigo mismo.";
-    if (t === "start") return "El Inicio no puede recibir flechas.";
-    if (s === "end") return "El Fin no puede tener salidas.";
-    const dup = (sequenceFlows || []).some((f) => f.source_ref === s && f.target_ref === t);
-    if (dup) return "Esa conexion ya existe.";
-    return null;
-  }, [refFor, sequenceFlows]);
+  // Las reglas viven en utils/flowGraph.js, compartidas con el aviso de
+  // problemas del editor: antes cada lado tenia su propia version y no siempre
+  // coincidian.
+  const connectionErrorFor = useCallback(
+    (source, target) => connectionError(refFor(source), refFor(target), sequenceFlows),
+    [refFor, sequenceFlows]
+  );
 
   const isValidConnection = useCallback(
-    (c) => !connectionError(c.source, c.target),
-    [connectionError]
+    (c) => !connectionErrorFor(c.source, c.target),
+    [connectionErrorFor]
   );
 
   const onConnect = useCallback(
     (params) => {
-      const problem = connectionError(params.source, params.target);
+      const problem = connectionErrorFor(params.source, params.target);
       if (problem) {
         if (onConnectionRejected) onConnectionRejected(problem);
         return;
@@ -544,7 +539,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         onGraphChange(gateways, [...(sequenceFlows||[]), newFlow]);
       }
     },
-    [gateways, sequenceFlows, onGraphChange, setEdges, refFor, connectionError, onConnectionRejected]
+    [gateways, sequenceFlows, onGraphChange, setEdges, refFor, connectionErrorFor, onConnectionRejected]
   );
 
   // #5 Persistir posiciones manuales: al soltar un nodo, guarda el mapa completo

@@ -774,7 +774,8 @@ def get_process_snapshots(id: int, db: Session = Depends(get_db), current_user: 
     if current_user.role != models.UserRole.admin and process.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this process")
         
-    snapshots = db.query(models.ProcessSnapshot).filter(models.ProcessSnapshot.process_id == id).order_by(models.ProcessSnapshot.created_at.desc()).all()
+    snapshots = db.query(models.ProcessSnapshot).filter(models.ProcessSnapshot.process_id == id).order_by(models.ProcessSnapshot.created_at.desc(),
+                 models.ProcessSnapshot.id.desc()).all()
     return snapshots
 
 # NOTA: La restauración de snapshots se orquesta desde el frontend (AiProces.restoreSnapshot):

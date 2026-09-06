@@ -6,7 +6,7 @@ from typing import Any, Dict
 from pydantic import ValidationError
 from google import genai
 from google.genai import types
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func
 
 from app import models, schemas
@@ -317,7 +317,28 @@ def detect_flow_issues(tasks_data, flow_nodes_data, sequence_flows_data) -> list
 
 
 def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
-    process = db.query(models.Process).filter(models.Process.id == process_id).first()
+    # Se carga todo el arbol de una vez. Antes se consultaban el RACI y los
+    # sistemas DENTRO del bucle de tareas: dos consultas por tarea, mas las
+    # perezosas de actividades y nodos. Un proceso de 13 pasos disparaba mas de
+    # treinta viajes a la base por cada analisis, y el mismo camino lo usa el
+    # asistente en cada pregunta.
+    process = (
+        db.query(models.Process)
+        .options(
+            selectinload(models.Process.activities)
+            .selectinload(models.Activity.tasks)
+            .selectinload(models.Task.raci)
+            .selectinload(models.TaskRaci.role),
+            selectinload(models.Process.activities)
+            .selectinload(models.Activity.tasks)
+            .selectinload(models.Task.systems)
+            .selectinload(models.TaskSystem.system),
+            selectinload(models.Process.flow_nodes),
+            selectinload(models.Process.sequence_flows),
+        )
+        .filter(models.Process.id == process_id)
+        .first()
+    )
     if not process:
         raise ValueError(f"Process with id {process_id} not found")
 
@@ -325,29 +346,27 @@ def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
     for activity in process.activities:
         tasks_data = []
         for task in activity.tasks:
-            # Fetch RACI assignments
-            raci_assignments = []
-            raci_list = db.query(models.TaskRaci, models.Role).join(models.Role).filter(models.TaskRaci.task_id == task.id).all()
-            for tr, role in raci_list:
-                raci_assignments.append({
-                    "role_id": role.id,
-                    "role_name": role.name,
-                    "area": role.area,
-                    "cost_per_hour": float(role.cost_per_hour) if role.cost_per_hour is not None else None,
-                    "raci_type": tr.raci_type
-                })
+            raci_assignments = [
+                {
+                    "role_id": tr.role.id,
+                    "role_name": tr.role.name,
+                    "area": tr.role.area,
+                    "cost_per_hour": float(tr.role.cost_per_hour) if tr.role.cost_per_hour is not None else None,
+                    "raci_type": tr.raci_type,
+                }
+                for tr in task.raci if tr.role
+            ]
 
-            # Fetch System assignments
-            system_assignments = []
-            system_list = db.query(models.TaskSystem, models.System).join(models.System).filter(models.TaskSystem.task_id == task.id).all()
-            for ts, system in system_list:
-                system_assignments.append({
-                    "system_id": system.id,
-                    "system_name": system.name,
-                    "system_type": system.system_type,
-                    "vendor": system.vendor,
-                    "interaction_type": ts.interaction_type
-                })
+            system_assignments = [
+                {
+                    "system_id": ts.system.id,
+                    "system_name": ts.system.name,
+                    "system_type": ts.system.system_type,
+                    "vendor": ts.system.vendor,
+                    "interaction_type": ts.interaction_type,
+                }
+                for ts in task.systems if ts.system
+            ]
 
             tasks_data.append({
                 "task_id": task.id,

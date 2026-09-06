@@ -1,0 +1,7 @@
+# Dependencias solo de desarrollo y CI. No se instalan en produccion (Render usa
+# requirements.txt). Estaban implicitas en el entorno local: quien clonara el
+# repositorio no podia ejecutar los tests.
+-r requirements.txt
+pytest>=8.0
+httpx>=0.27          # requerido por fastapi.testclient
+requests>=2.31       # usado por backend/scripts/smoke_e2e.py

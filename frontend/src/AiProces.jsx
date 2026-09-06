@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
 import { apiFetch, apiMutate } from "./api.js";
+// Reglas del grafo compartidas con el canvas: una sola definicion de que
+// referencia es valida evita que se dibuje una flecha que luego el aviso de
+// problemas no reconoce.
+import { canonicalizeFlows, detectFlowIssues } from "./utils/flowGraph.js";
 import { VALUE, WASTE, TYPES, ACTION, SEVERITY, WASTE_QUESTIONS } from "./constants.js";
 // Los componentes de React Flow y dagre viven en FlowDiagrams.jsx; aquí solo se
 // usa el CSS de la librería, por eso no se importan sus símbolos.
@@ -13,7 +17,6 @@ import {
 } from "lucide-react";
 import { useAuth } from './components/auth/AuthContext.jsx';
 import { useConfirm, useInputDialog } from './components/shared/ConfirmDialog.jsx';
-import MacroprocessDiagram from "./components/diagram/MacroprocessDiagram.jsx";
 import Logo from "./components/shared/Logo.jsx";
 import Dashboard from "./components/dashboard/Dashboard.jsx";
 import './styles/main.css';
@@ -134,7 +137,6 @@ function Banner({ type, message, actionText, onAction, onClose }) {
    Frontend integrado con FastAPI + PostgreSQL
    ============================================================================ */
 
-const API = import.meta.env.VITE_API_URL;
 
 // VALUE, WASTE, TYPES, ACTION, SEVERITY imported from ./constants.js
 
@@ -313,26 +315,14 @@ const API = import.meta.env.VITE_API_URL;
 
 
 
-const SAMPLE = {
-  proc: {
-    name: "Alta de cliente nuevo",
-    code: "OP-CLI-001",
-    objective: "Dar de alta y activar la cuenta de un cliente desde la solicitud.",
-    trigger: "Solicitud recibida",
-    output: "Cuenta activada",
-  },
-  tasks: [
-    { bpmnId: "Task_01", name: "Recepción de solicitud", type: "user", cycleTime: 300, waitTime: 0, valueClass: "VA", wasteType: "", responsible: "Atención al cliente", accountable: "Líder de atención", consulted: "", informed: "", systems: "CRM" },
-    { bpmnId: "Task_02", name: "Espera de validación de crédito", type: "user", cycleTime: 120, waitTime: 7200, valueClass: "NVA", wasteType: "waiting", responsible: "Analista de riesgo", accountable: "Jefe de riesgo", consulted: "", informed: "", systems: "Core bancario" },
-    { bpmnId: "Task_03", name: "Captura manual de datos en ERP", type: "manual", cycleTime: 900, waitTime: 0, valueClass: "NNVA", wasteType: "", responsible: "Back office", accountable: "Back office", consulted: "", informed: "", systems: "ERP" },
-    { bpmnId: "Task_04", name: "Revisión documental", type: "user", cycleTime: 600, waitTime: 1800, valueClass: "NNVA", wasteType: "", responsible: "Cumplimiento", accountable: "Cumplimiento", consulted: "Legal", informed: "", systems: "Gestor documental" },
-    { bpmnId: "Task_05", name: "Reproceso por datos incompletos", type: "manual", cycleTime: 700, waitTime: 0, valueClass: "NVA", wasteType: "defects", responsible: "Back office", accountable: "Back office", consulted: "", informed: "", systems: "ERP, CRM" },
-    { bpmnId: "Task_06", name: "Activación de cuenta", type: "service", cycleTime: 60, waitTime: 0, valueClass: "VA", wasteType: "", responsible: "Sistema", accountable: "TI", consulted: "", informed: "Atención al cliente", systems: "Core bancario" },
-  ],
-};
-
 /* ---------- helpers ---------- */
-const newBpmnId = () => "Task_" + Math.random().toString(36).slice(2, 6);
+// `tasks.bpmn_id` es UNICO EN TODA LA TABLA, no por proceso: el identificador
+// compite con el de las demas cuentas. Con 4 caracteres (~1,7 millones de
+// combinaciones) la probabilidad de choque supera el 50% alrededor de las 1.500
+// tareas en la base, y un choque devolvia un error opaco. Con la marca de tiempo
+// mas 6 caracteres, el choque deja de ser realista.
+const newBpmnId = () =>
+  "Task_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 
 
@@ -354,7 +344,7 @@ const newBpmnId = () => "Task_" + Math.random().toString(36).slice(2, 6);
 const GUIDE_STEPS = [
   {
     icon: "➕",
-    text: <>Abajo a la izquierda, pulsa <strong>+ Tarea</strong>. Cada tarea es un paso real del trabajo, como "Revisar documentos". Aparecerá en la lista y en el diagrama.</>,
+    text: <>Abajo a la izquierda, pulsa <strong>+ Tarea</strong>. Cada tarea es un paso real del trabajo, como &quot;Revisar documentos&quot;. Aparecerá en la lista y en el diagrama.</>,
   },
   {
     icon: "✏️",
@@ -366,7 +356,7 @@ const GUIDE_STEPS = [
   },
   {
     icon: "🔀",
-    text: <>¿El proceso se bifurca? Pulsa <strong>+ Compuerta</strong> y ponle la pregunta ("¿Está aprobado?"). Después, en <strong>Ramas de salida</strong>, etiqueta cada camino <strong>Sí / No</strong> y el % de casos que toma cada uno.</>,
+    text: <>¿El proceso se bifurca? Pulsa <strong>+ Compuerta</strong> y ponle la pregunta (&quot;¿Está aprobado?&quot;). Después, en <strong>Ramas de salida</strong>, etiqueta cada camino <strong>Sí / No</strong> y el % de casos que toma cada uno.</>,
   },
   {
     icon: "🔗",
@@ -417,29 +407,6 @@ function GuideTicket({ step, onStep, onDismiss }) {
       </div>
     </div>
   );
-}
-
-// Una conexion puede venir de la base apuntando a la tarea por su id numerico
-// ("246") en vez de por su bpmn_id ("Task_7sge"). El diagrama las dibuja igual
-// —resuelve ambas formas— pero la deteccion de problemas, el selector lateral y
-// la IA solo entienden bpmn_id, asi que esos nodos salian marcados "sin entrada"
-// aunque en pantalla estuvieran conectados, y no habia forma de arreglarlo desde
-// la interfaz. Se normaliza al cargar: el proximo guardado deja la base limpia.
-function canonicalizeFlows(flows, tasks) {
-  if (!flows || !flows.length) return flows || [];
-  const byNumericId = new Map();
-  for (const t of tasks || []) {
-    if (t.id != null && t.bpmnId) byNumericId.set(String(t.id), t.bpmnId);
-  }
-  if (!byNumericId.size) return flows;
-  const canon = (ref) => byNumericId.get(String(ref)) ?? ref;
-  return flows.map((f) => {
-    const source_ref = canon(f.source_ref);
-    const target_ref = canon(f.target_ref);
-    return (source_ref === f.source_ref && target_ref === f.target_ref)
-      ? f
-      : { ...f, source_ref, target_ref };
-  });
 }
 
 function mapBackendTaskToFrontend(t) {
@@ -1038,14 +1005,12 @@ export default function App() {
   const { user, logout: baseLogout } = useAuth();
   // Views: "dashboard" | "editor"
   const [view, setView] = useState("dashboard");
-  const [dashTab, setDashTab] = useState("jerarquia");
   const [allProcesses, setAllProcesses] = useState([]);
   const [macroprocesses, setMacroprocesses] = useState([]);
   const [proc, setProc] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [gateways, setGateways] = useState([]);
   const [sequenceFlows, setSequenceFlows] = useState([]);
-  const [mergeData, setMergeData] = useState(null);
   const [aiTip, setAiTip] = useState(null);
   const [snapshotsModalOpen, setSnapshotsModalOpen] = useState(false);
   const [showUndoBanner, setShowUndoBanner] = useState(false);
@@ -2013,33 +1978,13 @@ export default function App() {
   // local nva count calculation since metricsData might not have it explicitly as a simple count
   const localNvaCount = tasks.filter((t) => t.valueClass === "NVA").length;
 
-  // #7 Validación de integridad del grafo: detecta nodos aislados, sin salida,
-  // sin entrada y compuertas sin ramificar. No bloquea — informa para corregir.
-  const flowIssues = useMemo(() => {
-    const issues = [];
-    const flows = sequenceFlows || [];
-    const hasOut = (id) => flows.some((f) => f.source_ref === id);
-    const hasIn = (id) => flows.some((f) => f.target_ref === id);
-    if (tasks.length === 0) return issues;
-    for (const t of tasks) {
-      const id = t.bpmnId;
-      const out = hasOut(id), inc = hasIn(id);
-      // `nodeId` es el id del nodo en el canvas: permite pintar el problema
-      // sobre el diagrama, no solo listarlo en el aviso de abajo.
-      const nodeId = `task-${t.id}`;
-      if (!out && !inc) issues.push({ type: "isolated", name: t.name, sev: "high", nodeId });
-      else if (!out) issues.push({ type: "deadend", name: t.name, sev: "high", nodeId });
-      else if (!inc) issues.push({ type: "unreachable", name: t.name, sev: "medium", nodeId });
-    }
-    for (const g of gateways || []) {
-      const branches = flows.filter((f) => f.source_ref === g.bpmn_id).length;
-      if (branches < 2) issues.push({ type: "gateway", name: g.name || "Compuerta", sev: "medium", nodeId: `gw-${g.bpmn_id}` });
-    }
-    return issues;
-  }, [tasks, gateways, sequenceFlows]);
+  // #7 Validación de integridad del grafo: nodos aislados, sin salida, sin
+  // entrada y compuertas sin ramificar. No bloquea, informa para corregir.
+  const flowIssues = useMemo(
+    () => detectFlowIssues(tasks, gateways, sequenceFlows),
+    [tasks, gateways, sequenceFlows]
+  );
 
-  // Firma del conjunto de problemas: si cambia (aparecen/desaparecen problemas),
-  // el aviso vuelve a mostrarse aunque el usuario lo hubiera cerrado antes.
   // Conjunto de nodos en problemas, para resaltarlos en el canvas.
   const issueNodeIds = useMemo(
     () => new Set(flowIssues.map((i) => i.nodeId).filter(Boolean)),
@@ -2094,7 +2039,7 @@ export default function App() {
     }
     setSequenceFlows(newFlows);
     persistGraph(gateways || [], newFlows, proc.id);
-  }, [sequenceFlows, gateways, proc]);
+  }, [sequenceFlows, gateways, proc, persistGraph]);
 
   async function runOptimize() {
     if (!proc) return;
@@ -2768,7 +2713,7 @@ export default function App() {
                     </div>
                   )
                 ) : (
-                  <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onShowRecommendation={showRecommendation} />
+                  <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onShowRecommendation={showRecommendation} longLoading={optLongLoading} />
                 )}
               </div>
             </div>
@@ -2862,7 +2807,7 @@ export default function App() {
                   </div>
                 )
               ) : (
-                <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onShowRecommendation={showRecommendation} />
+                <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onShowRecommendation={showRecommendation} longLoading={optLongLoading} />
               )}
               </div>
             </div>
