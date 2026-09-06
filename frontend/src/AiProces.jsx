@@ -1341,10 +1341,12 @@ export default function App() {
         { bpmn_id: `${code}_T3`, name: "Aprobar crédito", task_type: "user", value_classification: "VA", std_cycle_time_sec: 600, std_wait_time_sec: 1800 },
         { bpmn_id: `${code}_T4`, name: "Corregir documentos", task_type: "manual", value_classification: "NVA", waste_type: "defects", std_cycle_time_sec: 900, std_wait_time_sec: 0 },
       ];
-      for (const t of tasksToCreate) {
+      for (const [i, t] of tasksToCreate.entries()) {
         await apiMutate(`/processes/${pData.id}/tasks`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(t),
+          // position_order es obligatorio en el backend y faltaba: la creación
+          // del proceso de ejemplo respondía 422 y no llegaba a crearse nada.
+          body: JSON.stringify({ ...t, position_order: i + 1 }),
         });
       }
 
@@ -2444,11 +2446,11 @@ export default function App() {
                       <button onClick={async (e) => { e.stopPropagation(); const ok = await confirm("Eliminar tarea", `\u00bfEliminar "${t.name}"?`, { danger: true }); if (ok) deleteTask(t.id); }} title="Eliminar tarea" aria-label="Eliminar tarea" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--inv-muted)", padding: 4, display: "flex", flexShrink: 0, borderRadius: 6 }}><Trash2 size={14} /></button>
                       </div>
                       <div className="pa-step-dir">
-                        <span className="pa-step-dir-label">Continua en</span>
+                        <span className="pa-step-dir-label">Continúa en</span>
                         <select
                            value={getOutgoingTarget(t.bpmnId)}
                            onChange={(e) => setOutgoingTarget(t.bpmnId, e.target.value)}
-                           aria-label={`Siguiente paso despues de ${t.name}`}
+                           aria-label={`Siguiente paso después de ${t.name}`}
                            onClick={(e) => e.stopPropagation()}
                         >
                            <option value="">(Desconectado)</option>
@@ -2487,10 +2489,10 @@ export default function App() {
                             <select
                                value=""
                                onChange={(e) => { addOutgoingTarget(g.bpmn_id, e.target.value); e.target.value = ""; }}
-                               aria-label={`Anadir una rama de salida a la compuerta ${g.name || "sin nombre"}`}
+                               aria-label={`Añadir una rama de salida a la compuerta ${g.name || "sin nombre"}`}
                                onClick={(e) => e.stopPropagation()}
                             >
-                               <option value="">+ Anadir rama hacia...</option>
+                               <option value="">+ Añadir rama hacia...</option>
                                <option value="end">🏁 Fin</option>
                                {tasks.map(tk => {
                                  const tIdx = String(tasks.findIndex(x => x.id === tk.id) + 1).padStart(2, "0");

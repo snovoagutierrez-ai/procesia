@@ -1,0 +1,55 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pmo",
+      "runtimeExecutable": "C:/Users/HP/Desktop/PMO-Controller/backend/.venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--app-dir",
+        "C:/Users/HP/Desktop/PMO-Controller/backend",
+        "--port",
+        "8000"
+      ],
+      "port": 8000,
+      "autoPort": false
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "cwd": "frontend",
+      "port": 5173,
+      "autoPort": false
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--port",
+        "8001"
+      ],
+      "cwd": "backend",
+      "port": 8001,
+      "autoPort": false
+    },
+    {
+      "name": "backend-sandbox",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "scripts/dev_sandbox.py"
+      ],
+      "cwd": "backend",
+      "port": 8001,
+      "autoPort": false
+    }
+  ]
+}
