@@ -137,6 +137,13 @@ function ValueClassWizard({ valueClass, wasteType, onChange, expertMode, setExpe
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <Seg value={valueClass} onChange={(v) => onChange(v, v === "NVA" ? wasteType || "waiting" : "")}
              options={Object.entries(VALUE).map(([k, m]) => ({ value: k, label: m.short, color: m.color }))} />
+        {/* Sin esto, "VA" se leia como "solo lo que el cliente pagaria aparte" y
+            "NNVA" como "no sirve para nada". */}
+        {VALUE[valueClass]?.help && (
+          <div className="pa-field-help">
+            <b>{VALUE[valueClass].label}.</b> {VALUE[valueClass].help}
+          </div>
+        )}
         {valueClass === "NVA" && (
           <select className="pa-input" value={wasteType || "waiting"} onChange={(e) => onChange("NVA", e.target.value)}>
             {Object.entries(WASTE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -163,6 +170,7 @@ function ValueClassWizard({ valueClass, wasteType, onChange, expertMode, setExpe
             {wizardCompleted ? "Cambiar respuesta" : "¿No estás seguro? Te ayudamos a decidir"}
           </button>
         </div>
+        {valObj?.help && <div className="pa-field-help" style={{ marginTop: 8 }}>{valObj.help}</div>}
       </div>
     );
   }
@@ -682,9 +690,13 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
       </Field>
 
       <div className="pa-row">
-        <Field label="Tipo" tooltip="Define la naturaleza técnica de la tarea: si la hace un usuario, un sistema automático, o si es un envío/recepción de mensajes.">
+        <Field label="Tipo" tooltip="Lo que distingue los tres tipos no es si hay una persona trabajando, sino si media un sistema digital.">
           <Seg value={task.type} onChange={(v) => set({ type: v })}
             options={Object.entries(TYPES).map(([k, m]) => ({ value: k, label: m.label }))} />
+          {/* "Persona" y "Manual" parecian lo mismo: se explica cuál es cuál. */}
+          {TYPES[task.type]?.help && (
+            <div className="pa-field-help">{TYPES[task.type].help}</div>
+          )}
         </Field>
       </div>
 
@@ -1092,19 +1104,27 @@ function Optimization({ state, onRun, onApply, onShowRecommendation, tasks, long
   );
 }
 
+// Un decimal como maximo y sin ceros de relleno: los segundos salen de sumar
+// valores con decimales, y concatenarlos sin redondear mostraba en pantalla
+// cosas como "10.350000000000001 s".
+function redondea(n, decimales = 1) {
+  const factor = 10 ** decimales;
+  return String(Math.round(n * factor) / factor);
+}
+
 function fmtShort(sec) {
   sec = Number(sec) || 0;
   if (sec === 0) return "0";
-  if (sec < 60) return sec + "s";
+  if (sec < 60) return redondea(sec) + "s";
   if (sec < 3600) return Math.round(sec / 60) + "m";
-  return (sec / 3600).toFixed(1).replace(/\.0$/, "") + "h";
+  return redondea(sec / 3600) + "h";
 }
 
 function fmtLong(sec) {
   sec = Number(sec) || 0;
-  if (sec < 60) return sec + " s";
-  if (sec < 3600) return (sec / 60).toFixed(sec % 60 ? 1 : 0) + " min";
-  return (sec / 3600).toFixed(1) + " h";
+  if (sec < 60) return redondea(sec) + " s";
+  if (sec < 3600) return redondea(sec / 60) + " min";
+  return redondea(sec / 3600) + " h";
 }
 // NodeComments y BranchRow se exportan para poder probarlos de forma aislada:
 // son las dos piezas donde vivian las observaciones de comentarios y de ramas.

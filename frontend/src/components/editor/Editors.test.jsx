@@ -181,3 +181,37 @@ describe("Ramas de la compuerta · borrado individual", () => {
     expect(onRemove).toHaveBeenCalledWith(flujo);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Formato de tiempos — visto en el resumen: "10.350000000000001 s"
+// ---------------------------------------------------------------------------
+
+import { fmtShort, fmtLong } from "./Editors.jsx";
+
+describe("Formato de tiempos", () => {
+  it("no derrama decimales de coma flotante", () => {
+    // El valor exacto que aparecia en pantalla.
+    expect(fmtLong(10.350000000000001)).toBe("10.4 s");
+    expect(fmtShort(10.350000000000001)).toBe("10.4s");
+  });
+
+  it("redondea a un decimal como máximo", () => {
+    expect(fmtLong(0.1 + 0.2)).toBe("0.3 s");
+    expect(fmtLong(59.99)).toBe("60 s");
+  });
+
+  it("usa la unidad adecuada a cada magnitud", () => {
+    expect(fmtLong(30)).toBe("30 s");
+    expect(fmtLong(600)).toBe("10 min");
+    expect(fmtLong(5400)).toBe("1.5 h");
+    expect(fmtShort(0)).toBe("0");
+    expect(fmtShort(120)).toBe("2m");
+    expect(fmtShort(3600)).toBe("1h");
+  });
+
+  it("aguanta valores no numéricos", () => {
+    expect(fmtLong(null)).toBe("0 s");
+    expect(fmtLong(undefined)).toBe("0 s");
+    expect(fmtShort("no es un número")).toBe("0");
+  });
+});

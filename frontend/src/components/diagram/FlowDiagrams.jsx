@@ -2,7 +2,9 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Handle, Position, ReactFlow, Controls, Background, useNodesState, useEdgesState, MarkerType, addEdge, BaseEdge, getSmoothStepPath, EdgeLabelRenderer } from '@xyflow/react';
 import dagre from 'dagre';
 import { connectionError } from '../../utils/flowGraph.js';
-import { User, PenLine, Wrench, Clock, Info, ChevronUp, ChevronDown, Trash2, Rows3 } from 'lucide-react';
+import { User, PenLine, Wrench, Clock, Info, ChevronUp, ChevronDown, Trash2, Rows3, Flame,
+         Table2, Database, Globe, Mail, Folder, FileText, StickyNote, Cpu } from 'lucide-react';
+import { familiaDeSistema } from '../../utils/systemIcon.js';
 import { fmtShort, fmtLong } from '../editor/Editors.jsx';
 import { VALUE, TYPES, WASTE } from '../../constants.js';
 import { InfoPce, InfoCaminoCritico, InfoToc, InfoDowntime } from '../shared/Infographics.jsx';
@@ -169,6 +171,19 @@ function EndNode({ data }) {
   );
 }
 
+// Obs 08/09: "al mirar una tarea se pueda saber si esta se está realizando en
+// una base de datos, página web, hoja de cálculo, carpeta, etc."
+const ICONO_SISTEMA = {
+  hoja: Table2,
+  base: Database,
+  web: Globe,
+  correo: Mail,
+  carpeta: Folder,
+  documento: FileText,
+  papel: StickyNote,
+  sistema: Cpu,
+};
+
 function TaskNode({ data }) {
   const v = VALUE[data.valueClass] || VALUE.VA;
   const TypeIcon = TYPE_ICONS[data.taskType] || User;
@@ -185,10 +200,25 @@ function TaskNode({ data }) {
             pasos sin ir contando las flechas. */}
         {data.order != null && <span className="rf-task-order mono">{String(data.order).padStart(2, "0")}</span>}
         <span className="rf-task-name">{data.label}</span>
+        {data.isConstraint && (
+          <span className="rf-task-key" title="Paso más lento: marca el ritmo de todo el proceso. Mejorar aquí es lo único que aumenta la capacidad.">
+            <Flame size={11} /> Marca el ritmo
+          </span>
+        )}
       </div>
       <div className="rf-task-meta">
         <TypeIcon size={12} />
         <span>{TYPES[data.taskType]?.label || data.taskType}</span>
+        {(() => {
+          const fam = familiaDeSistema(data.systems, data.taskType);
+          const IconoSistema = fam && ICONO_SISTEMA[fam.clave];
+          if (!IconoSistema) return null;
+          return (
+            <span className="rf-task-where" title={`Se realiza en: ${fam.etiqueta}${data.systems ? ` (${data.systems})` : ""}`}>
+              <IconoSistema size={12} />
+            </span>
+          );
+        })()}
         <span className="rf-task-badge" style={{ background: v.color }}>{v.short}</span>
       </div>
       <div className="rf-task-times">
@@ -332,7 +362,7 @@ function getSwimlaneLayout(rfNodes, rfEdges) {
   return { nodes: [...laneNodes, ...content], edges: rfEdges };
 }
 
-function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions = null, laneMode = false) {
+function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions = null, laneMode = false, constraintBpmnId = null, selectedRef = null) {
   const rfNodes = [];
   const rfEdges = [];
 
@@ -346,6 +376,11 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
         taskId: t.id,
         bpmnId: t.bpmnId,
         order: idx + 1,
+        systems: t.systems,
+        // La restriccion es el paso mas lento: acelerar cualquier otro no sube
+        // la capacidad del proceso. Es "el paso importante" con un criterio
+        // objetivo, no una etiqueta manual.
+        isConstraint: !!constraintBpmnId && t.bpmnId === constraintBpmnId,
         taskType: t.type,
         valueClass: t.valueClass,
         cycleTime: t.cycleTime,
@@ -364,7 +399,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
       type: "gatewayNode",
       data: {
         label: gw.name,
-        gatewayType: gw.gateway_type,
+        gatewayType: gw.node_type || gw.gateway_type,
         gatewayId: gw.bpmn_id,
         onSelect,
       },
@@ -418,6 +453,8 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
       const targetHandle = (targetId.startsWith('task-') || targetId.startsWith('gw-'))
         ? (sf.target_handle || 'left') : undefined;
 
+      const esSalidaDelSeleccionado = !!selectedRef && sf.source_ref === selectedRef;
+
       rfEdges.push({
         // React Flow requiere id string. Mismo orden de fallback que usa
         // onEdgesDelete (id de BD → bpmn_id → par src-tgt): si difieren,
@@ -432,8 +469,12 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
         data: { onDelete: (edgeId) => { if(onEdgesDelete) onEdgesDelete([{ id: edgeId }]); } },
         label: edgeLabel,
         animated: true,
-        style: { stroke: "#9AA8A8", strokeWidth: 1.8 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: "#9AA8A8", width: 16, height: 16 },
+        // Salida del paso seleccionado: se pinta en teal para responder de un
+        // vistazo a "y despues, ¿que?".
+        style: esSalidaDelSeleccionado
+          ? { stroke: "#0E9F9F", strokeWidth: 2.6 }
+          : { stroke: "#9AA8A8", strokeWidth: 1.8 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: esSalidaDelSeleccionado ? "#0E9F9F" : "#9AA8A8", width: 16, height: 16 },
       });
     });
   }
@@ -442,7 +483,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
   return getLayoutedElements(rfNodes, rfEdges, "LR", savedPositions);
 }
 
-function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected, issueNodeIds }) {
+function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected, issueNodeIds, constraintBpmnId, height = 280 }) {
   const savedPositions = proc?.layout_json || null;
   const [laneMode, setLaneMode] = useState(false);
   const onEdgesDelete = useCallback(
@@ -462,8 +503,13 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   );
 
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
-    () => buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions, laneMode),
-    [proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions, laneMode]
+    () => {
+      // Referencia canonica del nodo abierto, para resaltar su salida.
+      const sel = tasks.find((t) => t.id === selectedId)?.bpmnId || selectedId || null;
+      return buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete,
+                           savedPositions, laneMode, constraintBpmnId, sel);
+    },
+    [proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions, laneMode, constraintBpmnId, selectedId]
   );
 
   const nodesWithSelection = useMemo(
@@ -552,7 +598,9 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   }, [nodes, onLayoutChange, laneMode]);
 
   return (
-    <div className="pa-flow-canvas" style={{ height: 280, width: "100%", position: 'relative' }}>
+    // `height` por defecto 280 para el editor; quien lo muestre a pantalla
+    // completa (el modal "Ver flujo") pasa "100%" y el diagrama se ajusta solo.
+    <div className="pa-flow-canvas" style={{ height, width: "100%", position: 'relative' }}>
       <button
         type="button"
         onClick={() => setLaneMode(m => !m)}
@@ -605,11 +653,21 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   );
 }
 function GatewayNode({ data }) {
-    const isExclusive = data.gatewayType === "exclusive";
+    // El tipo llega como 'exclusiveGateway' | 'parallelGateway'. Se acepta
+    // tambien la forma corta por si algun origen antiguo la usa.
+    const tipo = String(data.gatewayType || "");
+    const isExclusive = tipo.startsWith("exclusive");
+    // Un rombo se lee como "aqui se decide". Cuando los caminos ocurren a la
+    // vez no hay decision, y pintarlo igual confundia: la version paralela pasa
+    // a ser un rectangulo con dos flechas simultaneas.
+    const borde = data.selected ? '#0E9F9F' : '#9AA8A8';
     return (
       <div
         className={`rf-task-node ${data.selected ? "selected" : ""} ${data.hasIssue ? "has-issue" : ""}`}
-        title={data.hasIssue ? "Esta compuerta tiene un problema de conexión" : undefined}
+        title={data.hasIssue
+          ? "Esta compuerta tiene un problema de conexión"
+          : (isExclusive ? "Decisión: el flujo toma UNO de los caminos"
+                         : "Paralela: los caminos ocurren AL MISMO TIEMPO")}
         onClick={() => data.onSelect && data.onSelect(data.gatewayId)}
         style={{
           width: 60, height: 60, padding: 0,
@@ -618,8 +676,23 @@ function GatewayNode({ data }) {
         }}
       >
         <svg viewBox="0 0 100 100" style={{position:'absolute', width:'100%', height:'100%', pointerEvents: 'none'}}>
-          <polygon points="50,5 95,50 50,95 5,50" fill="white" stroke={data.selected ? '#0E9F9F' : '#9AA8A8'} strokeWidth="4" />
-          <text x="50" y="62" textAnchor="middle" fontSize="40" fontWeight="bold" fill="#0E9F9F">{isExclusive ? 'X' : '+'}</text>
+          {isExclusive ? (
+            <>
+              <polygon points="50,5 95,50 50,95 5,50" fill="white" stroke={borde} strokeWidth="4" />
+              <text x="50" y="63" textAnchor="middle" fontSize="38" fontWeight="bold" fill="#0E9F9F">X</text>
+            </>
+          ) : (
+            <>
+              <rect x="10" y="18" width="80" height="64" rx="10" fill="white" stroke={borde} strokeWidth="4" />
+              {/* Dos flechas a la vez: el trabajo se reparte, no se elige. */}
+              <g stroke="#0E9F9F" strokeWidth="6" strokeLinecap="round" fill="none">
+                <path d="M26 40 H62" />
+                <path d="M54 32 L64 40 L54 48" />
+                <path d="M26 62 H62" />
+                <path d="M54 54 L64 62 L54 70" />
+              </g>
+            </>
+          )}
         </svg>
         <div style={{
           position: 'absolute', bottom: -20, left: '50%', transform: 'translateX(-50%)', 
@@ -628,8 +701,8 @@ function GatewayNode({ data }) {
           {data.label}
         </div>
         <Handle type="target" position={Position.Left} className="rf-handle rf-handle-in" id="left" title="Entrada de la compuerta" />
-        <Handle type="source" position={Position.Right} className="rf-handle rf-handle-out" id="right" title="Salida: rama de la decision" />
-        <Handle type="source" position={Position.Bottom} className="rf-handle rf-handle-out" id="bottom" title="Salida: rama de la decision" />
+        <Handle type="source" position={Position.Right} className="rf-handle rf-handle-out" id="right" title={isExclusive ? "Salida: uno de los caminos de la decisión" : "Salida: uno de los caminos simultáneos"} />
+        <Handle type="source" position={Position.Bottom} className="rf-handle rf-handle-out" id="bottom" title={isExclusive ? "Salida: uno de los caminos de la decisión" : "Salida: uno de los caminos simultáneos"} />
         <Handle type="target" position={Position.Top} className="rf-handle rf-handle-in" id="top" title="Entrada de la compuerta" />
       </div>
     );

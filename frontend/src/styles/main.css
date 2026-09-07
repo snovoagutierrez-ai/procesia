@@ -140,7 +140,7 @@ button{font-family:inherit}
 .pa-detail-collapse:hover{background:var(--teal-tint);color:var(--teal-deep)}
 .pa-rail{align-self:start;position:sticky;top:76px;height:calc(100vh - 92px);display:flex;flex-direction:column;
   align-items:center;gap:14px;padding:12px 0;border-radius:14px;cursor:pointer}
-.pa-editor-layout .pa-rail{top:0;height:calc(100dvh - 56px)}
+.pa-editor-layout .pa-rail{top:0;height:100%}
 .pa-rail-left{background:var(--ink)}
 .pa-rail-right{background:var(--card);border:1px solid var(--line)}
 .pa-rail-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;
@@ -154,12 +154,20 @@ button{font-family:inherit}
 /* Desktop wide (>=1024px): 3 fixed-flex columns using the full viewport width */
 @media (min-width:1024px){
   .pa-shell{grid-template-columns:280px 1fr 320px;max-width:100%;gap:16px;padding:16px 20px;align-items:stretch}
+  /* Una sola fila que NO puede crecer mas que el hueco disponible. Sin esto, la
+     fila se estira con la columna mas alta y cualquier `max-height:100%` de las
+     columnas se vuelve inutil: el panel se salia por abajo y su final quedaba
+     inalcanzable. */
+  .pa-editor-layout > .pa-shell{grid-template-rows:minmax(0, 1fr);overflow:hidden}
+  .pa-editor-layout > .pa-shell > *{min-height:0}
   .pa-shell.pa-left-collapsed{grid-template-columns:46px 1fr 320px}
   .pa-shell.pa-right-collapsed{grid-template-columns:280px 1fr 46px}
   .pa-shell.pa-left-collapsed.pa-right-collapsed{grid-template-columns:46px 1fr 46px}
   .pa-side{max-height:calc(100vh - 92px)}
   .pa-detail{align-self:start;position:sticky;top:76px;max-height:calc(100vh - 92px);overflow-y:auto;min-width:0}
-  .pa-editor-layout .pa-detail{position:sticky;top:0;max-height:calc(100dvh - 56px)}
+  /* 100% = altura real de la celda; con calc(100dvh - 56px) el panel se
+     salia por abajo si la barra superior no medía exactamente 56 px. */
+  .pa-editor-layout .pa-detail{position:static;height:100%;max-height:100%;overflow-y:auto}
   .pa-main .pa-diagram-card{height:calc(100vh - 260px);min-height:420px;display:flex;flex-direction:column}
   .pa-main .pa-diagram-card .pa-flow-canvas{flex:1;height:auto !important}
 }
@@ -524,9 +532,12 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
    el fondo del sidebar — donde vive el CTA de Optimización — queda recortado
    bajo el borde del viewport. */
 .pa-editor-layout .pa-side {
-  position: sticky;
-  top: 0;
-  max-height: calc(100dvh - 88px);
+  /* Con la fila acotada ya no hace falta `sticky`: la columna mide exactamente
+     el hueco y se desplaza por dentro. */
+  position: static;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
 }
 
 /* Botonera del sidebar (Tarea/Compuerta + Ir a Optimización IA): fija al fondo
@@ -593,3 +604,41 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
   white-space: nowrap;
   border-width: 0;
 }
+
+/* "Paso importante" (obs 07/09): la restriccion del proceso, o sea el paso mas
+   lento. Se marca con un criterio objetivo que las metricas ya calculan, no con
+   una etiqueta que alguien tenga que poner a mano. */
+.rf-task-key{display:inline-flex;align-items:center;gap:3px;flex-shrink:0;margin-left:auto;
+  font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
+  color:#A4271A;background:#FCEDEA;border:1px solid #F1C7BF;border-radius:5px;padding:1px 5px;line-height:1.4}
+
+/* Explicacion bajo un campo: las clasificaciones de valor y los tipos de tarea
+   se estaban interpretando mal por su solo nombre (obs 07/09). */
+.pa-field-help{margin-top:6px;font-size:12px;line-height:1.5;color:var(--muted);
+  background:var(--surface-teal);border-left:3px solid var(--border-teal);
+  border-radius:0 6px 6px 0;padding:7px 10px}
+
+/* Panel izquierdo del editor: cada campo con su etiqueta. Antes solo tenian
+   marcador de posicion y, al rellenarlos, no se sabia cual era cual (obs 08/09). */
+.pa-side-field{display:block;margin-bottom:8px}
+.pa-side-field > span{display:block;font-size:10.5px;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--inv-muted);margin-bottom:3px}
+.pa-side-macro{display:flex;flex-direction:column;gap:2px;margin-bottom:10px;padding:7px 10px;
+  background:var(--ink2);border-left:3px solid var(--teal);border-radius:0 8px 8px 0}
+.pa-side-macro > span{font-size:10.5px;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--inv-muted)}
+.pa-side-macro > strong{font-size:13px;color:var(--inv);font-weight:600}
+
+/* Icono de "donde ocurre la tarea" (obs 08/09): hoja de calculo, base de datos,
+   web, carpeta... deducido del campo Sistemas que el usuario ya rellena. */
+.rf-task-where{display:inline-flex;align-items:center;color:var(--teal-deep);
+  background:var(--teal-tint);border-radius:4px;padding:1px 3px;margin-left:2px}
+
+/* Resumen redactado del proceso (obs 08/09): antes solo habia casillas y cifras
+   sueltas, sin nada que explicara de que va el proceso. */
+.pa-narrativa{background:var(--surface-teal);border:1px solid var(--border-teal);
+  border-radius:10px;padding:14px 16px;margin-bottom:20px}
+.pa-narrativa-titulo{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--teal-deep);margin-bottom:8px}
+.pa-narrativa p{margin:0 0 8px;font-size:13.5px;line-height:1.6;color:var(--ink)}
+.pa-narrativa p:last-child{margin-bottom:0}

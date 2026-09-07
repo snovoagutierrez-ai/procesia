@@ -128,3 +128,90 @@ describe("Conexiones heredadas (punto 5)", () => {
     expect(d.nodes.find((n) => n.id === "end")).toBeTruthy();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Obs 07/09 nº11 — la compuerta paralela no debe parecer una decisión
+// ---------------------------------------------------------------------------
+
+describe("Forma de la compuerta según su tipo (obs 11)", () => {
+  const pintar = (gatewayType) => render(
+    <ReactFlowProvider><GatewayNode data={{ label: "¿Aprobado?", gatewayType, gatewayId: "GW" }} /></ReactFlowProvider>
+  );
+
+  it("una decisión exclusiva se dibuja como rombo con X", () => {
+    const { container } = pintar("exclusiveGateway");
+    expect(container.querySelector("polygon")).toBeTruthy();
+    expect(container.querySelector("rect")).toBeNull();
+    expect(container.textContent).toContain("X");
+  });
+
+  it("una compuerta paralela se dibuja como rectángulo, sin rombo ni X", () => {
+    const { container } = pintar("parallelGateway");
+    expect(container.querySelector("rect")).toBeTruthy();
+    expect(container.querySelector("polygon")).toBeNull();
+    expect(container.textContent).not.toContain("X");
+  });
+
+  it("cada tipo explica al pasar el ratón en qué se diferencia", () => {
+    expect(pintar("exclusiveGateway").container.querySelector(".rf-task-node").getAttribute("title"))
+      .toMatch(/UNO de los caminos/i);
+    cleanup();
+    expect(pintar("parallelGateway").container.querySelector(".rf-task-node").getAttribute("title"))
+      .toMatch(/AL MISMO TIEMPO/i);
+  });
+
+  it("el tipo se lee de node_type, que es lo que manda el servidor", () => {
+    // Antes se leia `gateway_type`, un campo que la API no devuelve: isExclusive
+    // era siempre falso y TODAS las compuertas salian como paralelas.
+    const d = buildFlowData(
+      PROC, TAREAS,
+      [{ bpmn_id: "GW", name: "¿Aprobado?", node_type: "exclusiveGateway" }],
+      [], () => {}, () => {}, null, false
+    );
+    const nodo = d.nodes.find((n) => n.id === "gw-GW");
+    expect(nodo.data.gatewayType).toBe("exclusiveGateway");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Obs 07/09 nº3-8 — más apoyos para seguir el flujo
+// ---------------------------------------------------------------------------
+
+describe("Apoyos de seguimiento del flujo (obs 3-8)", () => {
+  const construirCon = (flows, constraint, sel) =>
+    buildFlowData(PROC, TAREAS, COMPUERTAS, flows, () => {}, () => {}, null, false, constraint, sel);
+
+  it("marca como paso importante el que marca el ritmo del proceso", () => {
+    const d = construirCon([], "T2", null);
+    expect(nodoTarea(d, "task-2").data.isConstraint).toBe(true);
+    expect(nodoTarea(d, "task-1").data.isConstraint).toBe(false);
+  });
+
+  it("sin restricción calculada no marca ninguno", () => {
+    const d = construirCon([], null, null);
+    expect(d.nodes.filter((n) => n.data?.isConstraint)).toHaveLength(0);
+  });
+
+  it("la insignia explica por qué ese paso es el importante", () => {
+    const { container } = render(
+      <ReactFlowProvider><TaskNode data={{ label: "Corregir", taskType: "manual", valueClass: "NVA", cycleTime: 900, order: 1, isConstraint: true }} /></ReactFlowProvider>
+    );
+    const insignia = container.querySelector(".rf-task-key");
+    expect(insignia).toBeTruthy();
+    expect(insignia.getAttribute("title")).toMatch(/ritmo/i);
+  });
+
+  it("resalta la salida del paso seleccionado, para ver qué viene después", () => {
+    const flows = [flujo("T1", "T2"), flujo("T2", "T3")];
+    const d = construirCon(flows, null, "T1");
+    const salida = d.edges.find((e) => e.source === "task-1");
+    const otra = d.edges.find((e) => e.source === "task-2");
+    expect(salida.style.stroke).toBe("#0E9F9F");
+    expect(otra.style.stroke).toBe("#9AA8A8");
+  });
+
+  it("sin selección, ninguna conexión queda resaltada", () => {
+    const d = construirCon([flujo("T1", "T2")], null, null);
+    expect(d.edges[0].style.stroke).toBe("#9AA8A8");
+  });
+});

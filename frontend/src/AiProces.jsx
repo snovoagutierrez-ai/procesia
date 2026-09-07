@@ -5,7 +5,7 @@ import { apiFetch, apiMutate } from "./api.js";
 // referencia es valida evita que se dibuje una flecha que luego el aviso de
 // problemas no reconoce.
 import { canonicalizeFlows, detectFlowIssues } from "./utils/flowGraph.js";
-import { VALUE, WASTE, TYPES, ACTION, SEVERITY, WASTE_QUESTIONS } from "./constants.js";
+import { VALUE, WASTE, TYPES, ACTION, ACTION_STEPS, SEVERITY, WASTE_QUESTIONS } from "./constants.js";
 // Los componentes de React Flow y dagre viven en FlowDiagrams.jsx; aquí solo se
 // usa el CSS de la librería, por eso no se importan sus símbolos.
 import "@xyflow/react/dist/style.css";
@@ -1036,6 +1036,10 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [toast, setToast] = useState(null); // { message, type: 'error'|'success' }
   const toastTimer = useRef(null);
+  // OJO al segundo argumento: 'error' es solo el valor por defecto porque la
+  // mayoria de avisos lo son. Un aviso de exito TIENE que pasar 'success'; si se
+  // olvida, sale con triangulo rojo y el usuario cree que la accion fallo (le
+  // paso a "Versión guardada").
   const showToast = useCallback((message, type = 'error') => {
     setToast({ message, type });
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -1379,7 +1383,7 @@ export default function App() {
       selectProcess(mapped);
       setGuideStep(1);
       setFirstStepsActive(true);
-      showToast("Zona de práctica lista. Rompe, conecta y borra lo que quieras: no afecta a tus procesos reales.");
+      showToast("Zona de práctica lista. Rompe, conecta y borra lo que quieras: no afecta a tus procesos reales.", 'success');
     } catch (e) {
       showToast("No se pudo crear el proceso de práctica: " + (e.message || "error de conexión"));
     } finally {
@@ -1792,7 +1796,7 @@ export default function App() {
       if (!ok) return;
       const stamp = new Date().toLocaleString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
       if (await saveAutoSnapshot(`Versión guardada manualmente — ${stamp}`)) {
-        showToast("Versión guardada. Puedes volver a este punto desde Versiones.");
+        showToast("Versión guardada. Puedes volver a este punto desde Versiones.", 'success');
       }
     } finally {
       setSavingVersion(false);
@@ -2159,6 +2163,11 @@ export default function App() {
     setTab("detalle");
     if (isMobile) setMobileStep(3);
     setAiTip({ rec, markAsApplied: markAsReviewed });
+    // Sin esto el consejo aparecia fuera de la pantalla y parecia que el boton
+    // solo habia cambiado de pestana.
+    setTimeout(() => {
+      document.querySelector('[data-ai-tip]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 220);
   };
 
   // Loading screen
@@ -2190,7 +2199,11 @@ export default function App() {
 
   return (
     <div className="pa-root">
-      <WelcomeModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
+      <WelcomeModal
+        isOpen={showTutorial}
+        onClose={() => setShowTutorial(false)}
+        onStartGuidedTour={proc ? restartGuide : undefined}
+      />
       {confirmDialog}
       {inputDialog}
       {firstStepsActive && <GuideTicket step={guideStep} onStep={setGuideStep} onDismiss={dismissGuide} />}
@@ -2414,18 +2427,48 @@ export default function App() {
                     </button>
                   )}
                 </div>
-                <input className="pa-input ink" value={proc.name || ""} onChange={(e) => setProcField("name", e.target.value)} placeholder="Nombre del proceso" />
-                <input className="pa-input ink mono" value={proc.code || ""} onChange={(e) => setProcField("code", e.target.value)} placeholder="Código" />
-                <textarea className="pa-input ink" rows={2} value={proc.objective || ""} onChange={(e) => setProcField("objective", e.target.value)} placeholder="Objetivo" />
+                {/* Cada caja lleva su etiqueta: antes solo habia marcador de
+                    posicion y, al rellenarlo, ya no se sabia cual era cual. */}
+                <div className="pa-side-macro">
+                  <span>Macroproceso</span>
+                  <strong>{macroprocesses.find(m => m.id === proc.macroprocess_id)?.name || "Sin macroproceso"}</strong>
+                </div>
+                <label className="pa-side-field">
+                  <span>Nombre del proceso</span>
+                  <input className="pa-input ink" value={proc.name || ""} onChange={(e) => setProcField("name", e.target.value)} placeholder="Ej: Solicitud de facturación" />
+                </label>
+                <label className="pa-side-field">
+                  <span>Código</span>
+                  <input className="pa-input ink mono" value={proc.code || ""} onChange={(e) => setProcField("code", e.target.value)} placeholder="Ej: PROC-UTC1" />
+                </label>
+                <label className="pa-side-field">
+                  <span>Objetivo</span>
+                  <textarea className="pa-input ink" rows={2} value={proc.objective || ""} onChange={(e) => setProcField("objective", e.target.value)} placeholder="Para qué existe este proceso" />
+                </label>
                 <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   SIPOC — Límites del Proceso
                 </div>
-                <input className="pa-input ink" value={proc.suppliers || ""} onChange={(e) => setProcField("suppliers", e.target.value)} placeholder="Proveedores — quién entrega las entradas" title="S (Suppliers): quién provee lo que necesita el proceso" />
-                <input className="pa-input ink" value={proc.trigger_event || ""} onChange={(e) => setProcField("trigger_event", e.target.value)} placeholder="Entrada / evento de inicio (Ej: Recibe solicitud)" title="I (Inputs): lo que entra y dispara el proceso" />
-                <input className="pa-input ink" value={proc.output_result || ""} onChange={(e) => setProcField("output_result", e.target.value)} placeholder="Salida / resultado final (Ej: Cliente aprobado)" title="O (Outputs): lo que el proceso entrega" />
-                <input className="pa-input ink" value={proc.customers || ""} onChange={(e) => setProcField("customers", e.target.value)} placeholder="Clientes — quién recibe el resultado" title="C (Customers): quién recibe la salida del proceso" />
+                <label className="pa-side-field">
+                  <span>Proveedores (S)</span>
+                  <input className="pa-input ink" value={proc.suppliers || ""} onChange={(e) => setProcField("suppliers", e.target.value)} placeholder="Quién entrega las entradas" title="S (Suppliers): quién provee lo que necesita el proceso" />
+                </label>
+                <label className="pa-side-field">
+                  <span>Entrada / evento de inicio (I)</span>
+                  <input className="pa-input ink" value={proc.trigger_event || ""} onChange={(e) => setProcField("trigger_event", e.target.value)} placeholder="Ej: Recibe solicitud" title="I (Inputs): lo que entra y dispara el proceso" />
+                </label>
+                <label className="pa-side-field">
+                  <span>Salida / resultado final (O)</span>
+                  <input className="pa-input ink" value={proc.output_result || ""} onChange={(e) => setProcField("output_result", e.target.value)} placeholder="Ej: Cliente aprobado" title="O (Outputs): lo que el proceso entrega" />
+                </label>
+                <label className="pa-side-field">
+                  <span>Clientes (C)</span>
+                  <input className="pa-input ink" value={proc.customers || ""} onChange={(e) => setProcField("customers", e.target.value)} placeholder="Quién recibe el resultado" title="C (Customers): quién recibe la salida del proceso" />
+                </label>
                 <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Volumen</div>
-                <input className="pa-input ink mono" type="number" min="0" value={proc.monthly_volume ?? ""} onChange={(e) => setProcField("monthly_volume", e.target.value)} placeholder="Ejecuciones por mes (Ej: 500)" />
+                <label className="pa-side-field">
+                  <span>Ejecuciones por mes</span>
+                  <input className="pa-input ink mono" type="number" min="0" value={proc.monthly_volume ?? ""} onChange={(e) => setProcField("monthly_volume", e.target.value)} placeholder="Ej: 500" />
+                </label>
               </div>
 
               <div className="pa-side-sec grow">
@@ -2546,6 +2589,7 @@ export default function App() {
                   selectedId={selectedId} 
                   onSelect={onNodeSelect}
                   onConnectionRejected={showToast}
+                  constraintBpmnId={metricsData?.constraint?.bpmn_id || null}
                   issueNodeIds={issueNodeIds}
                   onGraphChange={async (newGateways, newFlows) => {
                     setGateways(newGateways);
@@ -2649,7 +2693,7 @@ export default function App() {
                 )}
                 <div className="pa-panel-body">
                   {tab === "detalle" && aiTipMatchesSelection && (
-                    <div style={{ marginBottom: 16, padding: '12px 14px', background: '#F0FAFA', border: '1px solid var(--teal)', borderRadius: 10 }}>
+                    <div data-ai-tip style={{ marginBottom: 16, padding: '12px 14px', background: '#F0FAFA', border: '1px solid var(--teal)', borderRadius: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--teal)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
@@ -2659,9 +2703,16 @@ export default function App() {
                           {aiTip.rec.expected_benefit && (
                             <div style={{ fontSize: 12, color: 'var(--muted)' }}>Beneficio: {aiTip.rec.expected_benefit}</div>
                           )}
-                          {aiTip.rec.action_type === 'MERGE' && (
-                            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
-                              Para fusionar: edita esta tarea incorporando las actividades de la tarea a eliminar, luego elimina esa tarea desde la lista.
+                          {/* Los pasos concretos: sin esto el boton solo navegaba
+                              y repetia la descripcion que ya estaba en la lista. */}
+                          {(ACTION_STEPS[aiTip.rec.action_type] || []).length > 0 && (
+                            <div style={{ marginTop: 10 }}>
+                              <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
+                                Cómo aplicarlo aquí
+                              </div>
+                              <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: 'var(--ink)', lineHeight: 1.65 }}>
+                                {ACTION_STEPS[aiTip.rec.action_type].map((paso, i) => <li key={i}>{paso}</li>)}
+                              </ol>
                             </div>
                           )}
                         </div>
@@ -2743,7 +2794,7 @@ export default function App() {
               </div>
               <div className="pa-panel-body">
                 {tab === "detalle" && aiTipMatchesSelection && (
-                  <div style={{ marginBottom: 16, padding: '12px 14px', background: '#F0FAFA', border: '1px solid var(--teal)', borderRadius: 10 }}>
+                  <div data-ai-tip style={{ marginBottom: 16, padding: '12px 14px', background: '#F0FAFA', border: '1px solid var(--teal)', borderRadius: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--teal)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
@@ -2753,9 +2804,16 @@ export default function App() {
                         {aiTip.rec.expected_benefit && (
                           <div style={{ fontSize: 12, color: 'var(--muted)' }}>Beneficio: {aiTip.rec.expected_benefit}</div>
                         )}
-                        {aiTip.rec.action_type === 'MERGE' && (
-                          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
-                            Para fusionar: edita esta tarea incorporando las actividades de la tarea a eliminar, luego elimina esa tarea desde la lista.
+                        {/* Los pasos concretos: sin esto el boton solo navegaba
+                            y repetia la descripcion que ya estaba en la lista. */}
+                        {(ACTION_STEPS[aiTip.rec.action_type] || []).length > 0 && (
+                          <div style={{ marginTop: 10 }}>
+                            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
+                              Cómo aplicarlo aquí
+                            </div>
+                            <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: 'var(--ink)', lineHeight: 1.65 }}>
+                              {ACTION_STEPS[aiTip.rec.action_type].map((paso, i) => <li key={i}>{paso}</li>)}
+                            </ol>
                           </div>
                         )}
                       </div>

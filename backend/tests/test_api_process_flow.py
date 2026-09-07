@@ -263,3 +263,32 @@ def test_un_bpmn_id_repetido_responde_409_y_no_500(auth_client, process):
     })
     assert res.status_code == 409, res.text
     assert "conflicto" in res.json()["detail"].lower()
+
+
+def test_crear_un_proceso_conserva_todo_el_sipoc(auth_client, process):
+    """Regresion: create_process copiaba los campos uno a uno y se dejaba fuera
+    suppliers, customers, monthly_volume y layout_json. La API respondia 201 y
+    los guardaba como NULL, sin avisar de nada."""
+    res = auth_client.post("/processes", json={
+        "macroprocess_id": process["macroprocess_id"],
+        "code": "P-SIPOC", "name": "Con SIPOC completo",
+        "objective": "Probar que no se pierde nada",
+        "suppliers": "Área comercial",
+        "trigger_event": "Llega la solicitud",
+        "output_result": "Factura emitida",
+        "customers": "Cliente final",
+        "monthly_volume": 500,
+    })
+    assert res.status_code == 201, res.text
+
+    creado = res.json()
+    leido = auth_client.get(f"/processes/{creado['id']}").json()
+    for campo, esperado in [
+        ("suppliers", "Área comercial"),
+        ("customers", "Cliente final"),
+        ("trigger_event", "Llega la solicitud"),
+        ("output_result", "Factura emitida"),
+        ("monthly_volume", 500),
+    ]:
+        assert creado[campo] == esperado, f"la respuesta perdio {campo}"
+        assert leido[campo] == esperado, f"la base perdio {campo}"

@@ -62,14 +62,12 @@ def create_process(db: Session, process: schemas.ProcessCreate, owner_id: int):
     if not macro:
         raise HTTPException(status_code=400, detail="Macroprocess not found")
         
+    # Se vuelcan todos los campos del esquema en vez de enumerarlos: enumerar es
+    # justo lo que hizo que suppliers, customers, monthly_volume y layout_json se
+    # perdieran en silencio al crear un proceso con el SIPOC ya relleno.
     db_process = models.Process(
         owner_id=owner_id,
-        macroprocess_id=process.macroprocess_id,
-        code=process.code,
-        name=process.name,
-        objective=process.objective,
-        trigger_event=process.trigger_event,
-        output_result=process.output_result
+        **process.model_dump(exclude_unset=False),
     )
     db.add(db_process)
     db.flush()

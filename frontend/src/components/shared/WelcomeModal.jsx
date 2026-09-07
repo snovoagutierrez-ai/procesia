@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ChevronRight, ChevronLeft, Map, Sparkles, MessageSquare, Loader2 } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, Map, Sparkles, MessageSquare, Loader2, Compass } from 'lucide-react';
 import Logo from './Logo';
 import { apiFetch } from '../../api.js';
 import {
@@ -7,7 +7,7 @@ import {
   InfoPce, InfoToc, InfoCaminoCritico, InfoDowntime, InfoConectar,
 } from './Infographics.jsx';
 
-export default function WelcomeModal({ isOpen, onClose }) {
+export default function WelcomeModal({ isOpen, onClose, onStartGuidedTour }) {
   const [step, setStep] = useState(0);
   const [chatQuery, setChatQuery] = useState("");
   const [chatResponse, setChatResponse] = useState(null);
@@ -28,7 +28,8 @@ export default function WelcomeModal({ isOpen, onClose }) {
     {
       icon: <Logo size={64} />,
       title: "Bienvenido a AiProces",
-      description: "Vas a dibujar cómo funciona tu empresa por dentro y descubrir dónde se pierde tiempo y dinero. No necesitas saber nada de procesos: te explicamos cada concepto con un dibujo.",
+      description: "Vas a dibujar cómo funciona tu empresa por dentro y descubrir dónde se pierde tiempo y dinero. Puedes leer los conceptos aquí, o que te acompañemos paso a paso sobre la propia herramienta.",
+      offerTour: true,
     },
     {
       icon: <Map size={64} color="#0E9F9F" strokeWidth={1.5} />,
@@ -89,7 +90,8 @@ export default function WelcomeModal({ isOpen, onClose }) {
       icon: <MessageSquare size={64} color="#0E9F9F" strokeWidth={1.5} />,
       title: "¿Tienes dudas?",
       description: "El asistente conoce tu proceso: puede señalarte qué le falta conectar y explicarte tus métricas. Está siempre en la burbuja de abajo a la derecha.",
-      isChat: true
+      isChat: true,
+      offerTour: true
     }
   ];
 
@@ -161,6 +163,24 @@ export default function WelcomeModal({ isOpen, onClose }) {
             <p style={{ fontSize: '18px', color: 'var(--inv-muted)', lineHeight: '1.6', margin: 0, maxWidth: '500px', marginLeft: 'auto', marginRight: 'auto' }}>
               {slides[step].description}
             </p>
+
+            {slides[step].offerTour && onStartGuidedTour && (
+              <div style={{ marginTop: 28 }}>
+                {/* Lo que pedia la observacion: acompanamiento sobre la
+                    interfaz real, no solo texto con imagenes. */}
+                <button
+                  className="pa-btn pa-btn-primary"
+                  style={{ padding: '12px 26px', fontSize: 15, fontWeight: 600 }}
+                  onClick={() => { onClose(); onStartGuidedTour(); }}
+                >
+                  <Compass size={18} style={{ marginRight: 8 }} />
+                  Acompáñame paso a paso en la herramienta
+                </button>
+                <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--inv-muted)' }}>
+                  Te iré indicando qué pulsar en cada momento, sobre tu propio proceso.
+                </div>
+              </div>
+            )}
 
             {slides[step].isChat && (
               <div style={{ marginTop: '32px', textAlign: 'left', background: 'rgba(255,255,255,0.05)', padding: '24px', borderRadius: '12px', border: '1px solid var(--line-ink)' }}>

@@ -59,11 +59,11 @@
         "dev",
         "--",
         "--port",
-        "5174",
+        "5188",
         "--strictPort"
       ],
       "cwd": "frontend",
-      "port": 5174,
+      "port": 5188,
       "autoPort": false
     }
   ]

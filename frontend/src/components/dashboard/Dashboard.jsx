@@ -394,7 +394,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
 
       {previewProcess && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setPreviewProcess(null)}>
-          <div style={{ background: '#fff', width: '90vw', height: '80vh', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: '#fff', width: '94vw', height: '90vh', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8F9FA' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 18, color: 'var(--ink)' }}>Flujo Interno: {previewProcess.name}</h3>
@@ -420,6 +420,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                   tasks={previewData.tasks} 
                   gateways={previewData.gateways} 
                   sequenceFlows={previewData.sequenceFlows} 
+                  height="100%"
                 />
               )}
             </div>

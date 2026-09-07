@@ -1,6 +1,7 @@
 import React from 'react';
-import { X, Eye, Gauge, GitBranch } from 'lucide-react';
+import { X, Eye, Gauge, GitBranch, FileText } from 'lucide-react';
 import { fmtLong } from './Editors.jsx';
+import { resumenNarrativo } from '../../utils/processNarrative.js';
 
 export default function ProcessSummaryModal({ isOpen, onClose, proc, tasks, gateways, metricsData }) {
   if (!isOpen || !proc) return null;
@@ -21,6 +22,21 @@ export default function ProcessSummaryModal({ isOpen, onClose, proc, tasks, gate
             </div>
             {proc.objective && <p style={{ margin: '4px 0 0', fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.5 }}>{proc.objective}</p>}
           </div>
+
+          {/* Obs 08/09: "un resumen en que consta, sus etapas, tiempos".
+              Se redacta a partir de los mismos datos, sin depender de la IA. */}
+          {(() => {
+            const parrafos = resumenNarrativo({ proc, tasks, gateways, metricsData });
+            if (!parrafos.length) return null;
+            return (
+              <div className="pa-narrativa">
+                <div className="pa-narrativa-titulo">
+                  <FileText size={14} /> En qué consiste
+                </div>
+                {parrafos.map((t, i) => <p key={i}>{t}</p>)}
+              </div>
+            );
+          })()}
 
           <div className="pa-label" style={{ marginBottom: 6 }}>SIPOC</div>
           <div className="pa-row two" style={{ marginBottom: 6 }}>

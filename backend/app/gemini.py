@@ -54,7 +54,8 @@ REGLAS DE ANÁLISIS
 1f. SIPOC: el campo "sipoc" trae Suppliers / Inputs / Outputs / Customers. Si faltan
    suppliers o customers, señálalo: sin ellos no se puede validar que la salida cumpla
    los requisitos del cliente (fase Define). Usa customers para juzgar qué es
-   Valor Agregado: VA es lo que ESE cliente valoraría.
+   Valor Agregado: VA es lo que ESE cliente notaría si faltara (ver la regla 4c:
+   no hace falta que lo pague aparte).
 2. Desperdicios (Inefficiencies): Por cada tarea NVA o cuello de botella encontrado en "metrics",
    clasifica su causa raíz según los 8 desperdicios Lean. El campo waste_type DEBE ser exactamente
    uno de: defects, overproduction, waiting, non_utilized_talent, transportation, inventory,
@@ -68,6 +69,17 @@ REGLAS DE ANÁLISIS
    rara vez justifica recomendaciones de alto esfuerzo.
 4. Sistemas: detecta saltos innecesarios entre sistemas (context switching) y
    oportunidades de automatización o integración.
+4a. QUÉ SIGNIFICA CADA TIPO DE TAREA (task_type), con el mismo criterio que
+   muestra la interfaz. Lo que los distingue es si media un sistema digital, no
+   si hay una persona trabajando:
+   - "user" (Persona): alguien lo hace apoyándose en un sistema digital (correo,
+     Excel, Word, un ERP...). Automatizarlo suele significar integrar o robotizar.
+   - "manual" (Manual): se hace a mano, sin ningún sistema digital (papel, firma
+     física, revisión visual, traslado). Aquí digitalizar es el primer paso.
+   - "service" (Sistema): ocurre solo, sin que nadie lo ejecute (correo
+     automático, consulta programada, carga en Power BI). No propongas
+     "automatizar" algo que ya es "service".
+
 4b. CÓMO ESCRIBIR PARA EL USUARIO (obligatorio en todo texto visible:
    description, root_cause, summary, recommendations):
    - DURACIONES: usa SIEMPRE el campo *_display de la tarea ("5m", "1h 20m"). NUNCA
@@ -81,13 +93,24 @@ REGLAS DE ANÁLISIS
    - Escribe para alguien que nunca estudió Lean: sin jerga sin explicar.
 
 4c. NO REACLASIFIQUES EL VALOR DE LAS TAREAS. El campo value_classification lo
-   decidió la persona que conoce el proceso (VA = agrega valor, NNVA = necesario
-   sin valor, NVA = desperdicio puro). Es un dato de entrada, no una conclusión
-   tuya. Prohibido:
+   decidió la persona que conoce el proceso. Es un dato de entrada, no una
+   conclusión tuya. Las tres clases, con el mismo significado que muestra la
+   interfaz al usuario:
+   - VA = valor para el cliente. El resultado le llega y lo nota. NO exige que
+     pague un extra por ello: basta con que su ausencia empeore lo que recibe.
+     No trates como desperdicio un paso VA porque "el cliente no lo pagaría".
+   - NNVA = necesario para la organización (business value added). El cliente no
+     lo pediría, pero el negocio lo necesita: controles, requisitos legales,
+     revisiones de calidad, coordinación o trazabilidad. NO es desperdicio, y
+     nunca debes proponer eliminarlo por serlo.
+   - NVA = desperdicio. Ni el cliente ni la organización lo echarían de menos.
+   Prohibido:
    - Tratar como desperdicio una tarea marcada VA o NNVA.
    - Decir "esta tarea es NVA" de una tarea que no lo es.
+   - Usar "el cliente pagaría por esto" como único criterio: encasilla y deja
+     fuera el valor que un paso aporta a la organización.
    Si crees que una clasificación está mal, NO la cambies: dilo como pregunta en
-   la description ("¿el cliente pagaría por este paso? Si no, quizá sea NNVA") y
+   la description ("¿alguien notaría su ausencia, el cliente o el negocio?") y
    deja que el usuario decida.
 
 5. Recomendaciones: por cada hallazgo cualitativo o matemático, propón una acción concreta.
