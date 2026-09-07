@@ -531,8 +531,29 @@ def update_task_direct(db: Session, db_task: models.Task, task_in: schemas.TaskU
     db.refresh(db_task)
     return db_task
 
+def _dueno_de_la_tarea(db: Session, task_id: int):
+    """Usuario dueno del proceso al que pertenece la tarea.
+
+    Los roles y sistemas que se crean solos a partir del texto RACI necesitan
+    dueno: sin el quedaban con owner_id NULL y, como las listas filtran por
+    dueno, resultaban invisibles hasta para quien los acababa de crear.
+    """
+    fila = (
+        db.query(models.Process.owner_id)
+        .join(models.Activity, models.Activity.process_id == models.Process.id)
+        .join(models.Task, models.Task.activity_id == models.Activity.id)
+        .filter(models.Task.id == task_id)
+        .first()
+    )
+    return fila[0] if fila else None
+
+
 def _update_task_raci_direct(db: Session, task_id: int, R: str, A: str, C: str, I: str):
-    # Delete existing
+    # Que roles quedan sueltos al rehacer los vinculos: se recogen antes de
+    # borrarlos para poder limpiarlos despues (ver _purgar_roles_sueltos).
+    antes = {tr.role_id for tr in db.query(models.TaskRaci).filter(models.TaskRaci.task_id == task_id).all()}
+    dueno = _dueno_de_la_tarea(db, task_id)
+
     db.query(models.TaskRaci).filter(models.TaskRaci.task_id == task_id).delete()
     
     # Cada letra acepta múltiples roles separados por coma (típico en Consulted/Informed).
@@ -547,14 +568,48 @@ def _update_task_raci_direct(db: Session, task_id: int, R: str, A: str, C: str, 
             if not name_clean or name_clean in seen:
                 continue
             seen.add(name_clean)
-            role = db.query(models.Role).filter(models.Role.name == name_clean).first()
+            role = (db.query(models.Role)
+                      .filter(models.Role.name == name_clean,
+                              models.Role.owner_id == dueno)
+                      .first())
             if not role:
-                role = models.Role(name=name_clean)
+                role = models.Role(name=name_clean, owner_id=dueno)
                 db.add(role)
                 db.flush()
             db.add(models.TaskRaci(task_id=task_id, role_id=role.id, raci_type=rtype))
 
+    db.flush()
+    _purgar_roles_sueltos(db, antes)
+
+
+def _purgar_roles_sueltos(db: Session, candidatos):
+    """Borra los roles que este cambio dejo sin ninguna tarea.
+
+    El editor guarda solo mientras se escribe, y cada estado intermedio del
+    campo RACI creaba un rol: escribir "Sebastian" dejaba "Seba", "Sebas",
+    "Sebast"... como filas permanentes. En produccion 199 de 259 roles eran de
+    ese tipo. Solo se borran los que nadie usa Y que nunca se enriquecieron
+    (sin area ni coste/hora): si alguien les puso datos, se conservan aunque
+    queden sueltos, porque ya no son un residuo de tecleo.
+    """
+    if not candidatos:
+        return
+    enlazados = {
+        rid for (rid,) in db.query(models.TaskRaci.role_id)
+        .filter(models.TaskRaci.role_id.in_(candidatos)).distinct().all()
+    }
+    sueltos = candidatos - enlazados
+    if not sueltos:
+        return
+    (db.query(models.Role)
+       .filter(models.Role.id.in_(sueltos),
+               models.Role.area.is_(None),
+               models.Role.cost_per_hour.is_(None))
+       .delete(synchronize_session=False))
+
+
 def _update_task_systems_direct(db: Session, task_id: int, systems_str: str):
+    dueno = _dueno_de_la_tarea(db, task_id)
     # Delete existing
     db.query(models.TaskSystem).filter(models.TaskSystem.task_id == task_id).delete()
     
@@ -563,9 +618,12 @@ def _update_task_systems_direct(db: Session, task_id: int, systems_str: str):
         sys_names = [s.strip() for s in systems_str.split(',') if s.strip()]
         for sys_name in sys_names:
             # Find or create system
-            system = db.query(models.System).filter(models.System.name == sys_name).first()
+            system = (db.query(models.System)
+                        .filter(models.System.name == sys_name,
+                                models.System.owner_id == dueno)
+                        .first())
             if not system:
-                system = models.System(name=sys_name)
+                system = models.System(name=sys_name, owner_id=dueno)
                 db.add(system)
                 db.flush()
             db_ts = models.TaskSystem(task_id=task_id, system_id=system.id)

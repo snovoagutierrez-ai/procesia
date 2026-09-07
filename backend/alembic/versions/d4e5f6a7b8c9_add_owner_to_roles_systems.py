@@ -31,12 +31,20 @@ _TARGETS = [
 
 
 def _split_by_owner(conn, table, bridge, fk, cols):
-    """Atribuye cada fila de `table` a un dueno, duplicandola si la comparten."""
+    """Atribuye cada fila de `table` a un dueno, duplicandola si la comparten.
+
+    OJO con la cadena de tablas: una tarea NO cuelga del proceso directamente,
+    cuelga de una actividad (tasks.activity_id -> activities.process_id). Una
+    primera version de esta migracion unia tasks con processes por un
+    `t.process_id` que no existe; alembic fallaba, el `&&` del arranque impedia
+    levantar uvicorn y Render mantenia viva la version anterior del servicio.
+    """
     pairs = conn.execute(sa.text(f"""
         SELECT DISTINCT b.{fk} AS row_id, p.owner_id
         FROM {bridge} b
         JOIN tasks t ON t.id = b.task_id
-        JOIN processes p ON p.id = t.process_id
+        JOIN activities a ON a.id = t.activity_id
+        JOIN processes p ON p.id = a.process_id
         ORDER BY b.{fk}, p.owner_id
     """)).fetchall()
 
@@ -63,7 +71,9 @@ def _split_by_owner(conn, table, bridge, fk, cols):
             ).scalar_one()
             conn.execute(sa.text(f"""
                 UPDATE {bridge} b SET {fk} = :new_id
-                FROM tasks t JOIN processes p ON p.id = t.process_id
+                FROM tasks t
+                JOIN activities a ON a.id = t.activity_id
+                JOIN processes p ON p.id = a.process_id
                 WHERE b.task_id = t.id AND b.{fk} = :old_id AND p.owner_id = :owner_id
             """), {"new_id": new_id, "old_id": row_id, "owner_id": owner_id})
 

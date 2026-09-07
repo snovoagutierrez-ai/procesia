@@ -200,3 +200,55 @@ def test_borrar_macroproceso_arrastra_sus_procesos(auth_client, process):
 ])
 def test_un_macroproceso_sin_datos_obligatorios_se_rechaza(auth_client, payload):
     assert auth_client.post("/macroprocesses", json=payload).status_code == 422
+
+
+# --------------------------------------------------------------------------
+# Roles residuales: el guardado automatico creaba un rol por cada tecleo
+# --------------------------------------------------------------------------
+
+def test_escribir_un_nombre_no_deja_roles_a_medias(auth_client, process):
+    """Regresion: al escribir "Sebastian" el autoguardado creaba "Seba",
+    "Sebas", "Sebast"... y todos quedaban para siempre. En produccion 199 de
+    259 roles eran residuos de ese tipo."""
+    t = make_task(auth_client, process["id"], "T1", "Paso")
+
+    for parcial in ("Seba", "Sebas", "Sebast", "Sebastian"):
+        auth_client.put(f"/processes/{process['id']}/tasks/{t['id']}",
+                        json={"responsible": parcial})
+
+    nombres = [r["name"] for r in auth_client.get("/roles").json()]
+    assert nombres == ["Sebastian"], f"quedaron roles a medias: {nombres}"
+
+
+def test_un_rol_con_datos_propios_no_se_borra_aunque_quede_suelto(auth_client, process, db_session):
+    """Solo se recogen los residuos de tecleo: si alguien le puso area o
+    coste/hora, el rol es intencionado y se conserva aunque quede sin tareas."""
+    from app import models
+
+    t = make_task(auth_client, process["id"], "T1", "Paso")
+    auth_client.put(f"/processes/{process['id']}/tasks/{t['id']}", json={"responsible": "Analista"})
+
+    # El coste se fija en la base: PUT /roles exige permisos de administrador.
+    rol = db_session.query(models.Role).filter(models.Role.name == "Analista").one()
+    rol.cost_per_hour = 25000
+    db_session.commit()
+
+    # se cambia el responsable: "Analista" queda sin tareas
+    auth_client.put(f"/processes/{process['id']}/tasks/{t['id']}", json={"responsible": "Otro"})
+
+    nombres = {r["name"] for r in auth_client.get("/roles").json()}
+    assert "Analista" in nombres, "un rol con coste definido no debe borrarse"
+    assert "Otro" in nombres
+
+
+def test_un_rol_que_sigue_en_uso_por_otra_tarea_no_se_borra(auth_client, process):
+    t1 = make_task(auth_client, process["id"], "T1", "Uno")
+    t2 = make_task(auth_client, process["id"], "T2", "Dos", position_order=2)
+    auth_client.put(f"/processes/{process['id']}/tasks/{t1['id']}", json={"responsible": "Ana"})
+    auth_client.put(f"/processes/{process['id']}/tasks/{t2['id']}", json={"responsible": "Ana"})
+
+    # t1 cambia de responsable, pero t2 sigue usando "Ana"
+    auth_client.put(f"/processes/{process['id']}/tasks/{t1['id']}", json={"responsible": "Luis"})
+
+    nombres = {r["name"] for r in auth_client.get("/roles").json()}
+    assert nombres == {"Ana", "Luis"}
