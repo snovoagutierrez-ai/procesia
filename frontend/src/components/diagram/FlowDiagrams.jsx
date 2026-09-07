@@ -587,7 +587,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         <svg style={{ position: 'absolute', width: 0, height: 0 }} aria-hidden="true">
           <defs>
             <marker id="rf-dir-arrow" viewBox="0 0 10 10" refX="5" refY="5"
-              markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M 0 1 L 8 5 L 0 9 z" fill="#9AA8A8" />
             </marker>
           </defs>

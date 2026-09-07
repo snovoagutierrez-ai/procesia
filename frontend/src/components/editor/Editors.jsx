@@ -1106,4 +1106,6 @@ function fmtLong(sec) {
   if (sec < 3600) return (sec / 60).toFixed(sec % 60 ? 1 : 0) + " min";
   return (sec / 3600).toFixed(1) + " h";
 }
-export { ValueClassWizard, Editor, GatewayEditor, Optimization, fmtShort, fmtLong };
+// NodeComments y BranchRow se exportan para poder probarlos de forma aislada:
+// son las dos piezas donde vivian las observaciones de comentarios y de ramas.
+export { ValueClassWizard, Editor, GatewayEditor, Optimization, NodeComments, BranchRow, fmtShort, fmtLong };
