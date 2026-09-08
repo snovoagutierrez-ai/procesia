@@ -1,5 +1,6 @@
 .pa-root{
   --ink:#13202B; --ink2:#1B2D3A; --paper:#F5F7F5; --card:#fff;
+  --pa-fundido:28px; /* alto del degradado que avisa de contenido por debajo */
   --line:#E2E7E3; --line-ink:rgba(255,255,255,.09);
   --teal:#0E9F9F; --teal-deep:#0B7E7E;
   --text:#15232E; --muted:#5C6B6B; --inv:#EAF1EF; --inv-muted:#9DB0B0;
@@ -158,7 +159,7 @@ button{font-family:inherit}
      fila se estira con la columna mas alta y cualquier `max-height:100%` de las
      columnas se vuelve inutil: el panel se salia por abajo y su final quedaba
      inalcanzable. */
-  .pa-editor-layout > .pa-shell{grid-template-rows:minmax(0, 1fr);overflow:hidden}
+  .pa-editor-layout > .pa-shell{grid-template-rows:minmax(0, 1fr)}
   .pa-editor-layout > .pa-shell > *{min-height:0}
   .pa-shell.pa-left-collapsed{grid-template-columns:46px 1fr 320px}
   .pa-shell.pa-right-collapsed{grid-template-columns:280px 1fr 46px}
@@ -167,7 +168,17 @@ button{font-family:inherit}
   .pa-detail{align-self:start;position:sticky;top:76px;max-height:calc(100vh - 92px);overflow-y:auto;min-width:0}
   /* 100% = altura real de la celda; con calc(100dvh - 56px) el panel se
      salia por abajo si la barra superior no medía exactamente 56 px. */
-  .pa-editor-layout .pa-detail{position:static;height:100%;max-height:100%;overflow-y:auto}
+  .pa-editor-layout .pa-detail{position:static;height:100%;max-height:100%;overflow:hidden;display:flex}
+  .pa-editor-layout .pa-detail > .pa-panel{flex:1;min-height:0;display:flex;flex-direction:column}
+  .pa-editor-layout .pa-detail > .pa-panel > .pa-detail-tabbar{flex-shrink:0}
+  .pa-editor-layout .pa-detail > .pa-panel > .pa-panel-body{flex:1;min-height:0;overflow-y:auto;
+    overscroll-behavior-y:contain;padding-bottom:calc(18px + var(--pa-fundido))}
+  /* Degradado pegado al fondo del cuerpo. El margen negativo hace que no ocupe
+     sitio, y el padding inferior de arriba reserva justo su altura: al llegar al
+     final el degradado cae sobre esa franja vacia y desaparece por si solo. */
+  .pa-editor-layout .pa-detail > .pa-panel > .pa-panel-body::after{content:"";display:block;
+    position:sticky;bottom:0;height:var(--pa-fundido);margin-top:calc(-1 * var(--pa-fundido));
+    background:linear-gradient(to top,var(--card),rgba(255,255,255,0));pointer-events:none}
   .pa-main .pa-diagram-card{height:calc(100vh - 260px);min-height:420px;display:flex;flex-direction:column}
   .pa-main .pa-diagram-card .pa-flow-canvas{flex:1;height:auto !important}
 }
@@ -296,6 +307,10 @@ button{font-family:inherit}
 .pa-input.mono{font-family:var(--mono);font-size:12.5px}
 textarea.pa-input{resize:vertical;line-height:1.45}
 .pa-row.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* Sin esto cada columna se niega a bajar de su ancho de contenido (171px) y
+   la fila se sale del panel: en la tarjeta de detalle, de 267px de ancho,
+   los campos RACI «Consultado» e «Informado» desbordaban por la derecha. */
+.pa-row.two > *{min-width:0}
 @media (max-width:520px){.pa-row.two{grid-template-columns:1fr}}
 
 /* ---- multi-rol (chips) para RACI Consultado/Informado ---- */
