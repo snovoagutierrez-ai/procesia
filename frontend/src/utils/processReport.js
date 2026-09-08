@@ -1,4 +1,5 @@
 import { VALUE, TYPES, WASTE } from "../constants.js";
+import { diagramaSvg } from "./flowSvg.js";
 
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -16,9 +17,23 @@ const money = (v) => (v == null ? "—" : "$" + Number(v).toLocaleString("es-CL"
  * Abre una ventana con el reporte documental del proceso, listo para
  * Imprimir / Guardar como PDF desde el navegador. Sin dependencias.
  */
-export function openProcessReport({ proc, tasks = [], gateways = [], sequenceFlows = [], metricsData = null, macroName = "" }) {
+export function openProcessReport({ proc, tasks = [], gateways = [], sequenceFlows = [], metricsData = null, macroName = "", layout = null }) {
   const win = window.open("", "_blank");
   if (!win) return false; // popup bloqueado
+
+  // El diagrama va en su propia pagina al final: el informe describia el proceso
+  // con tablas pero no incluia el mapa, que es lo que la gente mira primero.
+  const dibujo = diagramaSvg({
+    proc, tasks, gateways, sequenceFlows, layout,
+    constraintBpmnId: metricsData?.constraint?.bpmn_id || null,
+  });
+  const diagramaHtml = dibujo
+    ? `<section class="pagina-diagrama">
+         <h2>Diagrama de flujo</h2>
+         <p class="muted">Los pasos van numerados en el mismo orden que la tabla de tareas.</p>
+         <div class="lienzo">${dibujo.svg}</div>
+       </section>`
+    : "";
 
   const taskRows = tasks.map((t, i) => {
     const v = VALUE[t.valueClass] || {};
@@ -105,6 +120,10 @@ export function openProcessReport({ proc, tasks = [], gateways = [], sequenceFlo
     .toolbar{position:fixed;top:12px;right:12px}
     .toolbar button{background:#0E9F9F;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer}
     footer{margin-top:36px;font-size:11px;color:#5C6B6B;border-top:1px solid #E2E7E3;padding-top:10px}
+    /* El diagrama arranca en pagina nueva y se ajusta al ancho del papel. */
+    .pagina-diagrama{break-before:page;page-break-before:always}
+    .pagina-diagrama .lienzo{margin-top:10px;border:1px solid #E2E7E3;border-radius:8px;padding:8px}
+    .pagina-diagrama .lienzo svg{width:100%;height:auto}
     @media print{.toolbar{display:none}body{padding:0}}
   </style></head><body>
   <div class="toolbar"><button onclick="window.print()">Imprimir / Guardar PDF</button></div>
@@ -124,6 +143,7 @@ export function openProcessReport({ proc, tasks = [], gateways = [], sequenceFlo
   ${tasks.length ? `<table><tr><th>#</th><th>Tarea</th><th>Tipo</th><th>Valor</th><th>Responsable</th><th>Ciclo</th><th>Espera</th></tr>${taskRows}</table>` : `<p class="muted">Sin tareas mapeadas.</p>`}
   <h2>Compuertas de decisión (${gateways.length})</h2>
   ${gateways.length ? `<table><tr><th>Decisión</th><th>Tipo</th><th>Ramas (etiqueta — probabilidad)</th></tr>${gwRows}</table>` : `<p class="muted">Este proceso no tiene compuertas.</p>`}
+  ${diagramaHtml}
   <footer>Documento generado por AiProces — mapa de procesos Lean/BPMN.</footer>
   </body></html>`;
 

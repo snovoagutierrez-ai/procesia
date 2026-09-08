@@ -5,6 +5,8 @@ import { apiFetch, apiMutate } from "./api.js";
 // referencia es valida evita que se dibuje una flecha que luego el aviso de
 // problemas no reconoce.
 import { canonicalizeFlows, detectFlowIssues } from "./utils/flowGraph.js";
+import { layoutPortable, layoutParaLienzo } from "./utils/layoutSnapshot.js";
+import { descargarJpg, descargarPdf, FORMATOS } from "./utils/flowExport.js";
 import { VALUE, WASTE, TYPES, ACTION, ACTION_STEPS, SEVERITY, WASTE_QUESTIONS } from "./constants.js";
 // Los componentes de React Flow y dagre viven en FlowDiagrams.jsx; aquí solo se
 // usa el CSS de la librería, por eso no se importan sus símbolos.
@@ -1766,7 +1768,11 @@ export default function App() {
         label: label,
         tasks: tasks,
         gateways: gateways,
-        sequence_flows: sequenceFlows
+        sequence_flows: sequenceFlows,
+        // Las posiciones se guardan por bpmn_id, no por id numerico: al
+        // restaurar, las tareas se recrean con ids distintos y una clave
+        // `task-42` ya no valdria para nada.
+        layout: layoutPortable(procRef.current?.layout_json, tasks),
       };
       const res = await apiFetch(`/processes/${proc?.id}/snapshots`, {
         method: "POST",
@@ -1970,6 +1976,21 @@ export default function App() {
         body: JSON.stringify({ gateways: snapGateways, sequence_flows: cleanFlows }),
       });
 
+      // Devolver el diagrama a como estaba: sin esto se restauraban los datos
+      // pero la colocacion se perdia y dagre reordenaba el flujo entero.
+      const layoutRestaurado = layoutParaLienzo(snapshotJson.layout, mapped);
+      try {
+        await apiMutate(`/processes/${processId}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ layout_json: layoutRestaurado || {} }),
+        });
+        setProc((p) => (p ? { ...p, layout_json: layoutRestaurado || {} } : p));
+      } catch {
+        // La colocacion es lo accesorio: si falla, el resto de la restauracion
+        // ya esta hecha y el diagrama simplemente se autocoloca.
+        showToast("La versión se restauró, pero no se pudo recuperar la disposición del diagrama.");
+      }
+
       setSelectedId(mapped[0]?.id || null);
       setTab("detalle");
       return true;
@@ -2150,6 +2171,22 @@ export default function App() {
   // Antes ELIMINATE borraba la tarea (y llego a proponer borrar tareas
   // necesarias), y el resto de acciones no hacian nada distinto a seleccionar
   // el nodo: por eso los dos botones parecian el mismo y "no ejecutaban nada".
+  // Descarga del diagrama en el formato que elija el usuario.
+  const [menuDescargaAbierto, setMenuDescargaAbierto] = useState(false);
+  const descargarDiagrama = async (formato) => {
+    setMenuDescargaAbierto(false);
+    if (formato === "bpmn") return exportBpmn();
+
+    const datos = {
+      proc, tasks, gateways, sequenceFlows,
+      layout: proc?.layout_json || null,
+      constraintBpmnId: metricsData?.constraint?.bpmn_id || null,
+    };
+    const r = formato === "jpg" ? await descargarJpg(datos) : descargarPdf(datos);
+    if (!r.ok) showToast("No se pudo exportar el diagrama: " + r.motivo);
+    else if (formato === "jpg") showToast("Diagrama descargado en JPG.", 'success');
+  };
+
   const showRecommendation = (rec, markAsReviewed) => {
     const tBpmnId = rec.target_node_bpmn_id;
     const task = tasks.find(t => t.bpmnId === tBpmnId || String(t.id) === String(tBpmnId));
@@ -2340,12 +2377,31 @@ export default function App() {
                   <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => setSnapshotsModalOpen(true)} aria-label="Versiones">
                     <Clock size={16} /><span className="pa-editor-action-label"> Versiones</span>
                   </button>
-                  <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={exportBpmn} aria-label="Exportar BPMN">
-                    <Download size={16} /><span className="pa-editor-action-label"> .bpmn</span>
-                  </button>
+                  <div style={{ position: 'relative' }}>
+                    <button className="pa-btn pa-btn-ghost pa-btn-sm" aria-label="Descargar diagrama"
+                      aria-haspopup="menu" aria-expanded={menuDescargaAbierto}
+                      title="Descargar el diagrama de flujo"
+                      onClick={() => setMenuDescargaAbierto(o => !o)}>
+                      <Download size={16} /><span className="pa-editor-action-label"> Descargar</span>
+                    </button>
+                    {menuDescargaAbierto && (
+                      <>
+                        <div onClick={() => setMenuDescargaAbierto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                        <div role="menu" className="pa-formato-menu">
+                          <div className="pa-formato-titulo">Descargar el diagrama como</div>
+                          {FORMATOS.map(f => (
+                            <button key={f.valor} role="menuitem" onClick={() => descargarDiagrama(f.valor)}>
+                              <strong>{f.etiqueta}</strong>
+                              <span>{f.descripcion}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Reporte imprimible del proceso (PDF)" aria-label="Reporte"
                     onClick={() => {
-                      const ok = openProcessReport({ proc, tasks, gateways, sequenceFlows, metricsData, macroName: macroprocesses.find(mm => mm.id === proc.macroprocess_id)?.name });
+                      const ok = openProcessReport({ proc, tasks, gateways, sequenceFlows, metricsData, macroName: macroprocesses.find(mm => mm.id === proc.macroprocess_id)?.name, layout: proc?.layout_json || null });
                       if (!ok) showToast("El navegador bloqueó la ventana del reporte. Permite pop-ups para este sitio.");
                     }}>
                     <FileText size={16} /><span className="pa-editor-action-label"> Reporte</span>
@@ -2372,11 +2428,14 @@ export default function App() {
                         <button role="menuitem" onClick={() => { setSnapshotsModalOpen(true); setMobileMenuOpen(false); }}>
                           <Clock size={16} /> Versiones
                         </button>
-                        <button role="menuitem" onClick={() => { exportBpmn(); setMobileMenuOpen(false); }}>
-                          <Download size={16} /> Exportar .bpmn
-                        </button>
+                        {FORMATOS.map(f => (
+                          <button key={f.valor} role="menuitem"
+                            onClick={() => { descargarDiagrama(f.valor); setMobileMenuOpen(false); }}>
+                            <Download size={16} /> Descargar {f.etiqueta}
+                          </button>
+                        ))}
                         <button role="menuitem" onClick={() => {
-                          const ok = openProcessReport({ proc, tasks, gateways, sequenceFlows, metricsData, macroName: macroprocesses.find(mm => mm.id === proc.macroprocess_id)?.name });
+                          const ok = openProcessReport({ proc, tasks, gateways, sequenceFlows, metricsData, macroName: macroprocesses.find(mm => mm.id === proc.macroprocess_id)?.name, layout: proc?.layout_json || null });
                           if (!ok) showToast("El navegador bloqueó la ventana del reporte. Permite pop-ups para este sitio.");
                           setMobileMenuOpen(false);
                         }}>
