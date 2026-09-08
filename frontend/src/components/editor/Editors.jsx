@@ -940,7 +940,8 @@ function Optimization({ state, onRun, onApply, onShowRecommendation, tasks, long
     <div className="pa-opt">
       <div className="pa-opt-head">
         <div>
-          <h3>Optimización con IA</h3>
+          {/* Sin titulo: este panel vive dentro de la ventana «Optimización con
+              IA», que ya lo lleva en su cabecera, y salia repetido. */}
           <p>El motor analiza el proceso completo: tiempos de ciclo, RACI, sistemas y valor para detectar cuellos de botella y desperdicios en el flujo.</p>
         </div>
         <button

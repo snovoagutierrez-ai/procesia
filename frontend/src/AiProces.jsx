@@ -6,6 +6,7 @@ import { apiFetch, apiMutate } from "./api.js";
 // problemas no reconoce.
 import { canonicalizeFlows, detectFlowIssues } from "./utils/flowGraph.js";
 import { layoutPortable, layoutParaLienzo } from "./utils/layoutSnapshot.js";
+import OptimizationModal from "./components/editor/OptimizationModal.jsx";
 import { descargarJpg, descargarPdf, FORMATOS } from "./utils/flowExport.js";
 import { VALUE, WASTE, TYPES, ACTION, ACTION_STEPS, SEVERITY, WASTE_QUESTIONS } from "./constants.js";
 // Los componentes de React Flow y dagre viven en FlowDiagrams.jsx; aquí solo se
@@ -22,7 +23,7 @@ import { useConfirm, useInputDialog } from './components/shared/ConfirmDialog.js
 import Logo from "./components/shared/Logo.jsx";
 import Dashboard from "./components/dashboard/Dashboard.jsx";
 import './styles/main.css';
-import { Editor, GatewayEditor, Optimization, fmtShort, fmtLong } from "./components/editor/Editors.jsx";
+import { Editor, GatewayEditor, fmtShort, fmtLong } from "./components/editor/Editors.jsx";
 import { VSMLadder, FlowDiagram } from "./components/diagram/FlowDiagrams.jsx";
 import WelcomeModal from "./components/shared/WelcomeModal.jsx";
 import SnapshotsModal from "./components/editor/SnapshotsModal.jsx";
@@ -1020,7 +1021,9 @@ export default function App() {
   const [guideStep, setGuideStep] = useState(1);
   const [metricsData, setMetricsData] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
-  const [tab, setTab] = useState("detalle");
+  // La optimizacion ya no es una pestana del panel de detalle (ahi disponia de
+  // unos 300px y salia apretada): se abre en ventana propia desde el sidebar.
+  const [optimAbierta, setOptimAbierta] = useState(false);
   const [opt, setOpt] = useState({ status: "idle" });
   const [macroOpts, setMacroOpts] = useState({});
   const [loading, setLoading] = useState(true);
@@ -1307,7 +1310,6 @@ export default function App() {
     cancelPendingSaves();
     setProc(p);
     setView("editor");
-    setTab("detalle");
     setTasks([]);
     setGateways([]);
     setSequenceFlows([]);
@@ -1589,7 +1591,6 @@ export default function App() {
     const newGateways = [...gateways, newGw];
     setGateways(newGateways);
     setSelectedId(newGw.bpmn_id);
-    setTab("detalle");
     
     try {
       await apiMutate(`/processes/${proc.id}/graph`, {
@@ -1669,7 +1670,6 @@ export default function App() {
 
       setTasks((ts) => [...ts, mapped]);
       setSelectedId(mapped.id);
-      setTab("detalle");
       if (tasks.length === 0 && isMobile) {
         setMobileStep(3);
       }
@@ -1881,7 +1881,6 @@ export default function App() {
       });
 
       setSelectedId(mapped[0]?.id || null);
-      setTab("detalle");
       setShowUndoBanner(true);
     } catch (e) {
       setSaveState({ status: "error", message: "No se pudo aplicar el flujo optimizado por completo." });
@@ -1992,7 +1991,6 @@ export default function App() {
       }
 
       setSelectedId(mapped[0]?.id || null);
-      setTab("detalle");
       return true;
     } catch (e) {
       setSaveState({ status: "error", message: "No se pudo restaurar la versión por completo." });
@@ -2073,7 +2071,7 @@ export default function App() {
     setOpt({ status: "loading" });
     setOptLongLoading(false);
     const t = setTimeout(() => setOptLongLoading(true), 2500);
-    setTab("optim");
+    setOptimAbierta(true);
     try {
       const res = await apiFetch(`/processes/${proc.id}/optimize`, { method: "POST" });
       clearTimeout(t);
@@ -2162,7 +2160,6 @@ export default function App() {
       return;
     }
     setSelectedId(taskId);
-    setTab("detalle");
     setMobileStep(3);
   }, []);
 
@@ -2197,7 +2194,7 @@ export default function App() {
       return;
     }
     setSelectedId(task ? task.id : gateway.bpmn_id);
-    setTab("detalle");
+    setOptimAbierta(false);
     if (isMobile) setMobileStep(3);
     setAiTip({ rec, markAsApplied: markAsReviewed });
     // Sin esto el consejo aparecia fuera de la pantalla y parecia que el boton
@@ -2266,6 +2263,12 @@ export default function App() {
           {consultAssistantOpen ? <X size={24} /> : <MessageSquare size={24} />}
         </button>
       )}
+      <OptimizationModal
+        isOpen={optimAbierta}
+        onClose={() => setOptimAbierta(false)}
+        state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks}
+        onShowRecommendation={showRecommendation} longLoading={optLongLoading}
+      />
       <SnapshotsModal
         isOpen={snapshotsModalOpen}
         onClose={() => setSnapshotsModalOpen(false)}
@@ -2463,8 +2466,8 @@ export default function App() {
             <div className="pa-mobile-nav">
               <button className={mobileStep === 1 ? 'on' : ''} onClick={() => setMobileStep(1)}>1. Tareas</button>
               <button className={mobileStep === 2 ? 'on' : ''} onClick={() => setMobileStep(2)}>2. Diagrama</button>
-              <button className={mobileStep === 3 && tab === "detalle" ? 'on' : ''} onClick={() => { setMobileStep(3); setTab("detalle"); }}>3. Detalle</button>
-              <button className={mobileStep === 4 || (mobileStep === 3 && tab === "optim") ? 'on' : ''} onClick={() => { setMobileStep(4); setTab("optim"); }}>4. IA</button>
+              <button className={mobileStep === 3 ? 'on' : ''} onClick={() => setMobileStep(3)}>3. Detalle</button>
+              <button className={optimAbierta ? 'on' : ''} onClick={() => { setMobileStep(3); setOptimAbierta(true); }}>4. IA</button>
             </div>
           )}
 
@@ -2539,7 +2542,7 @@ export default function App() {
                           <select> no podia encogerse por debajo del ancho de su contenido y
                           terminaba montado sobre el nombre del paso. */}
                       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                      <div onClick={() => { setSelectedId(t.id); setTab("detalle"); setMobileStep(3); }} style={{ display: "flex", alignItems: "center", gap: 9, flex: 1, minWidth: 0, cursor: "pointer" }}>
+                      <div onClick={() => { setSelectedId(t.id); setMobileStep(3); }} style={{ display: "flex", alignItems: "center", gap: 9, flex: 1, minWidth: 0, cursor: "pointer" }}>
                         <span className="pa-step-bar" style={{ background: VALUE[t.valueClass]?.color || "#EEF3F0" }} />
                         <span className="pa-step-n mono">{String(i + 1).padStart(2, "0")}</span>
                         <span className="pa-step-name">{t.name}</span>
@@ -2577,7 +2580,7 @@ export default function App() {
                               <select> no podia encogerse por debajo del ancho de su contenido y
                               terminaba montado sobre el nombre del paso. */}
                           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                          <div onClick={() => { setSelectedId(g.bpmn_id); setTab("detalle"); setMobileStep(3); }} style={{ display: "flex", alignItems: "center", gap: 9, flex: 1, minWidth: 0, cursor: "pointer" }}>
+                          <div onClick={() => { setSelectedId(g.bpmn_id); setMobileStep(3); }} style={{ display: "flex", alignItems: "center", gap: 9, flex: 1, minWidth: 0, cursor: "pointer" }}>
                             <span className="pa-step-bar" style={{ background: "#8C8C8C" }} />
                             <span className="pa-step-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name || "Compuerta"}</span>
                             <span className="pa-step-t mono">{g.node_type === "exclusiveGateway" ? "EXC" : "PAR"}</span>
@@ -2619,7 +2622,7 @@ export default function App() {
                       <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
                     </div>
                   </div>
-                  <button className="pa-btn pa-btn-primary full" onClick={() => { setTab("optim"); if (isMobile) setMobileStep(4); if(firstStepsActive && guideStep === 5) dismissGuide(); }}>
+                  <button className="pa-btn pa-btn-primary full" onClick={() => { setOptimAbierta(true); if(firstStepsActive && guideStep === 5) dismissGuide(); }}>
                     <Sparkles size={16} /> 4. Ir a Optimización IA
                   </button>
                 </div>
@@ -2745,13 +2748,10 @@ export default function App() {
               {!isDesktopWide && (!isMobile || mobileStep === 3 || mobileStep === 4) && (
               <div className="pa-panel" style={{ marginTop: 16 }}>
                 {!isMobile && (
-                  <div className="pa-tabs">
-                    <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
-                    <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> Optimización IA</button>
-                  </div>
+                  <div className="pa-detail-titulo"><Gauge size={15} /> Detalle del paso</div>
                 )}
                 <div className="pa-panel-body">
-                  {tab === "detalle" && aiTipMatchesSelection && (
+                  {aiTipMatchesSelection && (
                     <div data-ai-tip style={{ marginBottom: 16, padding: '12px 14px', background: '#F0FAFA', border: '1px solid var(--teal)', borderRadius: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                         <div style={{ flex: 1 }}>
@@ -2792,7 +2792,7 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  {tab === "detalle" ? (
+                  {(
                     selectedTask ? (
                       <Editor task={selectedTask} onChange={updateTask} onMove={moveTask} onDelete={deleteTask}
                         processId={proc?.id}
@@ -2824,8 +2824,6 @@ export default function App() {
                       Selecciona un nodo para ver sus detalles.
                     </div>
                   )
-                ) : (
-                  <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onShowRecommendation={showRecommendation} longLoading={optLongLoading} />
                 )}
               </div>
             </div>
@@ -2836,7 +2834,7 @@ export default function App() {
           {isDesktopWide && rightCollapsed && (
             <div className="pa-rail pa-rail-right" onClick={() => setRightCollapsed(false)} title="Expandir panel de detalle">
               <button className="pa-rail-btn" aria-label="Expandir panel de detalle"><ChevronLeft size={16} /></button>
-              <span className="pa-rail-label">Detalle · IA</span>
+              <span className="pa-rail-label">Detalle del paso</span>
             </div>
           )}
           {isDesktopWide && !rightCollapsed && (
@@ -2846,13 +2844,10 @@ export default function App() {
                 <button className="pa-collapse-btn pa-detail-collapse" onClick={() => setRightCollapsed(true)} aria-label="Encoger panel de detalle" title="Encoger panel">
                   <ChevronRight size={16} />
                 </button>
-                <div className="pa-tabs">
-                  <button className={tab === "detalle" ? "on" : ""} onClick={() => setTab("detalle")}><Gauge size={15} /> Detalle del paso</button>
-                  <button className={tab === "optim" ? "on" : ""} onClick={() => setTab("optim")}><Lightbulb size={15} /> Optimización IA</button>
-                </div>
+                <div className="pa-detail-titulo"><Gauge size={15} /> Detalle del paso</div>
               </div>
               <div className="pa-panel-body">
-                {tab === "detalle" && aiTipMatchesSelection && (
+                {aiTipMatchesSelection && (
                   <div data-ai-tip style={{ marginBottom: 16, padding: '12px 14px', background: '#F0FAFA', border: '1px solid var(--teal)', borderRadius: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                       <div style={{ flex: 1 }}>
@@ -2893,7 +2888,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                {tab === "detalle" ? (
+                {(
                   selectedTask ? (
                     <Editor task={selectedTask} onChange={updateTask} onMove={moveTask} onDelete={deleteTask}
                       processId={proc?.id}
@@ -2925,8 +2920,6 @@ export default function App() {
                     Selecciona un nodo para ver sus detalles.
                   </div>
                 )
-              ) : (
-                <Optimization state={opt} onRun={runOptimize} onApply={applyOptimized} tasks={tasks} onShowRecommendation={showRecommendation} longLoading={optLongLoading} />
               )}
               </div>
             </div>
