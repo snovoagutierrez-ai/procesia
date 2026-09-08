@@ -749,8 +749,8 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
         <input className="pa-input" value={task.systems} onChange={(e) => set({ systems: e.target.value })} placeholder="Ej: SAP, Excel, Jira..." />
       </Field>
 
-      <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '12px', color: '#0E9F9F', flex: 1, minWidth: '150px' }}>Guardado automático activado</span>
+      <div className="pa-editor-footer">
+        <span>Guardado automático activado</span>
         <button className="pa-btn pa-btn-ghost" style={{ color: '#D9503C', borderColor: '#D9503C' }} onClick={() => onDelete(task.id)}>
           <Trash2 size={16} style={{ marginRight: 4 }} /> Borrar tarea
         </button>
@@ -914,8 +914,8 @@ function GatewayEditor({ gateway, onChange, onDelete, saveState = { status: 'idl
         </div>
 
         {processId && <div style={{ marginTop: 16 }}><NodeComments processId={processId} nodeBpmnId={gateway.bpmn_id} /></div>}
-        <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '12px', color: '#0E9F9F', flex: 1, minWidth: '150px' }}>Guardado automático activado</span>
+        <div className="pa-editor-footer">
+          <span>Guardado automático activado</span>
           <button className="pa-btn pa-btn-ghost" style={{ color: '#D9503C', borderColor: '#D9503C' }} onClick={() => onDelete(gateway.bpmn_id)}>
             <Trash2 size={16} style={{ marginRight: 4 }} /> Borrar compuerta
           </button>

@@ -1,6 +1,5 @@
 .pa-root{
   --ink:#13202B; --ink2:#1B2D3A; --paper:#F5F7F5; --card:#fff;
-  --pa-fundido:28px; /* alto del degradado que avisa de contenido por debajo */
   --line:#E2E7E3; --line-ink:rgba(255,255,255,.09);
   --teal:#0E9F9F; --teal-deep:#0B7E7E;
   --text:#15232E; --muted:#5C6B6B; --inv:#EAF1EF; --inv-muted:#9DB0B0;
@@ -171,14 +170,21 @@ button{font-family:inherit}
   .pa-editor-layout .pa-detail{position:static;height:100%;max-height:100%;overflow:hidden;display:flex}
   .pa-editor-layout .pa-detail > .pa-panel{flex:1;min-height:0;display:flex;flex-direction:column}
   .pa-editor-layout .pa-detail > .pa-panel > .pa-detail-tabbar{flex-shrink:0}
+  /* padding-bottom:0 a proposito: asi el final del contenido coincide con el
+     borde inferior del area visible y el pie puede quedarse pegado a el. Con
+     padding, el pie se quedaria flotando por encima. El aire lo pone el pie. */
   .pa-editor-layout .pa-detail > .pa-panel > .pa-panel-body{flex:1;min-height:0;overflow-y:auto;
-    overscroll-behavior-y:contain;padding-bottom:calc(18px + var(--pa-fundido))}
-  /* Degradado pegado al fondo del cuerpo. El margen negativo hace que no ocupe
-     sitio, y el padding inferior de arriba reserva justo su altura: al llegar al
-     final el degradado cae sobre esa franja vacia y desaparece por si solo. */
-  .pa-editor-layout .pa-detail > .pa-panel > .pa-panel-body::after{content:"";display:block;
-    position:sticky;bottom:0;height:var(--pa-fundido);margin-top:calc(-1 * var(--pa-fundido));
-    background:linear-gradient(to top,var(--card),rgba(255,255,255,0));pointer-events:none}
+    overscroll-behavior-y:contain;padding-bottom:0}
+  /* El pie con «Guardar» se fija al fondo de la tarjeta, igual que la botonera
+     del sidebar: deja de depender del scroll y ya no puede quedar cortado. */
+  .pa-editor-layout .pa-detail .pa-editor-footer{position:sticky;bottom:0;z-index:2;
+    margin:24px -18px 0;padding:12px 18px;background:var(--card);border-top:1px solid var(--line);
+    /* El panel mide ~300px: en fila los dos botones y el aviso se apilaban en
+       tres lineas y el pie se comia 140 de los 509px de la tarjeta. En rejilla
+       el aviso ocupa su linea y los botones comparten la siguiente. */
+    display:grid;grid-template-columns:auto 1fr;gap:8px 10px;align-items:center}
+  .pa-editor-layout .pa-detail .pa-editor-footer > span{grid-column:1 / -1;min-width:0}
+  .pa-editor-layout .pa-detail .pa-editor-footer > button{margin:0;min-width:0;white-space:nowrap}
   .pa-main .pa-diagram-card{height:calc(100vh - 260px);min-height:420px;display:flex;flex-direction:column}
   .pa-main .pa-diagram-card .pa-flow-canvas{flex:1;height:auto !important}
 }
@@ -297,6 +303,8 @@ button{font-family:inherit}
   padding:13px 18px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
 .pa-tabs button.on{color:var(--teal-deep);border-bottom-color:var(--teal)}
 .pa-panel-body{padding:18px}
+.pa-editor-footer{margin-top:24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.pa-editor-footer > span{font-size:12px;color:var(--teal);flex:1;min-width:150px}
 
 /* ---- form fields ---- */
 .pa-field{display:flex;flex-direction:column;gap:6px;margin-bottom:13px}
