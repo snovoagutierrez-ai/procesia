@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Trash2, Plus, PenLine, ChevronUp, ChevronDown, ChevronRight, Loader2, FileText, FolderOpen, AlertTriangle, X } from 'lucide-react';
 import MacroprocessDiagram from '../diagram/MacroprocessDiagram.jsx';
+import OrganizarProcesoModal from './OrganizarProcesoModal.jsx';
 import { FlowDiagram } from '../diagram/FlowDiagrams.jsx';
 import ProcessSummaryModal from '../editor/ProcessSummaryModal.jsx';
 import { apiFetch } from '../../api.js';
 
-function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCreateMacro, onDeleteProcess, onDeleteMacro, macroOpts, runOptimizeMacro, onLoadDemo, openOpts, setOpenOpts, macroLongLoading }) {
+function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCreateMacro, onDeleteProcess, onDeleteMacro, onRenameMacro, onMoverProceso, onDuplicarProceso, macroOpts, runOptimizeMacro, onLoadDemo, openOpts, setOpenOpts, macroLongLoading }) {
   const [dashTab, setDashTab] = useState("jerarquia");
   const [expandedMacros, setExpandedMacros] = useState({});
   const [search, setSearch] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Renombrar la carpeta: el nombre solo se podia fijar al crearla.
+  const [renombrando, setRenombrando] = useState(null);   // id del macroproceso
+  const [nombreBorrador, setNombreBorrador] = useState("");
+  const [organizando, setOrganizando] = useState(null);   // proceso a mover/duplicar
 
   const [previewProcess, setPreviewProcess] = useState(null);
   const [previewData, setPreviewData] = useState({ tasks: [], gateways: [], sequenceFlows: [] });
@@ -17,6 +23,14 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
   const [summaryProcess, setSummaryProcess] = useState(null);
   const [summaryData, setSummaryData] = useState({ tasks: [], gateways: [] });
   const [summaryMetrics, setSummaryMetrics] = useState(null);
+
+  const guardarNombre = async (m) => {
+    const nombre = nombreBorrador.trim();
+    setRenombrando(null);
+    // Un nombre vacio borraria la referencia visible de la carpeta: se descarta.
+    if (!nombre || nombre === m.name) return;
+    await onRenameMacro?.(m.id, nombre);
+  };
 
   const handleViewSummary = async (process) => {
     setSummaryProcess(process);
@@ -180,7 +194,20 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                       <div className="pa-dash-macro-title">
                         {expandedMacros[m.id] ? <ChevronDown size={20} style={{ color: "var(--teal)" }} /> : <ChevronRight size={20} style={{ color: "var(--teal)" }} />}
                         <FolderOpen size={20} style={{ color: "var(--teal)", marginLeft: 4 }} />
-                        <h3>{m.name}</h3>
+                        {renombrando === m.id ? (
+                          <input className="pa-input pa-dash-macro-nombre" value={nombreBorrador} autoFocus
+                            aria-label="Nombre de la carpeta"
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setNombreBorrador(e.target.value)}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              if (e.key === 'Enter') guardarNombre(m);
+                              if (e.key === 'Escape') setRenombrando(null);
+                            }}
+                            onBlur={() => guardarNombre(m)} />
+                        ) : (
+                          <h3>{m.name}</h3>
+                        )}
                         <span className="pa-dash-code">{m.code}</span>
                       </div>
                       <div className="pa-dash-macro-actions" onClick={(e) => e.stopPropagation()} style={{ flexWrap: 'wrap', justifyContent: 'flex-start' }}>
@@ -192,6 +219,11 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                         )}
                         <button className="pa-btn pa-btn-ghost" style={{ color: 'var(--teal)', border: '1px solid #E2E7E3' }} onClick={() => onCreateProcess(m.id)}>
                           <Plus size={14} /> Añadir proceso
+                        </button>
+                        <button className="pa-icon" style={{position:"static", width:34, height:34, flexShrink: 0}}
+                          onClick={() => { setRenombrando(m.id); setNombreBorrador(m.name); }}
+                          title="Cambiar el nombre de la carpeta" aria-label={`Cambiar el nombre de ${m.name}`}>
+                          <PenLine size={14} />
                         </button>
                         <button className="pa-icon danger" style={{position:"static", width:34, height:34, flexShrink: 0}} onClick={() => onDeleteMacro(m.id)} title="Eliminar macroproceso">
                           <Trash2 size={14} />
@@ -307,7 +339,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                       </div>
                     ) : (
                       <div style={{ width: '100%', height: '400px', marginTop: '16px' }}>
-                        <MacroprocessDiagram macroprocessId={m.id} processes={mProcs} onProcessDoubleClick={onSelect} onViewFlow={handleViewFlow} onViewSummary={handleViewSummary} />
+                        <MacroprocessDiagram macroprocessId={m.id} processes={mProcs} onProcessDoubleClick={onSelect} onViewFlow={handleViewFlow} onViewSummary={handleViewSummary} onOrganizar={onMoverProceso ? setOrganizando : undefined} />
                       </div>
                     )}
                       </>
@@ -427,6 +459,15 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
           </div>
         </div>
       )}
+
+      <OrganizarProcesoModal
+        isOpen={!!organizando}
+        onClose={() => setOrganizando(null)}
+        proceso={organizando}
+        macroprocesos={macroprocesses}
+        onMover={onMoverProceso}
+        onDuplicar={onDuplicarProceso}
+      />
     </div>
   );
 }

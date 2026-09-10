@@ -40,7 +40,7 @@ export function ConfirmDialog({ isOpen, title, message, confirmLabel = "Confirma
   );
 }
 
-export function InputDialog({ isOpen, title, placeholder = "", defaultValue = "", confirmLabel = "Crear", cancelLabel = "Cancelar", onConfirm, onCancel }) {
+export function InputDialog({ isOpen, title, message = "", placeholder = "", defaultValue = "", confirmLabel = "Crear", cancelLabel = "Cancelar", multiline = false, onConfirm, onCancel }) {
   const [value, setValue] = useState(defaultValue);
   const inputRef = useRef(null);
 
@@ -69,8 +69,19 @@ export function InputDialog({ isOpen, title, placeholder = "", defaultValue = ""
           <h3 id="input-dialog-title" style={{ margin: 0, fontFamily: "var(--disp)", fontSize: 17, fontWeight: 700, color: "var(--text)" }}>{title}</h3>
           <button onClick={onCancel} aria-label="Cancelar" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", display: "flex" }}><X size={18} /></button>
         </div>
+        {message && <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "var(--muted)", lineHeight: 1.55 }}>{message}</p>}
         <form onSubmit={handleSubmit}>
-          <input ref={inputRef} className="pa-input" value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} style={{ marginBottom: 16 }} />
+          {/* Un texto de varias lineas en un campo de una sola no se llega a leer:
+              es el mismo problema que tenia el cuadro de editar comentarios. */}
+          {multiline ? (
+            <textarea ref={inputRef} className="pa-input" value={value} rows={4}
+              onChange={e => setValue(e.target.value)} placeholder={placeholder}
+              onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSubmit(e); }}
+              style={{ marginBottom: 16, width: "100%", height: "auto", padding: "8px 10px",
+                       fontFamily: "inherit", fontSize: 13, lineHeight: 1.5, resize: "vertical" }} />
+          ) : (
+            <input ref={inputRef} className="pa-input" value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} style={{ marginBottom: 16 }} />
+          )}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <button type="button" className="pa-btn pa-btn-ghost" onClick={onCancel}>{cancelLabel}</button>
             <button type="submit" className="pa-btn pa-btn-primary" disabled={!value.trim()}>{confirmLabel}</button>
@@ -93,9 +104,11 @@ export function useConfirm() {
 }
 
 export function useInputDialog() {
-  const [state, setState] = useState({ isOpen: false, title: "", placeholder: "", defaultValue: "", confirmLabel: "Crear", resolve: null });
+  const [state, setState] = useState({ isOpen: false, title: "", message: "", placeholder: "", defaultValue: "", confirmLabel: "Crear", multiline: false, resolve: null });
   const showInput = (title, opts = {}) => new Promise(resolve => {
-    setState({ isOpen: true, title, placeholder: opts.placeholder || "", defaultValue: opts.defaultValue || "", confirmLabel: opts.confirmLabel || "Crear", resolve });
+    setState({ isOpen: true, title, message: opts.message || "", placeholder: opts.placeholder || "",
+               defaultValue: opts.defaultValue || "", confirmLabel: opts.confirmLabel || "Crear",
+               multiline: !!opts.multiline, resolve });
   });
   const handleConfirm = (value) => { state.resolve(value); setState(s => ({ ...s, isOpen: false })); };
   const handleCancel = () => { state.resolve(null); setState(s => ({ ...s, isOpen: false })); };

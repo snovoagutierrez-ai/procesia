@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app import models, schemas
@@ -50,6 +52,81 @@ def delete_macroprocess(db: Session, macroprocess_id: int):
 def get_process(db: Session, process_id: int):
     return db.query(models.Process).filter(models.Process.id == process_id).first()
 
+def direccion_del_cliente(request) -> str | None:
+    """IP real de quien hace la peticion.
+
+    Detras del proxy de Render, `request.client.host` es la del proxy y no la de
+    la persona: la buena viene en X-Forwarded-For, cuyo PRIMER valor es el
+    cliente original. Se lee ese, no el ultimo, que seria el propio proxy.
+    """
+    if request is None:
+        return None
+    reenviada = request.headers.get("x-forwarded-for")
+    if reenviada:
+        return reenviada.split(",")[0].strip()[:45]
+    return getattr(getattr(request, "client", None), "host", None)
+
+
+def registrar_actividad(db: Session, process_id: int, user_id: int | None, action: str,
+                        target_type: str = None, target_bpmn_id: str = None,
+                        summary: str = None, request=None, commit: bool = True):
+    """Anota un movimiento en el historial del proceso.
+
+    Nunca debe tumbar la operacion que la origina: registrar es secundario
+    respecto a guardar el trabajo de la persona. Si falla, se descarta.
+    """
+    try:
+        db.add(models.ProcessAudit(
+            process_id=process_id,
+            user_id=user_id,
+            action=action,
+            target_type=target_type,
+            target_bpmn_id=target_bpmn_id,
+            summary=(summary or None) and summary[:300],
+            ip_address=direccion_del_cliente(request),
+        ))
+        if commit:
+            db.commit()
+    except Exception:
+        db.rollback()
+
+
+MINUTOS_ENTRE_ENTRADAS = 30
+
+
+def registrar_entrada(db: Session, process_id: int, user_id: int, request=None):
+    """Anota que alguien abrio el proceso, agrupando visitas seguidas.
+
+    El GET se dispara en cada carga de la pantalla, asi que anotarlas todas
+    llenaria el historial de ruido y taparia los cambios reales. Se guarda una
+    entrada por persona cada media hora: basta para responder «quien fue el
+    ultimo en entrar», que es lo que se pedia.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    desde = datetime.now(timezone.utc) - timedelta(minutes=MINUTOS_ENTRE_ENTRADAS)
+    reciente = (db.query(models.ProcessAudit)
+                  .filter(models.ProcessAudit.process_id == process_id,
+                          models.ProcessAudit.user_id == user_id,
+                          models.ProcessAudit.action == "abrir",
+                          models.ProcessAudit.created_at >= desde)
+                  .first())
+    if reciente:
+        return
+    registrar_actividad(db, process_id, user_id, "abrir", "proceso", None, "Abrió el flujo", request)
+
+
+def historial_del_proceso(db: Session, process_id: int, limite: int = 60):
+    return (db.query(models.ProcessAudit)
+              .filter(models.ProcessAudit.process_id == process_id)
+              .order_by(models.ProcessAudit.created_at.desc(), models.ProcessAudit.id.desc())
+              .limit(limite).all())
+
+
+def get_process_by_code(db: Session, code: str):
+    """El codigo es unico en toda la tabla: sirve para avisar antes de chocar."""
+    return db.query(models.Process).filter(models.Process.code == code).first()
+
 def get_processes(db: Session, skip: int = 0, limit: int = 100, user_id: int = None):
     q = db.query(models.Process)
     if user_id:
@@ -96,6 +173,135 @@ def update_process(db: Session, db_process: models.Process, process_in: schemas.
     db.commit()
     db.refresh(db_process)
     return db_process
+
+def _nuevo_bpmn_id(prefijo: str) -> str:
+    """Identificador BPMN nuevo. Son unicos en toda la tabla, no por proceso."""
+    return f"{prefijo}_{uuid.uuid4().hex[:12]}"
+
+
+def duplicate_process(db: Session, src: models.Process, macroprocess_id: int,
+                      code: str, name: str, owner_id: int) -> models.Process:
+    """Copia un proceso completo a la carpeta indicada.
+
+    Sirve para reutilizar el esquema de un flujo en otro macroproceso sin
+    rehacerlo a mano. Se copia todo lo que define el flujo: pasos, compuertas,
+    conexiones (con sus probabilidades y puntos de union), RACI, sistemas y la
+    disposicion del diagrama.
+
+    Los `bpmn_id` son unicos en toda la tabla, asi que hay que generarlos de
+    nuevo y reescribir con ellos las referencias de las conexiones y las claves
+    de `layout_json`. Copiarlos tal cual reventaria la restriccion de unicidad,
+    y reescribir a medias dejaria un diagrama desconectado.
+
+    NO se copian las mediciones de tiempo ni los comentarios: pertenecen a la
+    ejecucion concreta de aquel proceso, no a su esquema, y arrastrarlos daria
+    por medido algo que todavia no se ha ejecutado. Tampoco las versiones
+    guardadas: la copia empieza su propio historial.
+    """
+    copia = models.Process(
+        owner_id=owner_id,
+        macroprocess_id=macroprocess_id,
+        code=code,
+        name=name,
+        objective=src.objective,
+        suppliers=src.suppliers,
+        trigger_event=src.trigger_event,
+        output_result=src.output_result,
+        customers=src.customers,
+        monthly_volume=src.monthly_volume,
+    )
+    db.add(copia)
+    db.flush()
+
+    # bpmn_id viejo -> nuevo, para reescribir las conexiones despues.
+    ref_nueva: dict[str, str] = {}
+    # id numerico de tarea viejo -> nuevo, para las claves del layout.
+    tarea_nueva: dict[int, int] = {}
+
+    for actividad in sorted(src.activities, key=lambda a: a.position_order):
+        act_copia = models.Activity(
+            process_id=copia.id, name=actividad.name, position_order=actividad.position_order,
+        )
+        db.add(act_copia)
+        db.flush()
+
+        for tarea in sorted(actividad.tasks, key=lambda t: t.position_order):
+            bpmn_nuevo = _nuevo_bpmn_id("Task")
+            ref_nueva[tarea.bpmn_id] = bpmn_nuevo
+            t_copia = models.Task(
+                activity_id=act_copia.id,
+                bpmn_id=bpmn_nuevo,
+                name=tarea.name,
+                description=tarea.description,
+                position_order=tarea.position_order,
+                task_type=tarea.task_type,
+                value_classification=tarea.value_classification,
+                waste_type=tarea.waste_type,
+                std_cycle_time_sec=tarea.std_cycle_time_sec,
+                std_wait_time_sec=tarea.std_wait_time_sec,
+            )
+            db.add(t_copia)
+            db.flush()
+            tarea_nueva[tarea.id] = t_copia.id
+
+            for r in tarea.raci:
+                db.add(models.TaskRaci(task_id=t_copia.id, role_id=r.role_id, raci_type=r.raci_type))
+            for sis in tarea.systems:
+                db.add(models.TaskSystem(task_id=t_copia.id, system_id=sis.system_id,
+                                         interaction_type=sis.interaction_type))
+
+    for nodo in src.flow_nodes:
+        bpmn_nuevo = _nuevo_bpmn_id("Node")
+        ref_nueva[nodo.bpmn_id] = bpmn_nuevo
+        db.add(models.FlowNode(process_id=copia.id, bpmn_id=bpmn_nuevo,
+                               node_type=nodo.node_type, name=nodo.name))
+
+    for flujo in src.sequence_flows:
+        # Los extremos que no son un nodo copiado (los eventos "start"/"end",
+        # que viven solo como texto) se dejan tal cual.
+        db.add(models.SequenceFlow(
+            process_id=copia.id,
+            bpmn_id=_nuevo_bpmn_id("Flow"),
+            source_ref=ref_nueva.get(flujo.source_ref, flujo.source_ref),
+            target_ref=ref_nueva.get(flujo.target_ref, flujo.target_ref),
+            name=flujo.name,
+            condition_expression=flujo.condition_expression,
+            branch_probability=flujo.branch_probability,
+            source_handle=flujo.source_handle,
+            target_handle=flujo.target_handle,
+        ))
+
+    copia.layout_json = _layout_copiado(src.layout_json, tarea_nueva, ref_nueva)
+
+    db.commit()
+    db.refresh(copia)
+    return copia
+
+
+def _layout_copiado(layout, tarea_nueva: dict, ref_nueva: dict):
+    """Reescribe las claves del layout con los identificadores de la copia.
+
+    Las claves son las del lienzo: `task-<id numerico>` y `gw-<bpmn_id>`. Sin
+    esta traduccion la copia saldria con todos los nodos amontonados en el
+    origen, porque ninguna posicion guardada le corresponderia.
+    """
+    if not isinstance(layout, dict):
+        return None
+    copiado = {}
+    for clave, pos in layout.items():
+        if clave.startswith("task-"):
+            viejo = clave[5:]
+            nuevo = tarea_nueva.get(int(viejo)) if viejo.isdigit() else None
+            if nuevo is not None:
+                copiado[f"task-{nuevo}"] = pos
+        elif clave.startswith("gw-"):
+            nuevo = ref_nueva.get(clave[3:])
+            if nuevo is not None:
+                copiado[f"gw-{nuevo}"] = pos
+        else:
+            copiado[clave] = pos
+    return copiado or None
+
 
 def delete_process(db: Session, process_id: int):
     db_process = get_process(db, process_id)

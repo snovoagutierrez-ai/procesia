@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import timedelta, datetime, timezone
@@ -186,8 +187,10 @@ def read_processes(skip: int = 0, limit: int = Query(default=50, ge=1, le=200), 
     return crud.get_processes(db, skip=skip, limit=limit, user_id=user_id)
 
 @router.get("/processes/{id}", response_model=schemas.ProcessResponse)
-def read_process(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    return verify_process_access(db, id, current_user)
+def read_process(request: Request, id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    proceso = verify_process_access(db, id, current_user)
+    crud.registrar_entrada(db, id, current_user.id, request)
+    return proceso
 
 @router.post("/processes", response_model=schemas.ProcessResponse, status_code=status.HTTP_201_CREATED)
 def create_process(process: schemas.ProcessCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
@@ -196,11 +199,220 @@ def create_process(process: schemas.ProcessCreate, db: Session = Depends(get_db)
     return crud.create_process(db, process, owner_id=current_user.id)
 
 @router.put("/processes/{id}", response_model=schemas.ProcessResponse)
-def update_process(id: int, process: schemas.ProcessUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def update_process(request: Request, id: int, process: schemas.ProcessUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     db_process = verify_process_access(db, id, current_user)
     if process.macroprocess_id is not None:
         verify_macroprocess_access(db, process.macroprocess_id, current_user)
-    return crud.update_process(db, db_process, process)
+    actualizado = crud.update_process(db, db_process, process)
+    # Mover de carpeta o reordenar el diagrama no son "editar la ficha": se
+    # distinguen para que el historial diga algo util y no solo "editado".
+    campos = set(process.model_dump(exclude_unset=True))
+    if campos == {"layout_json"}:
+        resumen = "Reorganizó el diagrama"
+    elif campos == {"macroprocess_id"}:
+        resumen = "Movió el flujo de carpeta"
+    else:
+        resumen = "Editó la ficha del proceso"
+    crud.registrar_actividad(db, id, current_user.id, "editar", "proceso", None, resumen, request)
+    return actualizado
+
+# ==========================================
+# Notas sobre el lienzo y glosario de nomenclaturas (observaciones 10/09)
+# ==========================================
+
+TIPOS_DE_NOTA = {"nota", "advertencia", "importante"}
+
+
+def _valida_tipo_de_nota(kind: str | None):
+    if kind is not None and kind not in TIPOS_DE_NOTA:
+        raise HTTPException(status_code=422,
+                            detail=f"Tipo de nota no válido. Usa uno de: {', '.join(sorted(TIPOS_DE_NOTA))}.")
+
+
+@router.get("/processes/{id}/notes", response_model=List[schemas.NoteResponse])
+def read_notes(id: int, db: Session = Depends(get_db),
+               current_user: models.User = Depends(auth.get_current_user)):
+    verify_process_access(db, id, current_user)
+    filas = (db.query(models.ProcessNote)
+               .filter(models.ProcessNote.process_id == id)
+               .order_by(models.ProcessNote.id).all())
+    return [schemas.NoteResponse(
+        id=f.id, kind=f.kind, text=f.text, pos_x=float(f.pos_x), pos_y=float(f.pos_y),
+        author_email=f.author.email if f.author else None, created_at=f.created_at,
+    ) for f in filas]
+
+
+@router.post("/processes/{id}/notes", response_model=schemas.NoteResponse,
+             status_code=status.HTTP_201_CREATED)
+def create_note(id: int, nota: schemas.NoteCreate, db: Session = Depends(get_db),
+                current_user: models.User = Depends(auth.get_current_user)):
+    verify_process_access(db, id, current_user)
+    _valida_tipo_de_nota(nota.kind)
+    fila = models.ProcessNote(process_id=id, author_id=current_user.id, kind=nota.kind,
+                              text=nota.text, pos_x=nota.pos_x, pos_y=nota.pos_y)
+    db.add(fila)
+    db.commit()
+    db.refresh(fila)
+    return schemas.NoteResponse(id=fila.id, kind=fila.kind, text=fila.text,
+                                pos_x=float(fila.pos_x), pos_y=float(fila.pos_y),
+                                author_email=current_user.email, created_at=fila.created_at)
+
+
+@router.put("/processes/{id}/notes/{note_id}", response_model=schemas.NoteResponse)
+def update_note(id: int, note_id: int, nota: schemas.NoteUpdate, db: Session = Depends(get_db),
+                current_user: models.User = Depends(auth.get_current_user)):
+    verify_process_access(db, id, current_user)
+    _valida_tipo_de_nota(nota.kind)
+    fila = db.query(models.ProcessNote).filter(models.ProcessNote.id == note_id,
+                                               models.ProcessNote.process_id == id).first()
+    if not fila:
+        raise HTTPException(status_code=404, detail="Nota no encontrada")
+    for campo, valor in nota.model_dump(exclude_unset=True).items():
+        setattr(fila, campo, valor)
+    db.commit()
+    db.refresh(fila)
+    return schemas.NoteResponse(id=fila.id, kind=fila.kind, text=fila.text,
+                                pos_x=float(fila.pos_x), pos_y=float(fila.pos_y),
+                                author_email=fila.author.email if fila.author else None,
+                                created_at=fila.created_at)
+
+
+@router.delete("/processes/{id}/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_note(id: int, note_id: int, db: Session = Depends(get_db),
+                current_user: models.User = Depends(auth.get_current_user)):
+    verify_process_access(db, id, current_user)
+    fila = db.query(models.ProcessNote).filter(models.ProcessNote.id == note_id,
+                                               models.ProcessNote.process_id == id).first()
+    if not fila:
+        raise HTTPException(status_code=404, detail="Nota no encontrada")
+    db.delete(fila)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/processes/{id}/glossary", response_model=List[schemas.GlossaryTermResponse])
+def read_glossary(id: int, db: Session = Depends(get_db),
+                  current_user: models.User = Depends(auth.get_current_user)):
+    verify_process_access(db, id, current_user)
+    return (db.query(models.GlossaryTerm)
+              .filter(models.GlossaryTerm.process_id == id)
+              .order_by(models.GlossaryTerm.position_order, models.GlossaryTerm.id).all())
+
+
+@router.post("/processes/{id}/glossary", response_model=schemas.GlossaryTermResponse,
+             status_code=status.HTTP_201_CREATED)
+def create_glossary_term(id: int, termino: schemas.GlossaryTermCreate, db: Session = Depends(get_db),
+                         current_user: models.User = Depends(auth.get_current_user)):
+    verify_process_access(db, id, current_user)
+    # Un mismo termino dos veces con significados distintos es peor que no tenerlo.
+    ya_esta = (db.query(models.GlossaryTerm)
+                 .filter(models.GlossaryTerm.process_id == id,
+                         func.lower(models.GlossaryTerm.term) == termino.term.strip().lower())
+                 .first())
+    if ya_esta:
+        raise HTTPException(status_code=409,
+                            detail=f"«{termino.term}» ya está en el glosario de este proceso.")
+    fila = models.GlossaryTerm(process_id=id, term=termino.term.strip(),
+                               meaning=termino.meaning.strip(),
+                               reference=(termino.reference or "").strip() or None,
+                               position_order=termino.position_order)
+    db.add(fila)
+    db.commit()
+    db.refresh(fila)
+    return fila
+
+
+@router.put("/processes/{id}/glossary/{term_id}", response_model=schemas.GlossaryTermResponse)
+def update_glossary_term(id: int, term_id: int, termino: schemas.GlossaryTermUpdate,
+                         db: Session = Depends(get_db),
+                         current_user: models.User = Depends(auth.get_current_user)):
+    verify_process_access(db, id, current_user)
+    fila = db.query(models.GlossaryTerm).filter(models.GlossaryTerm.id == term_id,
+                                                models.GlossaryTerm.process_id == id).first()
+    if not fila:
+        raise HTTPException(status_code=404, detail="Término no encontrado")
+    for campo, valor in termino.model_dump(exclude_unset=True).items():
+        setattr(fila, campo, valor)
+    db.commit()
+    db.refresh(fila)
+    return fila
+
+
+@router.delete("/processes/{id}/glossary/{term_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_glossary_term(id: int, term_id: int, db: Session = Depends(get_db),
+                         current_user: models.User = Depends(auth.get_current_user)):
+    verify_process_access(db, id, current_user)
+    fila = db.query(models.GlossaryTerm).filter(models.GlossaryTerm.id == term_id,
+                                                models.GlossaryTerm.process_id == id).first()
+    if not fila:
+        raise HTTPException(status_code=404, detail="Término no encontrado")
+    db.delete(fila)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/processes/{id}/activity", response_model=schemas.ProcessActivity)
+def read_process_activity(id: int, db: Session = Depends(get_db),
+                          current_user: models.User = Depends(auth.get_current_user)):
+    """Historial del flujo: quien entro, quien cambio que y cuando.
+
+    La IP solo viaja si quien pregunta es el dueno del proceso (o un admin). Es
+    un dato personal de cada colaborador: sirve para que el responsable detecte
+    un acceso que no cuadra, no para que todo el equipo se vigile entre si.
+    """
+    proceso = verify_process_access(db, id, current_user)
+    es_dueno = proceso.owner_id == current_user.id or current_user.role == models.UserRole.admin
+
+    def a_entrada(fila):
+        return schemas.ProcessAuditEntry(
+            id=fila.id,
+            action=fila.action,
+            target_type=fila.target_type,
+            target_bpmn_id=fila.target_bpmn_id,
+            summary=fila.summary,
+            author_email=fila.user.email if fila.user else None,
+            is_mine=fila.user_id == current_user.id,
+            ip_address=fila.ip_address if es_dueno else None,
+            created_at=fila.created_at,
+        )
+
+    filas = [a_entrada(f) for f in crud.historial_del_proceso(db, id)]
+    # «Quien fue el ultimo en entrar» y «quien hizo el ultimo cambio» son dos
+    # preguntas distintas: entrar no es cambiar nada.
+    entradas = [f for f in filas if f.action == "abrir"]
+    cambios = [f for f in filas if f.action != "abrir"]
+
+    return schemas.ProcessActivity(
+        owner_email=proceso.owner.email if proceso.owner else None,
+        soy_el_dueno=es_dueno,
+        ultima_entrada=entradas[0] if entradas else None,
+        ultimo_cambio=cambios[0] if cambios else None,
+        entries=filas,
+    )
+
+
+@router.post("/processes/{id}/duplicate", response_model=schemas.ProcessResponse,
+             status_code=status.HTTP_201_CREATED)
+def duplicate_process(id: int, datos: schemas.ProcessDuplicate,
+                      db: Session = Depends(get_db),
+                      current_user: models.User = Depends(auth.get_current_user)):
+    """Copia un flujo, opcionalmente a otra carpeta, para reutilizar su esquema."""
+    origen = verify_process_access(db, id, current_user)
+    destino = datos.macroprocess_id or origen.macroprocess_id
+    verify_macroprocess_access(db, destino, current_user)
+
+    codigo = (datos.code or "").strip() or f"{origen.code}-COPIA"
+    if crud.get_process_by_code(db, codigo):
+        raise HTTPException(status_code=409, detail=f"Ya existe un proceso con el código «{codigo}».")
+
+    return crud.duplicate_process(
+        db, origen,
+        macroprocess_id=destino,
+        code=codigo,
+        name=(datos.name or "").strip() or f"{origen.name} (copia)",
+        owner_id=current_user.id,
+    )
+
 
 @router.delete("/processes/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_process(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
@@ -520,7 +732,7 @@ def read_process_tasks(process_id: int, db: Session = Depends(get_db), current_u
     return tasks
 
 @router.post("/processes/{process_id}/tasks", response_model=schemas.TaskResponse, status_code=status.HTTP_201_CREATED)
-def create_process_task(process_id: int, task: schemas.TaskCreateDirect, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def create_process_task(request: Request, process_id: int, task: schemas.TaskCreateDirect, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     verify_process_access(db, process_id, current_user)
     default_act = db.query(models.Activity).filter(
         models.Activity.process_id == process_id,
@@ -531,10 +743,13 @@ def create_process_task(process_id: int, task: schemas.TaskCreateDirect, db: Ses
         db.add(default_act)
         db.flush()
 
-    return crud.create_task_direct(db, default_act.id, task)
+    creada = crud.create_task_direct(db, default_act.id, task)
+    crud.registrar_actividad(db, process_id, current_user.id, "crear", "tarea",
+                             creada.bpmn_id, f"Creó el paso «{creada.name}»", request)
+    return creada
 
 @router.put("/processes/{process_id}/tasks/{task_id}", response_model=schemas.TaskResponse)
-def update_process_task(process_id: int, task_id: int, task: schemas.TaskUpdateDirect, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def update_process_task(request: Request, process_id: int, task_id: int, task: schemas.TaskUpdateDirect, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     verify_process_access(db, process_id, current_user)
     db_task = crud.get_task(db, task_id)
     if not db_task:
@@ -542,16 +757,22 @@ def update_process_task(process_id: int, task_id: int, task: schemas.TaskUpdateD
     if db_task.activity.process_id != process_id:
         raise HTTPException(status_code=400, detail="Task does not belong to this process")
 
-    return crud.update_task_direct(db, db_task, task)
+    actualizada = crud.update_task_direct(db, db_task, task)
+    crud.registrar_actividad(db, process_id, current_user.id, "editar", "tarea",
+                             actualizada.bpmn_id, f"Editó el paso «{actualizada.name}»", request)
+    return actualizada
 
 @router.delete("/processes/{process_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_process_task(process_id: int, task_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def delete_process_task(request: Request, process_id: int, task_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     verify_process_access(db, process_id, current_user)
     db_task = crud.get_task(db, task_id)
     if not db_task or db_task.activity.process_id != process_id:
         raise HTTPException(status_code=404, detail="Task not found")
         
+    nombre, bpmn = db_task.name, db_task.bpmn_id
     crud.delete_task(db, task_id)
+    crud.registrar_actividad(db, process_id, current_user.id, "borrar", "tarea",
+                             bpmn, f"Borró el paso «{nombre}»", request)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # ==========================================
@@ -598,7 +819,7 @@ def read_graph(id: int, db: Session = Depends(get_db), current_user: models.User
     return crud.get_graph(db=db, process_id=id)
 
 @router.put("/processes/{id}/graph", response_model=schemas.GraphResponse)
-def sync_graph(id: int, graph_data: schemas.GraphSync, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def sync_graph(request: Request, id: int, graph_data: schemas.GraphSync, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     # Check ownership
     process = db.query(models.Process).filter(models.Process.id == id).first()
     if not process:
@@ -606,7 +827,11 @@ def sync_graph(id: int, graph_data: schemas.GraphSync, db: Session = Depends(get
     if current_user.role != models.UserRole.admin and process.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this process")
         
-    return crud.sync_graph(db=db, process_id=id, graph_data=graph_data)
+    resultado = crud.sync_graph(db=db, process_id=id, graph_data=graph_data)
+    crud.registrar_actividad(db, id, current_user.id, "editar", "conexiones", None,
+                             f"Actualizó el diagrama: {len(graph_data.sequence_flows)} conexión(es), "
+                             f"{len(graph_data.gateways)} compuerta(s)", request)
+    return resultado
 
 # ==========================================
 # 9. Tutorial AI Endpoint

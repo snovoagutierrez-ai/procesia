@@ -7,7 +7,10 @@ import { apiFetch, apiMutate } from "./api.js";
 import { canonicalizeFlows, detectFlowIssues } from "./utils/flowGraph.js";
 import { layoutPortable, layoutParaLienzo } from "./utils/layoutSnapshot.js";
 import OptimizationModal from "./components/editor/OptimizationModal.jsx";
+import HistorialModal from "./components/editor/HistorialModal.jsx";
+import GlosarioModal from "./components/editor/GlosarioModal.jsx";
 import { descargarJpg, descargarPdf, FORMATOS } from "./utils/flowExport.js";
+import { descargarRespaldo, leerRespaldo } from "./utils/respaldo.js";
 import { VALUE, WASTE, TYPES, ACTION, ACTION_STEPS, SEVERITY, WASTE_QUESTIONS } from "./constants.js";
 // Los componentes de React Flow y dagre viven en FlowDiagrams.jsx; aquí solo se
 // usa el CSS de la librería, por eso no se importan sus símbolos.
@@ -16,7 +19,7 @@ import {
   Plus, Trash2, ChevronRight, ChevronLeft, Download, Sparkles, Loader2,
   AlertTriangle, Gauge, X, ArrowRight, Lightbulb,
   ArrowLeft, FileText, Clock, LogOut, Info, Check,
-  MessageSquare, MoreVertical
+  MessageSquare, MoreVertical, History, StickyNote, BookMarked
 } from "lucide-react";
 import { useAuth } from './components/auth/AuthContext.jsx';
 import { useConfirm, useInputDialog } from './components/shared/ConfirmDialog.jsx';
@@ -1024,6 +1027,13 @@ export default function App() {
   // La optimizacion ya no es una pestana del panel de detalle (ahi disponia de
   // unos 300px y salia apretada): se abre en ventana propia desde el sidebar.
   const [optimAbierta, setOptimAbierta] = useState(false);
+  const [historialAbierto, setHistorialAbierto] = useState(false);
+  // Notas sueltas sobre el lienzo: apoyo visual, por fuera del flujo.
+  const [notas, setNotas] = useState([]);
+  const [menuNotaAbierto, setMenuNotaAbierto] = useState(false);
+  // Nomenclaturas del proceso: viajan tambien al informe.
+  const [glosarioAbierto, setGlosarioAbierto] = useState(false);
+  const [glosario, setGlosario] = useState([]);
   const [opt, setOpt] = useState({ status: "idle" });
   const [macroOpts, setMacroOpts] = useState({});
   const [loading, setLoading] = useState(true);
@@ -1315,7 +1325,16 @@ export default function App() {
     setSequenceFlows([]);
     setSelectedId(null);
     setMetricsData(null);
+    setNotas([]);
+    setGlosario([]);
     loadProcessTasks(p);
+    cargarNotas(p.id);
+    cargarGlosario(p.id);
+    // Al abrir el editor se pide el proceso al servidor: ademas de traerlo
+    // fresco, es lo que deja constancia de quien entro. Sin esta llamada el
+    // historial no podia responder «quien fue el ultimo en entrar», porque la
+    // pantalla se pintaba con los datos que ya venian del listado.
+    apiFetch(`/processes/${p.id}`).catch(() => {});
   };
 
   // Proceso de practica. Antes creaba 3 tareas sueltas, sin compuerta y sin
@@ -1447,6 +1466,54 @@ export default function App() {
       setAllProcesses((prev) => prev.filter((p) => p.macroprocess_id !== id));
     } catch (e) {
       setError("Error al eliminar el macroproceso.");
+    }
+  };
+
+  const renameMacroprocess = async (id, nombre) => {
+    try {
+      const res = await apiMutate(`/macroprocesses/${id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nombre }),
+      });
+      const actualizado = await res.json();
+      setMacroprocesses((prev) => prev.map((m) => (m.id === id ? { ...m, name: actualizado.name } : m)));
+      showToast("Nombre de la carpeta actualizado.", 'success');
+    } catch (e) {
+      showToast("No se pudo cambiar el nombre de la carpeta.");
+    }
+  };
+
+  // Mover y duplicar devuelven {ok} en vez de lanzar: la ventana que los llama
+  // necesita poder mostrar el motivo sin cerrarse (por ejemplo, codigo repetido).
+  const moverProceso = async (proceso, macroprocessId) => {
+    try {
+      const res = await apiMutate(`/processes/${proceso.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ macroprocess_id: macroprocessId }),
+      });
+      const actualizado = await res.json();
+      setAllProcesses((prev) => prev.map((p) =>
+        (p.id === proceso.id ? { ...p, macroprocess_id: actualizado.macroprocess_id } : p)));
+      const destino = macroprocesses.find((m) => m.id === macroprocessId);
+      showToast(`«${proceso.name}» se movió a ${destino?.name || 'la carpeta elegida'}.`, 'success');
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, motivo: e.message || "No se pudo mover el flujo." };
+    }
+  };
+
+  const duplicarProceso = async (proceso, macroprocessId, code, name) => {
+    try {
+      const res = await apiMutate(`/processes/${proceso.id}/duplicate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ macroprocess_id: macroprocessId, code, name }),
+      });
+      const copia = await res.json();
+      setAllProcesses((prev) => [...prev, copia]);
+      showToast(`Se creó «${copia.name}».`, 'success');
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, motivo: e.message || "No se pudo duplicar el flujo." };
     }
   };
 
@@ -2179,9 +2246,135 @@ export default function App() {
       layout: proc?.layout_json || null,
       constraintBpmnId: metricsData?.constraint?.bpmn_id || null,
     };
+
+    if (formato === "respaldo") {
+      // El respaldo guarda el flujo, no su dibujo: por eso lleva el layout en
+      // formato portable (por bpmn_id), igual que una version guardada.
+      const r = descargarRespaldo({ ...datos, layout: layoutPortable(proc?.layout_json, tasks) });
+      if (!r.ok) showToast("No se pudo generar el respaldo: " + r.motivo);
+      else showToast(`Respaldo descargado (${r.nombre}). Guárdalo fuera de la aplicación.`, 'success');
+      return;
+    }
+
     const r = formato === "jpg" ? await descargarJpg(datos) : descargarPdf(datos);
     if (!r.ok) showToast("No se pudo exportar el diagrama: " + r.motivo);
     else if (formato === "jpg") showToast("Diagrama descargado en JPG.", 'success');
+  };
+
+  /**
+   * Restaura el flujo desde un archivo de respaldo.
+   *
+   * Reemplaza TODO lo que hay ahora, asi que se valida el archivo antes de
+   * tocar nada y se guarda una version de retorno: si el respaldo resulta ser
+   * de otro proceso, la persona tiene como volver.
+   */
+  const restaurarDesdeArchivo = async (archivo) => {
+    const leido = await leerRespaldo(archivo);
+    if (!leido.ok) {
+      showToast(leido.motivo);
+      return;
+    }
+    const suyo = leido.proceso?.name ? `«${leido.proceso.name}»` : "otro flujo";
+    const ok = await confirm(
+      "Restaurar desde respaldo",
+      `El respaldo contiene ${leido.snapshot.tasks.length} paso(s) de ${suyo}. ` +
+      "Esto reemplazará todas las tareas y conexiones actuales. Se guardará una versión de respaldo antes.",
+      { danger: true, confirmLabel: "Restaurar" }
+    );
+    if (!ok) return;
+
+    await saveAutoSnapshot("Antes de restaurar un respaldo");
+    const hecho = await restoreSnapshot(leido.snapshot);
+    showToast(hecho ? "Flujo restaurado desde el respaldo." : "No se pudo restaurar el respaldo.",
+              hecho ? 'success' : 'error');
+  };
+
+  // ---- notas sobre el lienzo -------------------------------------------
+  const cargarNotas = useCallback(async (processId) => {
+    if (!processId) return;
+    try {
+      const res = await apiFetch(`/processes/${processId}/notes`);
+      if (res.ok) setNotas(await res.json());
+    } catch { /* la nota es apoyo: si no carga, el flujo se sigue viendo */ }
+  }, []);
+
+  const cargarGlosario = useCallback(async (processId) => {
+    if (!processId) return;
+    try {
+      const res = await apiFetch(`/processes/${processId}/glossary`);
+      if (res.ok) setGlosario(await res.json());
+    } catch { /* el glosario es apoyo: si no carga, el informe sale sin el */ }
+  }, []);
+
+  const anadirNota = async (kind = "nota") => {
+    if (!proc?.id) return;
+    const texto = await showInput("Nueva nota", {
+      message: "Queda sobre el diagrama como apoyo visual. No forma parte del flujo ni afecta a los tiempos ni a las métricas.",
+      placeholder: "Ej: este tramo depende de un permiso externo",
+      confirmLabel: "Añadir nota", multiline: true,
+    });
+    if (!texto || !texto.trim()) return;
+    try {
+      const res = await apiMutate(`/processes/${proc.id}/notes`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        // Se deja arriba a la izquierda del area util: visible al abrir, sin
+        // taparle un paso a nadie.
+        body: JSON.stringify({ kind, text: texto.trim(), pos_x: 40, pos_y: -120 }),
+      });
+      const creada = await res.json();
+      setNotas((prev) => [...prev, creada]);
+    } catch {
+      showToast("No se pudo crear la nota.");
+    }
+  };
+
+  const editarNota = async (nota) => {
+    const texto = await showInput("Editar nota", {
+      defaultValue: nota.text, confirmLabel: "Guardar", multiline: true });
+    if (texto === null || !texto.trim()) return;
+    try {
+      const res = await apiMutate(`/processes/${proc.id}/notes/${nota.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: texto.trim() }),
+      });
+      const actualizada = await res.json();
+      setNotas((prev) => prev.map((n) => (n.id === nota.id ? actualizada : n)));
+    } catch {
+      showToast("No se pudo guardar la nota.");
+    }
+  };
+
+  const borrarNota = async (nota) => {
+    const ok = await confirm("Borrar nota", "La nota desaparecerá del diagrama.", { danger: true, confirmLabel: "Borrar" });
+    if (!ok) return;
+    try {
+      await apiMutate(`/processes/${proc.id}/notes/${nota.id}`, { method: "DELETE" });
+      setNotas((prev) => prev.filter((n) => n.id !== nota.id));
+    } catch {
+      showToast("No se pudo borrar la nota.");
+    }
+  };
+
+  const moverNota = async (nota, x, y) => {
+    setNotas((prev) => prev.map((n) => (n.id === nota.id ? { ...n, pos_x: x, pos_y: y } : n)));
+    try {
+      await apiMutate(`/processes/${proc.id}/notes/${nota.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pos_x: x, pos_y: y }),
+      });
+    } catch { /* la posicion se reintenta en el proximo arrastre */ }
+  };
+
+  /** Lleva al paso o compuerta que menciona una anotacion del historial. */
+  const irAlObjeto = (bpmnId) => {
+    const tarea = tasks.find(t => t.bpmnId === bpmnId);
+    const compuerta = (gateways || []).find(g => g.bpmn_id === bpmnId);
+    if (!tarea && !compuerta) {
+      showToast("Ese objeto ya no existe en el flujo.");
+      return;
+    }
+    setSelectedId(tarea ? tarea.id : compuerta.bpmn_id);
+    if (isMobile) setMobileStep(3);
   };
 
   const showRecommendation = (rec, markAsReviewed) => {
@@ -2263,6 +2456,18 @@ export default function App() {
           {consultAssistantOpen ? <X size={24} /> : <MessageSquare size={24} />}
         </button>
       )}
+      <GlosarioModal
+        isOpen={glosarioAbierto}
+        onClose={() => setGlosarioAbierto(false)}
+        processId={proc?.id}
+        onCambio={setGlosario}
+      />
+      <HistorialModal
+        isOpen={historialAbierto}
+        onClose={() => setHistorialAbierto(false)}
+        processId={proc?.id}
+        onIrAlObjeto={irAlObjeto}
+      />
       <OptimizationModal
         isOpen={optimAbierta}
         onClose={() => setOptimAbierta(false)}
@@ -2275,6 +2480,7 @@ export default function App() {
         processId={proc?.id}
         onRestore={restoreSnapshot}
         confirm={confirm}
+        onRestaurarArchivo={restaurarDesdeArchivo}
         onRestoreComplete={() => {
           setShowUndoBanner(false);
         }}
@@ -2325,6 +2531,9 @@ export default function App() {
           onCreateMacro={createNewMacroprocess}
           onDeleteProcess={deleteProcess}
           onDeleteMacro={deleteMacroprocess}
+          onRenameMacro={renameMacroprocess}
+          onMoverProceso={moverProceso}
+          onDuplicarProceso={duplicarProceso}
           macroOpts={macroOpts}
           runOptimizeMacro={runOptimizeMacro}
           onLoadDemo={loadDemoData}
@@ -2380,6 +2589,14 @@ export default function App() {
                   <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => setSnapshotsModalOpen(true)} aria-label="Versiones">
                     <Clock size={16} /><span className="pa-editor-action-label"> Versiones</span>
                   </button>
+                  <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => setHistorialAbierto(true)}
+                    title="Quién entró, quién cambió qué y cuándo" aria-label="Historial del flujo">
+                    <History size={16} /><span className="pa-editor-action-label"> Historial</span>
+                  </button>
+                  <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => setGlosarioAbierto(true)}
+                    title="Siglas y términos que usa este proceso" aria-label="Nomenclaturas">
+                    <BookMarked size={16} /><span className="pa-editor-action-label"> Nomenclaturas</span>
+                  </button>
                   <div style={{ position: 'relative' }}>
                     <button className="pa-btn pa-btn-ghost pa-btn-sm" aria-label="Descargar diagrama"
                       aria-haspopup="menu" aria-expanded={menuDescargaAbierto}
@@ -2404,7 +2621,7 @@ export default function App() {
                   </div>
                   <button className="pa-btn pa-btn-ghost pa-btn-sm" title="Reporte imprimible del proceso (PDF)" aria-label="Reporte"
                     onClick={() => {
-                      const ok = openProcessReport({ proc, tasks, gateways, sequenceFlows, metricsData, macroName: macroprocesses.find(mm => mm.id === proc.macroprocess_id)?.name, layout: proc?.layout_json || null });
+                      const ok = openProcessReport({ proc, tasks, gateways, sequenceFlows, metricsData, macroName: macroprocesses.find(mm => mm.id === proc.macroprocess_id)?.name, layout: proc?.layout_json || null, glosario, notas });
                       if (!ok) showToast("El navegador bloqueó la ventana del reporte. Permite pop-ups para este sitio.");
                     }}>
                     <FileText size={16} /><span className="pa-editor-action-label"> Reporte</span>
@@ -2438,7 +2655,7 @@ export default function App() {
                           </button>
                         ))}
                         <button role="menuitem" onClick={() => {
-                          const ok = openProcessReport({ proc, tasks, gateways, sequenceFlows, metricsData, macroName: macroprocesses.find(mm => mm.id === proc.macroprocess_id)?.name, layout: proc?.layout_json || null });
+                          const ok = openProcessReport({ proc, tasks, gateways, sequenceFlows, metricsData, macroName: macroprocesses.find(mm => mm.id === proc.macroprocess_id)?.name, layout: proc?.layout_json || null, glosario, notas });
                           if (!ok) showToast("El navegador bloqueó la ventana del reporte. Permite pop-ups para este sitio.");
                           setMobileMenuOpen(false);
                         }}>
@@ -2621,6 +2838,35 @@ export default function App() {
                     <div style={{ flex: 1 }}>
                       <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
                     </div>
+                    <div style={{ flex: 1 }}>
+                      {/* La nota no es un paso: queda sobre el lienzo como apoyo
+                          visual y no entra en el flujo ni en las metricas. */}
+                      <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }}
+                        onClick={() => setMenuNotaAbierto(o => !o)}
+                        aria-haspopup="menu" aria-expanded={menuNotaAbierto}
+                        title="Añadir una nota sobre el diagrama">
+                        <StickyNote size={14} /> Nota
+                      </button>
+                      {menuNotaAbierto && (
+                        <>
+                          <div onClick={() => setMenuNotaAbierto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                          <div role="menu" className="pa-formato-menu" style={{ right: 'auto', left: 0, bottom: 'calc(100% + 6px)', top: 'auto', minWidth: 210 }}>
+                            <div className="pa-formato-titulo">Añadir sobre el diagrama</div>
+                            {[
+                              { valor: 'nota', etiqueta: 'Nota', descripcion: 'Un apunte o recordatorio.' },
+                              { valor: 'advertencia', etiqueta: 'Advertencia', descripcion: 'Algo a tener en cuenta aquí.' },
+                              { valor: 'importante', etiqueta: 'Importante', descripcion: 'Un punto crítico del proceso.' },
+                            ].map(t => (
+                              <button key={t.valor} role="menuitem"
+                                onClick={() => { setMenuNotaAbierto(false); anadirNota(t.valor); }}>
+                                <strong>{t.etiqueta}</strong>
+                                <span>{t.descripcion}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <button className="pa-btn pa-btn-primary full" onClick={() => { setOptimAbierta(true); if(firstStepsActive && guideStep === 5) dismissGuide(); }}>
                     <Sparkles size={16} /> 4. Ir a Optimización IA
@@ -2653,6 +2899,10 @@ export default function App() {
                   onConnectionRejected={showToast}
                   constraintBpmnId={metricsData?.constraint?.bpmn_id || null}
                   issueNodeIds={issueNodeIds}
+                  notas={notas}
+                  onNotaMover={moverNota}
+                  onNotaEditar={editarNota}
+                  onNotaBorrar={borrarNota}
                   onGraphChange={async (newGateways, newFlows) => {
                     setGateways(newGateways);
                     setSequenceFlows(newFlows);

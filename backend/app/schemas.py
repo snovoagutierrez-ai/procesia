@@ -145,6 +145,87 @@ class ProcessUpdate(BaseModel):
     monthly_volume: Optional[float] = Field(None, ge=0)
     layout_json: Optional[dict] = None
 
+class NoteBase(BaseModel):
+    kind: str = Field("nota", max_length=20)
+    text: str = Field(..., min_length=1, max_length=2000)
+    pos_x: float = 0
+    pos_y: float = 0
+
+
+class NoteCreate(NoteBase):
+    pass
+
+
+class NoteUpdate(BaseModel):
+    kind: Optional[str] = Field(None, max_length=20)
+    text: Optional[str] = Field(None, min_length=1, max_length=2000)
+    pos_x: Optional[float] = None
+    pos_y: Optional[float] = None
+
+
+class NoteResponse(NoteBase):
+    id: int
+    author_email: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class GlossaryTermBase(BaseModel):
+    term: str = Field(..., min_length=1, max_length=80)
+    meaning: str = Field(..., min_length=1, max_length=400)
+    reference: Optional[str] = Field(None, max_length=200)
+    position_order: int = 0
+
+
+class GlossaryTermCreate(GlossaryTermBase):
+    pass
+
+
+class GlossaryTermUpdate(BaseModel):
+    term: Optional[str] = Field(None, min_length=1, max_length=80)
+    meaning: Optional[str] = Field(None, min_length=1, max_length=400)
+    reference: Optional[str] = Field(None, max_length=200)
+    position_order: Optional[int] = None
+
+
+class GlossaryTermResponse(GlossaryTermBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class ProcessAuditEntry(BaseModel):
+    id: int
+    action: str
+    target_type: Optional[str] = None
+    target_bpmn_id: Optional[str] = None
+    summary: Optional[str] = None
+    author_email: Optional[str] = None
+    is_mine: bool = False
+    # Solo se rellena para el dueno del proceso: es dato personal del resto.
+    ip_address: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class ProcessActivity(BaseModel):
+    """Historial del flujo y de quien responde por el."""
+    owner_email: Optional[str] = None
+    soy_el_dueno: bool = False
+    ultima_entrada: Optional[ProcessAuditEntry] = None
+    ultimo_cambio: Optional[ProcessAuditEntry] = None
+    entries: List[ProcessAuditEntry] = []
+
+
+class ProcessDuplicate(BaseModel):
+    """Copiar un flujo a otra carpeta para reutilizar su esquema."""
+    macroprocess_id: Optional[int] = None   # por omision, la misma carpeta
+    code: Optional[str] = Field(None, max_length=40)
+    name: Optional[str] = Field(None, max_length=200)
+
+
 class ProcessResponse(ProcessBase):
     id: int
 

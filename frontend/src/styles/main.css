@@ -262,7 +262,7 @@ button{font-family:inherit}
 .pa-step-dir select:focus{outline:none;border-color:var(--teal);}
 
 .rf-task-node{background:#fff;border:1.5px solid #E2E7E3;border-left:5px solid #1FA463;border-radius:10px;
-  padding:10px 14px;min-width:180px;max-width:220px;cursor:pointer;transition:.15s;font-family:var(--body);position:relative}
+  padding:10px 14px;min-width:180px;max-width:240px;cursor:pointer;transition:.15s;font-family:var(--body);position:relative}
 .rf-task-node:hover{border-color:#BFE6E6;box-shadow:0 2px 12px rgba(14,159,159,.1)}
 .rf-task-node.selected{border-color:#0E9F9F;background:#F1FBFB;box-shadow:0 0 0 2px rgba(14,159,159,.2)}
 /* Nodo con problema de conexion: antes solo se listaba en el aviso al pie y
@@ -273,9 +273,14 @@ button{font-family:inherit}
    asi que no compite con nada ni descoloca el diagrama. */
 .rf-task-node.has-issue{outline:2px solid #D9503C;outline-offset:2px}
 .rf-task-node.has-issue::after{content:"!";position:absolute;top:-9px;right:-9px;width:18px;height:18px;border-radius:50%;background:#D9503C;color:#fff;font-size:12px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.25);z-index:5}
-.rf-task-header{margin-bottom:6px;display:flex;align-items:baseline;gap:6px}
+.rf-task-header{margin-bottom:6px;display:flex;align-items:baseline;gap:6px;min-width:0}
 .rf-task-order{flex-shrink:0;font-size:10.5px;font-weight:700;color:#fff;background:#9AA8A8;border-radius:4px;padding:1px 4px;line-height:1.35}
-.rf-task-name{font-size:12.5px;font-weight:600;color:#15232E;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Antes: una sola linea con puntos suspensivos, asi que casi todos los nombres
+   reales salian cortados. Ahora dispone de dos lineas y solo se recorta a
+   partir de ahi; el nombre completo sigue estando en el `title`. */
+.rf-task-name{font-size:12.5px;font-weight:600;color:#15232E;min-width:0;flex:1;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  overflow-wrap:anywhere;line-height:1.3}
 .rf-task-meta{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted);margin-bottom:4px}
 .rf-task-badge{color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;letter-spacing:.03em}
 .rf-task-times{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);font-family:var(--mono)}
@@ -641,7 +646,8 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
 /* "Paso importante" (obs 07/09): la restriccion del proceso, o sea el paso mas
    lento. Se marca con un criterio objetivo que las metricas ya calculan, no con
    una etiqueta que alguien tenga que poner a mano. */
-.rf-task-key{display:inline-flex;align-items:center;gap:3px;flex-shrink:0;margin-left:auto;
+/* Ya no comparte fila con el nombre: ocupa la suya, alineado a la izquierda. */
+.rf-task-key{display:inline-flex;align-items:center;gap:3px;width:fit-content;margin:-2px 0 5px;
   font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
   color:#A4271A;background:#FCEDEA;border:1px solid #F1C7BF;border-radius:5px;padding:1px 5px;line-height:1.4}
 
@@ -687,3 +693,102 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
 .pa-formato-menu button:hover{background:var(--teal-tint)}
 .pa-formato-menu button strong{font-size:13px;color:var(--ink);font-weight:600}
 .pa-formato-menu button span{font-size:11.5px;color:var(--muted)}
+
+/* ---- comentarios de un paso ----------------------------------------------
+   El campo de edicion compartia fila con los botones: en el panel, de unos
+   300px, quedaba reducido a una rendija y no se leia lo que se editaba. */
+/* Los margenes negativos recuperan el relleno de la tarjeta del comentario: en
+   un panel de ~300px cada pixel de ancho cuenta para poder leer lo que se edita. */
+.pa-comentario-edicion{display:flex;flex-direction:column;gap:6px;margin:0 -10px}
+.pa-comentario-edicion textarea.pa-input{width:100%;min-width:0;height:auto;padding:8px 10px;
+  font-family:inherit;font-size:13px;line-height:1.5;resize:vertical}
+.pa-comentario-acciones{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:0 10px}
+.pa-comentario-pista{flex:1;min-width:0;font-size:10.5px;color:var(--muted)}
+/* Las rutas y nombres largos sin espacios («SIGE>Calibraciones(SIGEPAC)>…») se
+   salian por el borde derecho del panel. */
+.pa-comentario-texto{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* ---- margenes del panel de detalle ---------------------------------------
+   Nada dentro del panel puede empujar mas alla de su ancho: basta un texto sin
+   espacios, una URL o un nombre de sistema largo para sacar el contenido por la
+   derecha. Se acota aqui, en la raiz, en vez de ir persiguiendo cada caso. */
+.pa-detail .pa-panel-body{overflow-wrap:anywhere}
+.pa-detail .pa-panel-body input,
+.pa-detail .pa-panel-body select,
+.pa-detail .pa-panel-body textarea{max-width:100%;min-width:0}
+
+/* ---- organizar flujos: mover de carpeta o duplicar ---------------------- */
+.pa-dash-macro-nombre{font-size:17px;font-weight:700;height:34px;max-width:340px;min-width:0}
+.pa-organizar-opciones{display:flex;flex-direction:column;gap:8px}
+.pa-organizar-opciones label{display:flex;gap:10px;align-items:flex-start;cursor:pointer;
+  border:1px solid var(--line);border-radius:10px;padding:10px 12px;transition:.15s}
+.pa-organizar-opciones label:hover{border-color:#BFE6E6;background:var(--teal-tint)}
+.pa-organizar-opciones label.on{border-color:var(--teal);background:var(--teal-tint)}
+.pa-organizar-opciones input{margin-top:3px;flex-shrink:0;accent-color:var(--teal)}
+.pa-organizar-opciones strong{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink)}
+.pa-organizar-opciones small{display:block;margin-top:2px;font-size:11.5px;color:var(--muted);line-height:1.5}
+
+/* ---- historial del flujo ------------------------------------------------ */
+.pa-historial-responsable{display:flex;gap:10px;align-items:flex-start;background:var(--teal-tint);
+  border:1px solid #BFE6E6;border-radius:10px;padding:10px 12px;color:#0B5E5E;font-size:12.5px}
+.pa-historial-responsable strong{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.pa-historial-resumen{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.pa-historial-resumen > div{border:1px solid var(--line);border-radius:10px;padding:9px 11px;min-width:0}
+.pa-historial-resumen span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.pa-historial-resumen strong{display:block;margin-top:3px;font-size:12.5px;color:var(--ink);overflow-wrap:anywhere}
+.pa-historial-resumen strong.vacio{color:var(--muted);font-weight:500}
+.pa-historial-aviso{margin:0 0 12px;font-size:11.5px;color:var(--muted);line-height:1.5}
+.pa-historial-lista{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.pa-historial-fila{display:flex;gap:10px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid var(--line)}
+.pa-historial-fila.pulsable{cursor:pointer;border-radius:8px}
+.pa-historial-fila.pulsable:hover{background:var(--teal-tint)}
+.pa-historial-icono{display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  width:24px;height:24px;border-radius:50%;background:#EEF2EF;color:var(--muted)}
+.pa-historial-icono.accion-crear{background:#E6F6EC;color:#1FA463}
+.pa-historial-icono.accion-borrar{background:#FCEDEA;color:#A4271A}
+.pa-historial-icono.accion-editar{background:var(--teal-tint);color:var(--teal-deep)}
+.pa-historial-texto{font-size:12.5px;color:var(--ink);overflow-wrap:anywhere}
+.pa-historial-meta{margin-top:1px;font-size:11px;color:var(--muted);display:flex;gap:4px;flex-wrap:wrap}
+.pa-historial-ip{font-family:var(--mono)}
+@media (max-width:560px){.pa-historial-resumen{grid-template-columns:1fr}}
+
+/* ---- respaldo en archivo ------------------------------------------------ */
+.pa-respaldo-bloque{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.pa-respaldo-bloque strong{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink)}
+.pa-respaldo-bloque p{margin:6px 0 10px;font-size:12px;color:var(--muted);line-height:1.55}
+.pa-respaldo-bloque label{display:inline-flex;align-items:center;gap:6px}
+
+/* ---- notas sobre el lienzo ---------------------------------------------
+   Deliberadamente distintas de una tarjeta de paso: papel, sombra y sin puntos
+   de conexion, para que se lean como una anotacion pegada encima y no como un
+   nodo mas del flujo. */
+.rf-nota{width:190px;padding:0;border-radius:3px;font-family:var(--body);
+  box-shadow:2px 3px 8px rgba(0,0,0,.16);transform:rotate(-.6deg);cursor:grab}
+.rf-nota:active{cursor:grabbing}
+.rf-nota-cabecera{display:flex;align-items:center;gap:5px;padding:4px 7px;
+  font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-radius:3px 3px 0 0}
+.rf-nota-cabecera span{flex:1;min-width:0}
+.rf-nota-cabecera button{display:flex;background:none;border:none;padding:1px;cursor:pointer;
+  color:inherit;opacity:.55;border-radius:3px}
+.rf-nota-cabecera button:hover{opacity:1;background:rgba(0,0,0,.08)}
+.rf-nota-texto{padding:7px 9px 9px;font-size:11.5px;line-height:1.45;color:#3A3320;
+  white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow-y:auto}
+.rf-nota.es-nota{background:#FFF6C8}
+.rf-nota.es-nota .rf-nota-cabecera{background:#FBE98C;color:#7A6410}
+.rf-nota.es-advertencia{background:#FFF1DC}
+.rf-nota.es-advertencia .rf-nota-cabecera{background:#FAD9A6;color:#8A5A12}
+.rf-nota.es-advertencia .rf-nota-texto{color:#4A3312}
+.rf-nota.es-importante{background:#FDE7E2}
+.rf-nota.es-importante .rf-nota-cabecera{background:#F7C6BC;color:#8E2A1B}
+.rf-nota.es-importante .rf-nota-texto{color:#4A211A}
+
+/* ---- glosario de nomenclaturas ------------------------------------------ */
+.pa-glosario-alta{display:grid;grid-template-columns:130px 1fr 150px auto;gap:8px;align-items:center}
+.pa-glosario-tabla{width:100%;margin-top:16px;border-collapse:collapse;font-size:12.5px}
+.pa-glosario-tabla th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);padding:0 8px 6px;border-bottom:1px solid var(--line)}
+.pa-glosario-tabla td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+.pa-glosario-tabla td.ref{color:var(--muted)}
+.pa-glosario-tabla button{background:none;border:none;cursor:pointer;color:var(--muted);display:flex;padding:2px}
+.pa-glosario-tabla button:hover{color:var(--danger)}
+@media (max-width:620px){.pa-glosario-alta{grid-template-columns:1fr}}

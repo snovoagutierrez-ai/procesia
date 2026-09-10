@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, RotateCcw, AlertCircle } from 'lucide-react';
+import { X, Clock, RotateCcw, AlertCircle, Upload } from 'lucide-react';
 import { apiFetch } from '../../api.js';
 
-export default function SnapshotsModal({ isOpen, onClose, processId, onRestore, confirm, onRestoreComplete }) {
+export default function SnapshotsModal({ isOpen, onClose, processId, onRestore, confirm, onRestoreComplete, onRestaurarArchivo }) {
   const [snapshots, setSnapshots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [restoringId, setRestoringId] = useState(null);
@@ -99,7 +99,7 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestore, 
           ) : snapshots.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 30, color: '#5C6B6B', fontSize: 13 }}>No hay versiones guardadas. Se crea una versión automáticamente antes de aplicar una optimización o eliminar tareas, para que puedas deshacer los cambios.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 400, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 320, overflowY: 'auto' }}>
               {snapshots.map(snap => {
                 const date = new Date(snap.created_at);
                 const label = snap.snapshot_json?.label || "Versión guardada";
@@ -122,6 +122,30 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestore, 
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {onRestaurarArchivo && (
+            <div className="pa-respaldo-bloque">
+              <strong><Upload size={14} /> Restaurar desde un archivo de respaldo</strong>
+              <p>
+                Las versiones de arriba viven en la misma base de datos que el flujo. Un respaldo
+                descargado con <strong>Descargar → Respaldo (.json)</strong> se guarda en tu equipo y
+                sobrevive aunque se pierda todo lo demás.
+              </p>
+              <label className="pa-btn pa-btn-ghost" style={{ cursor: 'pointer' }}>
+                <Upload size={14} /> Elegir archivo de respaldo
+                <input type="file" accept="application/json,.json" style={{ display: 'none' }}
+                  onChange={async (e) => {
+                    const archivo = e.target.files?.[0];
+                    // Se limpia el input para poder elegir el MISMO archivo otra vez
+                    // si el primer intento se cancelo.
+                    e.target.value = "";
+                    if (!archivo) return;
+                    onClose();
+                    await onRestaurarArchivo(archivo);
+                  }} />
+              </label>
             </div>
           )}
         </div>

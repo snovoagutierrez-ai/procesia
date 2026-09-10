@@ -121,4 +121,5 @@ export const FORMATOS = [
   { valor: "jpg", etiqueta: "JPG (imagen)", descripcion: "Para pegar en una presentación o un correo." },
   { valor: "pdf", etiqueta: "PDF (documento)", descripcion: "Para imprimir o compartir en tamaño A4." },
   { valor: "bpmn", etiqueta: "BPMN 2.0 (XML)", descripcion: "Para abrirlo en otra herramienta de procesos." },
+  { valor: "respaldo", etiqueta: "Respaldo (.json)", descripcion: "Copia completa del flujo, para recuperarlo si se pierde." },
 ];

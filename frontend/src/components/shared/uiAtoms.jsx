@@ -78,34 +78,79 @@ export function Field({ label, tooltip, children }) {
   );
 }
 
-// Time input with unit selector (s / m / h / d)
-export function TimeField({ label, tooltip, valueSec, onChangeSec }) {
-  const [unit, setUnit] = useState(
-    valueSec >= 86400 && valueSec % 86400 === 0 ? 86400
-    : valueSec >= 3600 && valueSec % 3600 === 0 ? 3600
-    : valueSec >= 60 && valueSec % 60 === 0 ? 60
-    : 1
-  );
-  const displayVal = valueSec / unit;
+// Unidades que ofrece el selector de duracion.
+export const UNIDADES = [
+  { valor: 1, etiqueta: "s" },
+  { valor: 60, etiqueta: "m" },
+  { valor: 3600, etiqueta: "h" },
+  { valor: 86400, etiqueta: "d" },
+];
+
+/**
+ * Unidad con la que se lee mejor una duracion.
+ *
+ * Usa la MISMA escala que fmtShort, que es lo que pintan las tarjetas del
+ * diagrama: segundos, minutos y de ahi en adelante horas. Nunca elige dias por
+ * su cuenta. Antes si lo hacia, y 86400 s salia como «1 d» en el panel mientras
+ * la tarjeta decia «24h»: el mismo dato contado de dos formas, que se leia como
+ * una incongruencia.
+ */
+export function unidadNatural(sec) {
+  const n = Number(sec) || 0;
+  if (n < 60) return 1;
+  if (n < 3600) return 60;
+  return 3600;
+}
+
+/**
+ * Duracion con selector de unidad. El valor viaja siempre en segundos.
+ *
+ * La unidad se deriva del valor salvo que la persona elija otra mientras edita.
+ * `resetKey` identifica a quien pertenece el dato (el id del paso): cuando
+ * cambia, la eleccion manual se descarta porque era del paso anterior. Sin esto
+ * la unidad se quedaba pegada al cambiar de tarea y el numero del panel dejaba
+ * de coincidir con el de la tarjeta del diagrama.
+ */
+export function TimeField({ label, tooltip, valueSec, onChangeSec, resetKey }) {
+  const [elegida, setElegida] = useState(null);
+  // La clave anterior se guarda en ESTADO, no en una referencia. Con una
+  // referencia el reinicio se perdia: React renderiza dos veces en desarrollo
+  // (StrictMode) y la referencia, ya mutada en la primera pasada, hacia que la
+  // segunda no detectara el cambio de paso. El sintoma era el de la
+  // observacion: la unidad se quedaba pegada de la tarea anterior.
+  const [claveAnterior, setClaveAnterior] = useState(resetKey);
+
+  if (claveAnterior !== resetKey) {
+    setClaveAnterior(resetKey);
+    setElegida(null);
+  }
+
+  const unidad = elegida ?? unidadNatural(valueSec);
+  const mostrado = (Number(valueSec) || 0) / unidad;
+
+  const emite = (segundos, unidadFijada) => {
+    setElegida(unidadFijada);
+    onChangeSec(segundos);
+  };
+
   return (
     <Field label={label} tooltip={tooltip}>
       <div style={{ display: 'flex', gap: 4 }}>
         <input
           className="pa-input"
           type="number" min="0" step="any" placeholder="0"
-          value={valueSec === 0 ? "" : displayVal}
-          onChange={e => onChangeSec(e.target.value === "" ? 0 : (Number(e.target.value) || 0) * unit)}
-          style={{ flex: 1 }}
+          value={Number(valueSec) === 0 ? "" : String(mostrado)}
+          // Al escribir se fija la unidad actual: si no, teclear «90» en minutos
+          // saltaria solo a «1.5 h» bajo los dedos.
+          onChange={e => emite(e.target.value === "" ? 0 : (Number(e.target.value) || 0) * unidad, unidad)}
+          style={{ flex: 1, minWidth: 0 }}
         />
-        <select className="pa-input" value={unit} onChange={e => {
-          const newU = Number(e.target.value);
-          setUnit(newU);
-          onChangeSec(displayVal * newU);
-        }} style={{ width: 70, padding: '0 4px' }}>
-          <option value={1}>s</option>
-          <option value={60}>m</option>
-          <option value={3600}>h</option>
-          <option value={86400}>d</option>
+        <select className="pa-input" value={unidad} aria-label={`Unidad de ${label}`}
+          onChange={e => {
+            const nueva = Number(e.target.value);
+            emite(mostrado * nueva, nueva);   // se conserva el numero escrito
+          }} style={{ width: 70, padding: '0 4px' }}>
+          {UNIDADES.map(u => <option key={u.valor} value={u.valor}>{u.etiqueta}</option>)}
         </select>
       </div>
     </Field>

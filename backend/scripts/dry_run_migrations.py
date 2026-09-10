@@ -37,17 +37,23 @@ def main(url):
         actual = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
         print(f"revision actual en la base: {actual}")
 
-        pendientes = []
-        for m in sorted(VERSIONES.glob("*.py")):
-            mod = cargar(m.name.split("_")[0])
-            if getattr(mod, "down_revision", None) == actual or pendientes:
-                pendientes.append(mod)
-                actual = mod.revision
-        pendientes.sort(key=lambda m: (m.down_revision or "", m.revision))
+        # Se cargan TODAS y se sigue la cadena down_revision -> revision desde la
+        # revision actual. Antes se descubrian recorriendo los archivos por orden
+        # alfabetico, y una migracion cuyo nombre ordena antes que el de su padre
+        # se quedaba fuera del ensayo sin avisar: justo el caso que este script
+        # existe para atrapar.
+        modulos = [cargar(m.name.split("_")[0]) for m in sorted(VERSIONES.glob("*.py"))]
+        por_padre = {}
+        for mod in modulos:
+            padre = getattr(mod, "down_revision", None)
+            if padre in por_padre:
+                raise SystemExit(
+                    f"cadena ramificada: {por_padre[padre].revision} y {mod.revision} "
+                    f"cuelgan ambas de {padre}"
+                )
+            por_padre[padre] = mod
 
-        # Reordenar siguiendo la cadena real down_revision -> revision.
-        cadena, cursor = [], conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
-        por_padre = {getattr(m, "down_revision", None): m for m in pendientes}
+        cadena, cursor = [], actual
         while cursor in por_padre:
             m = por_padre[cursor]
             cadena.append(m)

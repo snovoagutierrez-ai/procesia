@@ -3,7 +3,8 @@ import { Handle, Position, ReactFlow, Controls, Background, useNodesState, useEd
 import dagre from 'dagre';
 import { connectionError } from '../../utils/flowGraph.js';
 import { User, PenLine, Wrench, Clock, Info, ChevronUp, ChevronDown, Trash2, Rows3, Flame,
-         Table2, Database, Globe, Mail, Folder, FileText, StickyNote, Cpu } from 'lucide-react';
+         Table2, Database, Globe, Mail, Folder, FileText, StickyNote, Cpu,
+         AlertTriangle, AlertCircle, X } from 'lucide-react';
 import { familiaDeSistema } from '../../utils/systemIcon.js';
 import { fmtShort, fmtLong } from '../editor/Editors.jsx';
 import { VALUE, TYPES, WASTE } from '../../constants.js';
@@ -199,13 +200,15 @@ function TaskNode({ data }) {
         {/* Mismo numero que en la lista lateral: permite seguir el orden de los
             pasos sin ir contando las flechas. */}
         {data.order != null && <span className="rf-task-order mono">{String(data.order).padStart(2, "0")}</span>}
-        <span className="rf-task-name">{data.label}</span>
-        {data.isConstraint && (
-          <span className="rf-task-key" title="Paso más lento: marca el ritmo de todo el proceso. Mejorar aquí es lo único que aumenta la capacidad.">
-            <Flame size={11} /> Marca el ritmo
-          </span>
-        )}
+        <span className="rf-task-name" title={data.label}>{data.label}</span>
       </div>
+      {/* El distintivo iba en la misma fila que el nombre y le comia el ancho:
+          «Encuesta respondida» se quedaba en «Encu...». Va en su propia linea. */}
+      {data.isConstraint && (
+        <div className="rf-task-key" title="Paso más lento: marca el ritmo de todo el proceso. Mejorar aquí es lo único que aumenta la capacidad.">
+          <Flame size={11} /> Marca el ritmo
+        </div>
+      )}
       <div className="rf-task-meta">
         <TypeIcon size={12} />
         <span>{TYPES[data.taskType]?.label || data.taskType}</span>
@@ -362,7 +365,7 @@ function getSwimlaneLayout(rfNodes, rfEdges) {
   return { nodes: [...laneNodes, ...content], edges: rfEdges };
 }
 
-function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions = null, laneMode = false, constraintBpmnId = null, selectedRef = null) {
+function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions = null, laneMode = false, constraintBpmnId = null, selectedRef = null, notas = [], accionesDeNota = {}) {
   const rfNodes = [];
   const rfEdges = [];
 
@@ -404,6 +407,20 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
         onSelect,
       },
       position: { x: 0, y: 0 },
+    });
+  });
+
+  // Notas: van por fuera del flujo, con su posicion propia guardada en la base
+  // (no en layout_json, que es solo del diagrama).
+  (notas || []).forEach((n) => {
+    rfNodes.push({
+      id: `nota-${n.id}`,
+      type: "notaNode",
+      draggable: true,
+      selectable: false,
+      connectable: false,
+      data: { nota: n, kind: n.kind, text: n.text, author_email: n.author_email, ...accionesDeNota },
+      position: { x: Number(n.pos_x) || 0, y: Number(n.pos_y) || 0 },
     });
   });
 
@@ -483,7 +500,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
   return getLayoutedElements(rfNodes, rfEdges, "LR", savedPositions);
 }
 
-function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected, issueNodeIds, constraintBpmnId, height = 280 }) {
+function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected, issueNodeIds, constraintBpmnId, height = 280, notas = [], onNotaMover, onNotaEditar, onNotaBorrar }) {
   const savedPositions = proc?.layout_json || null;
   const [laneMode, setLaneMode] = useState(false);
   const onEdgesDelete = useCallback(
@@ -507,9 +524,11 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
       // Referencia canonica del nodo abierto, para resaltar su salida.
       const sel = tasks.find((t) => t.id === selectedId)?.bpmnId || selectedId || null;
       return buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete,
-                           savedPositions, laneMode, constraintBpmnId, sel);
+                           savedPositions, laneMode, constraintBpmnId, sel, notas,
+                           { onEditar: onNotaEditar, onBorrar: onNotaBorrar });
     },
-    [proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions, laneMode, constraintBpmnId, selectedId]
+    [proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions, laneMode,
+     constraintBpmnId, selectedId, notas, onNotaEditar, onNotaBorrar]
   );
 
   const nodesWithSelection = useMemo(
@@ -590,12 +609,22 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
 
   // #5 Persistir posiciones manuales: al soltar un nodo, guarda el mapa completo
   // de posiciones { node_id: {x,y} } para que el diagrama no vuelva al auto-layout.
-  const onNodeDragStop = useCallback(() => {
+  const onNodeDragStop = useCallback((_evento, nodoMovido) => {
+    // Las notas guardan su posicion en su propia fila, no en layout_json: si
+    // entraran en ese mapa quedarian duplicadas y descuadradas al recargar.
+    if (nodoMovido?.type === 'notaNode') {
+      onNotaMover?.(nodoMovido.data.nota, Math.round(nodoMovido.position.x), Math.round(nodoMovido.position.y));
+      return;
+    }
     if (!onLayoutChange || laneMode) return; // en modo carriles el layout es calculado, no se persiste
     const map = {};
-    nodes.forEach((n) => { if (n.type !== 'laneNode') map[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) }; });
+    nodes.forEach((n) => {
+      if (n.type !== 'laneNode' && n.type !== 'notaNode') {
+        map[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
+      }
+    });
     onLayoutChange(map);
-  }, [nodes, onLayoutChange, laneMode]);
+  }, [nodes, onLayoutChange, laneMode, onNotaMover]);
 
   return (
     // `height` por defecto 280 para el editor; quien lo muestre a pantalla
@@ -708,7 +737,40 @@ function GatewayNode({ data }) {
     );
   }
 
-const nodeTypes = { startNode: StartNode, endNode: EndNode, taskNode: TaskNode, gatewayNode: GatewayNode, laneNode: LaneNode };
+/**
+ * Nota suelta sobre el lienzo: aviso, recordatorio, punto de atencion.
+ *
+ * No lleva puntos de conexion a proposito: no es un paso del proceso y no debe
+ * poder engancharse al flujo. Es apoyo visual para quien lee el diagrama.
+ */
+const TIPOS_DE_NOTA = {
+  nota:        { etiqueta: "Nota",        icono: StickyNote,   clase: "es-nota" },
+  advertencia: { etiqueta: "Advertencia", icono: AlertTriangle, clase: "es-advertencia" },
+  importante:  { etiqueta: "Importante",  icono: AlertCircle,  clase: "es-importante" },
+};
+
+function NotaNode({ data }) {
+  const tipo = TIPOS_DE_NOTA[data.kind] || TIPOS_DE_NOTA.nota;
+  const Icono = tipo.icono;
+  return (
+    <div className={`rf-nota ${tipo.clase}`} onDoubleClick={() => data.onEditar?.(data.nota)}
+      title={data.author_email ? `${tipo.etiqueta} · ${data.author_email}` : tipo.etiqueta}>
+      <div className="rf-nota-cabecera">
+        <Icono size={12} />
+        <span>{tipo.etiqueta}</span>
+        {data.onBorrar && (
+          <button type="button" aria-label="Borrar nota" title="Borrar nota"
+            onClick={(e) => { e.stopPropagation(); data.onBorrar(data.nota); }}>
+            <X size={11} />
+          </button>
+        )}
+      </div>
+      <div className="rf-nota-texto">{data.text}</div>
+    </div>
+  );
+}
+
+const nodeTypes = { startNode: StartNode, endNode: EndNode, taskNode: TaskNode, gatewayNode: GatewayNode, laneNode: LaneNode, notaNode: NotaNode };
 const edgeTypes = { deletable: DeletableEdge };
 
 export { VSMLadder, StartNode, EndNode, TaskNode, GatewayNode, getLayoutedElements, buildFlowData, FlowDiagram, nodeTypes, edgeTypes };

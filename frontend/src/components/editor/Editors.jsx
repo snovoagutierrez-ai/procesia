@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { ArrowLeft, Clock, Trash2, PenLine, Check, ChevronUp, ChevronDown, Sparkles, Loader2, ArrowRight, AlertTriangle, X, Lightbulb, Info, Send } from 'lucide-react';
 import { VALUE, WASTE, TYPES, ACTION, SEVERITY, WASTE_QUESTIONS } from '../../constants.js';
 import { apiFetch } from '../../api.js';
-import { Seg, Field, TimeField } from '../shared/uiAtoms.jsx';
+import { Seg, Field, TimeField, UNIDADES } from '../shared/uiAtoms.jsx';
 import Banner from '../shared/Banner.jsx';
 
 // Entrada de múltiples roles (chips) para Consultado/Informado. Transporta un string
@@ -500,18 +500,26 @@ function NodeComments({ processId, nodeBpmnId }) {
           {items.map(c => (
             <div key={c.id} style={{ padding: '8px 10px', background: '#F8FAF8', border: '1px solid var(--line)', borderRadius: 8, marginBottom: 8 }}>
               {editingId === c.id ? (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input className="pa-input" value={editDraft} style={{ flex: 1 }} autoFocus
+                <div className="pa-comentario-edicion">
+                  {/* Area de texto y no un <input> en la misma fila que los botones:
+                      en el panel, de unos 300px, el campo quedaba reducido a una
+                      rendija y no se llegaba a leer lo que se estaba editando. */}
+                  <AreaAutoAjustable valor={editDraft} onValor={setEditDraft} rows={3} autoFocus
                     aria-label="Editar comentario"
-                    onChange={e => setEditDraft(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(c.id); if (e.key === 'Escape') setEditingId(null); }} />
-                  <button type="button" className="pa-btn pa-btn-primary pa-btn-sm" disabled={busy || !editDraft.trim()}
-                    onClick={() => saveEdit(c.id)}>Guardar</button>
-                  <button type="button" className="pa-btn pa-btn-ghost pa-btn-sm"
-                    onClick={() => { setEditingId(null); setEditDraft(""); }}>Cancelar</button>
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveEdit(c.id);
+                      if (e.key === 'Escape') setEditingId(null);
+                    }} />
+                  <div className="pa-comentario-acciones">
+                    <span className="pa-comentario-pista">Ctrl + Enter para guardar</span>
+                    <button type="button" className="pa-btn pa-btn-ghost pa-btn-sm"
+                      onClick={() => { setEditingId(null); setEditDraft(""); }}>Cancelar</button>
+                    <button type="button" className="pa-btn pa-btn-primary pa-btn-sm" disabled={busy || !editDraft.trim()}
+                      onClick={() => saveEdit(c.id)}>Guardar</button>
+                  </div>
                 </div>
               ) : (
-                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{c.text}</div>
+                <div className="pa-comentario-texto">{c.text}</div>
               )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, fontSize: 11, color: 'var(--muted)' }}>
                 <span>{c.author_email || 'anónimo'}</span>
@@ -537,15 +545,20 @@ function NodeComments({ processId, nodeBpmnId }) {
                 )}
               </div>
               {suggestingId === c.id && (
-                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                  <input className="pa-input" value={suggestDraft} style={{ flex: 1 }} autoFocus
+                <div className="pa-comentario-edicion" style={{ marginTop: 8 }}>
+                  <AreaAutoAjustable valor={suggestDraft} onValor={setSuggestDraft} rows={3} autoFocus
                     placeholder="¿Qué cambiarías de este comentario?" aria-label="Sugerencia de cambio"
-                    onChange={e => setSuggestDraft(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') suggestChange(c); if (e.key === 'Escape') setSuggestingId(null); }} />
-                  <button type="button" className="pa-btn pa-btn-primary pa-btn-sm" disabled={busy || !suggestDraft.trim()}
-                    onClick={() => suggestChange(c)}>Enviar</button>
-                  <button type="button" className="pa-btn pa-btn-ghost pa-btn-sm"
-                    onClick={() => setSuggestingId(null)}>Cancelar</button>
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) suggestChange(c);
+                      if (e.key === 'Escape') setSuggestingId(null);
+                    }} />
+                  <div className="pa-comentario-acciones">
+                    <span className="pa-comentario-pista">Ctrl + Enter para enviar</span>
+                    <button type="button" className="pa-btn pa-btn-ghost pa-btn-sm"
+                      onClick={() => setSuggestingId(null)}>Cancelar</button>
+                    <button type="button" className="pa-btn pa-btn-primary pa-btn-sm" disabled={busy || !suggestDraft.trim()}
+                      onClick={() => suggestChange(c)}>Enviar</button>
+                  </div>
                 </div>
               )}
             </div>
@@ -566,6 +579,44 @@ function NodeComments({ processId, nodeBpmnId }) {
 // #8 Tiempos observados: registrar mediciones reales por tarea y comparar
 // promedio observado vs estándar + variabilidad (CV). Infraestructura ya existía
 // (tabla time_measurements), faltaban endpoints + UI.
+/**
+ * Area de texto que crece con lo que se escribe, hasta un tope.
+ *
+ * Un alto fijo obliga a desplazarse dentro de un cuadro ya estrecho para leer lo
+ * que se esta editando, que era justo la queja: «demasiado pequeño para llegar a
+ * visualizar su contenido».
+ */
+function AreaAutoAjustable({ valor, onValor, alturaMaxima = 220, ...resto }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";                     // primero encoge, para poder medir
+    el.style.height = Math.min(el.scrollHeight, alturaMaxima) + "px";
+  }, [valor, alturaMaxima]);
+  return (
+    <textarea ref={ref} className="pa-input" value={valor}
+      onChange={e => onValor(e.target.value)} {...resto} />
+  );
+}
+
+/** Un numero con su unidad, para registrar un tiempo medido en campo. */
+function DuracionMedida({ etiqueta, valor, onValor, unidad, onUnidad }) {
+  return (
+    <div>
+      <label style={{ fontSize: 11, color: 'var(--muted)' }}>{etiqueta}</label>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <input className="pa-input" type="number" min="0" step="any" value={valor}
+          onChange={e => onValor(e.target.value)} style={{ width: 62 }} aria-label={etiqueta} />
+        <select className="pa-input" value={unidad} aria-label={`Unidad de ${etiqueta.toLowerCase()}`}
+          onChange={e => onUnidad(Number(e.target.value))} style={{ width: 58, padding: '0 4px' }}>
+          {UNIDADES.map(u => <option key={u.valor} value={u.valor}>{u.etiqueta}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 function MeasurementsPanel({ processId, taskId, stdCycle }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
@@ -573,6 +624,11 @@ function MeasurementsPanel({ processId, taskId, stdCycle }) {
   const [wait, setWait] = useState("");
   const [ref, setRef] = useState("");
   const [busy, setBusy] = useState(false);
+  // Los campos estaban fijos en segundos: para un ciclo de dos horas habia que
+  // escribir 7200 y calcularlo a mano. Se registra en la unidad que se midio y
+  // se convierte aqui, que es como funciona el resto del editor.
+  const [uCiclo, setUCiclo] = useState(60);
+  const [uEspera, setUEspera] = useState(60);
 
   const load = async () => {
     if (!processId || !taskId) return;
@@ -584,13 +640,13 @@ function MeasurementsPanel({ processId, taskId, stdCycle }) {
   useEffect(() => { if (open) load(); /* eslint-disable-next-line */ }, [open, processId, taskId]);
 
   const add = async () => {
-    const c = Number(cycle);
+    const c = Number(cycle) * uCiclo;
     if (!c || c <= 0) return;
     setBusy(true);
     try {
       const res = await apiFetch(`/processes/${processId}/tasks/${taskId}/measurements`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ observed_cycle_sec: c, observed_wait_sec: Number(wait) || 0, case_ref: ref.trim() || null }),
+        body: JSON.stringify({ observed_cycle_sec: c, observed_wait_sec: (Number(wait) || 0) * uEspera, case_ref: ref.trim() || null }),
       });
       if (res.ok) { setCycle(""); setWait(""); setRef(""); await load(); }
     } finally { setBusy(false); }
@@ -628,8 +684,8 @@ function MeasurementsPanel({ processId, taskId, stdCycle }) {
             <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 12 }}>Registra tiempos reales medidos en campo para comparar contra el estándar y detectar variabilidad.</div>
           )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
-            <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Ciclo (seg)</label><input className="pa-input" type="number" min="0" value={cycle} onChange={e => setCycle(e.target.value)} style={{ width: 90 }} /></div>
-            <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Espera (seg)</label><input className="pa-input" type="number" min="0" value={wait} onChange={e => setWait(e.target.value)} style={{ width: 90 }} /></div>
+            <DuracionMedida etiqueta="Ciclo" valor={cycle} onValor={setCycle} unidad={uCiclo} onUnidad={setUCiclo} />
+            <DuracionMedida etiqueta="Espera" valor={wait} onValor={setWait} unidad={uEspera} onUnidad={setUEspera} />
             <div style={{ flex: 1, minWidth: 100 }}><label style={{ fontSize: 11, color: 'var(--muted)' }}>Caso / ref</label><input className="pa-input" value={ref} onChange={e => setRef(e.target.value)} placeholder="Ej: Caso #42" /></div>
             <button type="button" className="pa-btn pa-btn-primary pa-btn-sm" onClick={add} disabled={busy || !Number(cycle)}>Añadir</button>
           </div>
@@ -701,8 +757,8 @@ function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState =
       </div>
 
       <div className="pa-row two">
-        <TimeField label="Tiempo de ciclo" tooltip="Tiempo real trabajando en la tarea (Processing Time)." valueSec={task.cycleTime} onChangeSec={(v) => set({ cycleTime: v })} />
-        <TimeField label="Tiempo de espera" tooltip="Tiempo inactivo antes de que esta tarea comience (Wait Time)." valueSec={task.waitTime} onChangeSec={(v) => set({ waitTime: v })} />
+        <TimeField label="Tiempo de ciclo" tooltip="Tiempo real trabajando en la tarea (Processing Time)." valueSec={task.cycleTime} onChangeSec={(v) => set({ cycleTime: v })} resetKey={task.id} />
+        <TimeField label="Tiempo de espera" tooltip="Tiempo inactivo antes de que esta tarea comience (Wait Time)." valueSec={task.waitTime} onChangeSec={(v) => set({ waitTime: v })} resetKey={task.id} />
       </div>
 
       {processId && task.id && <MeasurementsPanel processId={processId} taskId={task.id} stdCycle={task.cycleTime} />}

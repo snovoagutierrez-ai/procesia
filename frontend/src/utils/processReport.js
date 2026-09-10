@@ -17,7 +17,7 @@ const money = (v) => (v == null ? "—" : "$" + Number(v).toLocaleString("es-CL"
  * Abre una ventana con el reporte documental del proceso, listo para
  * Imprimir / Guardar como PDF desde el navegador. Sin dependencias.
  */
-export function openProcessReport({ proc, tasks = [], gateways = [], sequenceFlows = [], metricsData = null, macroName = "", layout = null }) {
+export function openProcessReport({ proc, tasks = [], gateways = [], sequenceFlows = [], metricsData = null, macroName = "", layout = null, glosario = [], notas = [] }) {
   const win = window.open("", "_blank");
   if (!win) return false; // popup bloqueado
 
@@ -27,6 +27,24 @@ export function openProcessReport({ proc, tasks = [], gateways = [], sequenceFlo
     proc, tasks, gateways, sequenceFlows, layout,
     constraintBpmnId: metricsData?.constraint?.bpmn_id || null,
   });
+  // El glosario y las notas se escriben durante el levantamiento pero solo se
+  // veian dentro de la aplicacion. En el informe es donde hacen falta: lo lee
+  // gente que no estuvo delante.
+  const glosarioHtml = glosario.length
+    ? `<h2>Nomenclaturas (${glosario.length})</h2>
+       <table><tr><th>Término</th><th>Significado</th><th>Referencia</th></tr>
+       ${glosario.map(g => `<tr><td><strong>${esc(g.term)}</strong></td><td>${esc(g.meaning)}</td><td>${esc(g.reference || "—")}</td></tr>`).join("")}
+       </table>`
+    : "";
+
+  const ETIQUETA_NOTA = { nota: "Nota", advertencia: "Advertencia", importante: "Importante" };
+  const notasHtml = notas.length
+    ? `<h2>Notas del equipo (${notas.length})</h2>
+       <table><tr><th>Tipo</th><th>Nota</th><th>Autor</th></tr>
+       ${notas.map(n => `<tr><td>${esc(ETIQUETA_NOTA[n.kind] || "Nota")}</td><td>${esc(n.text)}</td><td>${esc(n.author_email || "—")}</td></tr>`).join("")}
+       </table>`
+    : "";
+
   const diagramaHtml = dibujo
     ? `<section class="pagina-diagrama">
          <h2>Diagrama de flujo</h2>
@@ -143,6 +161,8 @@ export function openProcessReport({ proc, tasks = [], gateways = [], sequenceFlo
   ${tasks.length ? `<table><tr><th>#</th><th>Tarea</th><th>Tipo</th><th>Valor</th><th>Responsable</th><th>Ciclo</th><th>Espera</th></tr>${taskRows}</table>` : `<p class="muted">Sin tareas mapeadas.</p>`}
   <h2>Compuertas de decisión (${gateways.length})</h2>
   ${gateways.length ? `<table><tr><th>Decisión</th><th>Tipo</th><th>Ramas (etiqueta — probabilidad)</th></tr>${gwRows}</table>` : `<p class="muted">Este proceso no tiene compuertas.</p>`}
+  ${glosarioHtml}
+  ${notasHtml}
   ${diagramaHtml}
   <footer>Documento generado por AiProces — mapa de procesos Lean/BPMN.</footer>
   </body></html>`;

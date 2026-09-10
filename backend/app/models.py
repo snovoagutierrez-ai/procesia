@@ -142,6 +142,77 @@ class ProcessSnapshot(Base):
     process = relationship("Process", back_populates="snapshots")
 
 
+class ProcessAudit(Base):
+    """Quien toco que, y cuando, dentro de un proceso.
+
+    Responde a lo que se pedia: quien fue el ultimo en entrar, quien hizo el
+    ultimo cambio y sobre que objeto, para poder resaltarlo en el diagrama.
+
+    `user_id` se pone a NULL si la persona se da de baja, en vez de borrar la
+    fila: un historial que desaparece cuando alguien se va no sirve para
+    auditar. `target_bpmn_id` guarda el identificador estable del nodo, no el
+    numerico, para que el registro sobreviva a recrear la tarea.
+    """
+    __tablename__ = 'process_audit'
+
+    id = Column(BigInteger, primary_key=True)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(BigInteger, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+    action = Column(String(40), nullable=False)          # abrir | crear | editar | borrar | restaurar | optimizar
+    target_type = Column(String(20), nullable=True)      # proceso | tarea | compuerta | conexiones
+    target_bpmn_id = Column(String(60), nullable=True)
+    summary = Column(String(300), nullable=True)
+    # Direccion desde la que se hizo. Es dato personal: solo se muestra al dueno
+    # del proceso (ver la API), nunca al resto de colaboradores.
+    ip_address = Column(String(45), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    process = relationship("Process")
+    user = relationship("User")
+
+
+class ProcessNote(Base):
+    """Nota suelta sobre el lienzo: aviso, recordatorio, punto de atencion.
+
+    Vive FUERA del flujo a proposito: no se conecta con nada, no entra en las
+    metricas y no altera el recorrido. Es apoyo visual para quien lee el
+    diagrama, no un paso del proceso. Por eso guarda su posicion pero no tiene
+    `bpmn_id` ni participa en `sequence_flows`.
+    """
+    __tablename__ = 'process_notes'
+
+    id = Column(BigInteger, primary_key=True)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False, index=True)
+    author_id = Column(BigInteger, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+    kind = Column(String(20), nullable=False, server_default='nota')   # nota | advertencia | importante
+    text = Column(Text, nullable=False)
+    pos_x = Column(Numeric(10, 2), nullable=False, server_default='0')
+    pos_y = Column(Numeric(10, 2), nullable=False, server_default='0')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    process = relationship("Process")
+    author = relationship("User")
+
+
+class GlossaryTerm(Base):
+    """Nomenclatura del proceso: la sigla y lo que significa.
+
+    Los procesos reales estan llenos de siglas internas («SIGEPAC», «NP», «TOC»)
+    que quien lee el diagrama por primera vez no conoce. Se guardan por proceso
+    y salen tambien en el informe, que es donde mas falta hacen.
+    """
+    __tablename__ = 'glossary_terms'
+
+    id = Column(BigInteger, primary_key=True)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='CASCADE'), nullable=False, index=True)
+    term = Column(String(80), nullable=False)
+    meaning = Column(String(400), nullable=False)
+    reference = Column(String(200), nullable=True)   # norma, sistema o documento de apoyo
+    position_order = Column(Integer, nullable=False, server_default='0')
+
+    process = relationship("Process")
+
+
 class Activity(Base):
     __tablename__ = 'activities'
 
