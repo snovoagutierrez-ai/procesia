@@ -16,6 +16,12 @@ import { apiFetch } from "../../api.js";
 import { AlertCircle, Network, Eye, FileText, FolderInput } from 'lucide-react';
 import "@xyflow/react/dist/style.css";
 
+/* Medidas de la tarjeta. Viven aqui y no repartidas: el calculo de posiciones
+   las usa para colocar los nodos, y cuando dejaron de coincidir con el tamaño
+   real la primera tarjeta quedo fuera del area visible y parecia borrada. */
+const ANCHO_TARJETA = 250;
+const ALTO_TARJETA = 150;
+
 /* ---------- Custom Node: Process ---------- */
 function ProcessNode({ data }) {
   const { process, isConnected } = data;
@@ -26,7 +32,8 @@ function ProcessNode({ data }) {
       border: isConnected !== false ? '1px solid #E2E7E3' : '2px dashed #C98A12',
       borderRadius: '8px',
       padding: '12px 16px',
-      minWidth: '220px',
+      width: ANCHO_TARJETA,
+      boxSizing: 'border-box',
       boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
       cursor: 'pointer',
       display: 'flex',
@@ -44,9 +51,23 @@ function ProcessNode({ data }) {
         <div style={{ background: '#0E9F9F', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
           {data.process.code}
         </div>
-        <div style={{ fontSize: '14px', fontWeight: 600, color: '#13202B', flex: 1 }}>
+        <div style={{ fontSize: '14px', fontWeight: 600, color: '#13202B', flex: 1, minWidth: 0,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+             title={data.process.name}>
           {data.process.name}
         </div>
+        {data.onOrganizar && (
+          <button
+            style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                     width: 24, height: 24, padding: 0, background: 'none', border: '1px solid var(--line)',
+                     borderRadius: 6, cursor: 'pointer', color: 'var(--muted)' }}
+            onClick={(e) => { e.stopPropagation(); data.onOrganizar(data.process); }}
+            title="Mover este flujo a otra carpeta o duplicarlo"
+            aria-label={`Organizar ${data.process.name}`}
+          >
+            <FolderInput size={13} />
+          </button>
+        )}
       </div>
       
       <div style={{ fontSize: '11px', color: '#5C6B6B', display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
@@ -77,17 +98,6 @@ function ProcessNode({ data }) {
         >
           <Eye size={12} style={{ marginRight: 4 }} /> Ver Flujo
         </button>
-        {data.onOrganizar && (
-          <button
-            className="pa-btn pa-btn-ghost"
-            style={{ fontSize: 11, padding: '4px 8px', color: 'var(--muted)', border: '1px solid var(--line)' }}
-            onClick={(e) => { e.stopPropagation(); data.onOrganizar(data.process); }}
-            title="Mover este flujo a otra carpeta o duplicarlo"
-            aria-label={`Organizar ${data.process.name}`}
-          >
-            <FolderInput size={12} style={{ marginRight: 4 }} /> Organizar
-          </button>
-        )}
       </div>
 
       <Handle type="source" position={Position.Right} className="rf-handle" />
@@ -106,7 +116,7 @@ const getLayoutedElements = (nodes, edges) => {
   dagreGraph.setGraph({ rankdir: "LR", ranksep: 100, nodesep: 60 });
 
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: 240, height: 100 });
+    dagreGraph.setNode(node.id, { width: ANCHO_TARJETA, height: ALTO_TARJETA });
   });
 
   edges.forEach((edge) => {
@@ -120,8 +130,8 @@ const getLayoutedElements = (nodes, edges) => {
     node.targetPosition = Position.Left;
     node.sourcePosition = Position.Right;
     node.position = {
-      x: nodeWithPosition.x - 240 / 2,
-      y: nodeWithPosition.y - 100 / 2,
+      x: nodeWithPosition.x - ANCHO_TARJETA / 2,
+      y: nodeWithPosition.y - ALTO_TARJETA / 2,
     };
     return node;
   });
@@ -272,9 +282,9 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
     : [];
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", background: "#F6F8FA", borderRadius: "8px", overflow: "hidden", border: "1px solid #E2E7E3" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", background: "#F6F8FA", borderRadius: "8px", overflow: "hidden", border: "1px solid #E2E7E3", display: "flex", flexDirection: "column" }}>
       {needsHelp && !hideBanner && (
-        <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#FFF8E1', border: '1px solid #F5DEB3', color: '#C98A12', padding: '8px 16px', borderRadius: '8px', zIndex: 10, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxWidth: '90%' }}>
+        <div style={{ flexShrink: 0, margin: '12px 16px 0', background: '#FFF8E1', border: '1px solid #F5DEB3', color: '#C98A12', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <AlertCircle size={18} style={{ flexShrink: 0 }} />
           <span>Une los puntos laterales de los procesos para armar tu flujo.</span>
           <button onClick={() => setHideBanner(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#C98A12', padding: 4, marginLeft: 8 }} title="Ocultar">
@@ -283,7 +293,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
         </div>
       )}
       {isolatedProcesses.length > 0 && !hideBanner && (
-        <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#FFF8E1', border: '1px solid #F0C040', color: '#C98A12', padding: '8px 16px', borderRadius: '8px', zIndex: 10, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxWidth: '92%' }}>
+        <div style={{ flexShrink: 0, margin: '12px 16px 0', background: '#FFF8E1', border: '1px solid #F0C040', color: '#C98A12', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <AlertCircle size={18} style={{ flexShrink: 0 }} />
           <span>
             {isolatedProcesses.length === 1 ? 'Proceso sin integrar al flujo' : `${isolatedProcesses.length} procesos sin integrar al flujo`}:{' '}
@@ -294,6 +304,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
           </button>
         </div>
       )}
+      <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
       <button 
         className="pa-btn"
         onClick={() => {
@@ -325,6 +336,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
         <Controls />
         <MiniMap zoomable pannable nodeColor="#0E9F9F" maskColor="rgba(246, 248, 250, 0.7)" />
       </ReactFlow>
+      </div>
     </div>
   );
 }

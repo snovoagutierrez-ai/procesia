@@ -410,20 +410,6 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
     });
   });
 
-  // Notas: van por fuera del flujo, con su posicion propia guardada en la base
-  // (no en layout_json, que es solo del diagrama).
-  (notas || []).forEach((n) => {
-    rfNodes.push({
-      id: `nota-${n.id}`,
-      type: "notaNode",
-      draggable: true,
-      selectable: false,
-      connectable: false,
-      data: { nota: n, kind: n.kind, text: n.text, author_email: n.author_email, ...accionesDeNota },
-      position: { x: Number(n.pos_x) || 0, y: Number(n.pos_y) || 0 },
-    });
-  });
-
   // Start event
   rfNodes.push({
     id: "start",
@@ -497,7 +483,77 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
   }
 
   if (laneMode) return getSwimlaneLayout(rfNodes, rfEdges);
-  return getLayoutedElements(rfNodes, rfEdges, "LR", savedPositions);
+  const colocado = getLayoutedElements(rfNodes, rfEdges, "LR", savedPositions);
+  return conNotas(colocado, tasks, notas, accionesDeNota);
+}
+
+/** Desplazamiento por defecto de una nota respecto a su paso. */
+const NOTA_DX = 210;
+const NOTA_DY = -70;
+
+/**
+ * Añade las notas al diagrama ya colocado.
+ *
+ * Van FUERA del calculo automatico a proposito: no son parte del flujo y, si
+ * entraran, dagre les asignaria un sitio propio y la posicion guardada se
+ * perderia — que es lo que pasaba antes.
+ *
+ * Si la nota acompaña a un paso, su posicion se guarda RELATIVA a ese paso: asi
+ * lo sigue cuando se mueve, que es lo que significa estar ligada a el. Se traza
+ * ademas un hilo discontinuo hasta el paso para que el vinculo se vea.
+ */
+function conNotas({ nodes, edges }, tasks, notas, acciones) {
+  if (!notas || !notas.length) return { nodes, edges };
+
+  const porTarea = new Map();
+  (tasks || []).forEach((t) => porTarea.set(t.bpmnId, t));
+
+  const nodos = [...nodes];
+  const hilos = [];
+
+  notas.forEach((n) => {
+    const dx = Number(n.pos_x) || 0;
+    const dy = Number(n.pos_y) || 0;
+    const tarea = n.task_bpmn_id ? porTarea.get(n.task_bpmn_id) : null;
+    const nodoTarea = tarea ? nodes.find((x) => x.id === `task-${tarea.id}`) : null;
+
+    const position = nodoTarea
+      ? { x: nodoTarea.position.x + (dx || NOTA_DX), y: nodoTarea.position.y + (dy || NOTA_DY) }
+      : { x: dx, y: dy };
+
+    nodos.push({
+      id: `nota-${n.id}`,
+      type: "notaNode",
+      draggable: true,
+      selectable: false,
+      connectable: false,
+      zIndex: 5,
+      data: {
+        nota: n, kind: n.kind, text: n.text, author_email: n.author_email,
+        nombreDelPaso: tarea?.name || null,
+        ...acciones,
+      },
+      position,
+    });
+
+    if (nodoTarea) {
+      hilos.push({
+        id: `hilo-nota-${n.id}`,
+        source: nodoTarea.id,
+        target: `nota-${n.id}`,
+        targetHandle: "ancla",
+        type: "straight",
+        // Ni se selecciona ni se borra: no es una conexion del proceso, es la
+        // linea que indica a que paso pertenece la nota.
+        selectable: false,
+        deletable: false,
+        focusable: false,
+        style: { stroke: "#C9B77A", strokeWidth: 1.5, strokeDasharray: "4 4" },
+      });
+    }
+  });
+
+  return { nodes: nodos, edges: [...edges, ...hilos] };
 }
 
 function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected, issueNodeIds, constraintBpmnId, height = 280, notas = [], onNotaMover, onNotaEditar, onNotaBorrar }) {
@@ -613,7 +669,16 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
     // Las notas guardan su posicion en su propia fila, no en layout_json: si
     // entraran en ese mapa quedarian duplicadas y descuadradas al recargar.
     if (nodoMovido?.type === 'notaNode') {
-      onNotaMover?.(nodoMovido.data.nota, Math.round(nodoMovido.position.x), Math.round(nodoMovido.position.y));
+      const nota = nodoMovido.data.nota;
+      // Si acompaña a un paso se guarda el DESPLAZAMIENTO respecto a el, no la
+      // posicion absoluta: de lo contrario la nota se quedaria atras en cuanto
+      // se moviera el paso, y dejaria de estar ligada a el en la practica.
+      const tarea = nota.task_bpmn_id ? (tasks || []).find(t => t.bpmnId === nota.task_bpmn_id) : null;
+      const nodoTarea = tarea ? nodes.find(n => n.id === `task-${tarea.id}`) : null;
+      const base = nodoTarea ? nodoTarea.position : { x: 0, y: 0 };
+      onNotaMover?.(nota,
+        Math.round(nodoMovido.position.x - base.x),
+        Math.round(nodoMovido.position.y - base.y));
       return;
     }
     if (!onLayoutChange || laneMode) return; // en modo carriles el layout es calculado, no se persiste
@@ -624,7 +689,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
       }
     });
     onLayoutChange(map);
-  }, [nodes, onLayoutChange, laneMode, onNotaMover]);
+  }, [nodes, onLayoutChange, laneMode, onNotaMover, tasks]);
 
   return (
     // `height` por defecto 280 para el editor; quien lo muestre a pantalla
@@ -752,20 +817,53 @@ const TIPOS_DE_NOTA = {
 function NotaNode({ data }) {
   const tipo = TIPOS_DE_NOTA[data.kind] || TIPOS_DE_NOTA.nota;
   const Icono = tipo.icono;
+  const [abierta, setAbierta] = useState(false);
+
+  const autoria = [tipo.etiqueta, data.author_email].filter(Boolean).join(" · ");
+
+  // Cerrada es un papelito pequeño: no tapa el diagrama y se ve de un vistazo
+  // que ahi hay algo anotado. Se abre al pulsarla.
+  if (!abierta) {
+    return (
+      <div className={`rf-nota-cerrada ${tipo.clase}`} onClick={() => setAbierta(true)}
+        role="button" tabIndex={0} aria-label={`Abrir nota: ${data.text.slice(0, 60)}`}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAbierta(true); } }}
+        title={`${autoria}
+
+${data.text}`}>
+        {/* Handle sin pintar: sostiene el hilo hasta el paso al que acompaña.
+            No es un punto de conexion — la nota nunca entra en el flujo. */}
+        <Handle type="target" position={Position.Left} id="ancla" className="rf-nota-ancla" isConnectable={false} />
+        <Icono size={14} />
+      </div>
+    );
+  }
+
   return (
-    <div className={`rf-nota ${tipo.clase}`} onDoubleClick={() => data.onEditar?.(data.nota)}
-      title={data.author_email ? `${tipo.etiqueta} · ${data.author_email}` : tipo.etiqueta}>
+    <div className={`rf-nota ${tipo.clase}`} title={autoria}>
+      <Handle type="target" position={Position.Left} id="ancla" className="rf-nota-ancla" isConnectable={false} />
       <div className="rf-nota-cabecera">
         <Icono size={12} />
         <span>{tipo.etiqueta}</span>
+        {data.onEditar && (
+          <button type="button" aria-label="Editar nota" title="Editar nota"
+            onClick={(e) => { e.stopPropagation(); data.onEditar(data.nota); }}>
+            <PenLine size={11} />
+          </button>
+        )}
         {data.onBorrar && (
           <button type="button" aria-label="Borrar nota" title="Borrar nota"
             onClick={(e) => { e.stopPropagation(); data.onBorrar(data.nota); }}>
-            <X size={11} />
+            <Trash2 size={11} />
           </button>
         )}
+        <button type="button" aria-label="Cerrar nota" title="Cerrar nota"
+          onClick={(e) => { e.stopPropagation(); setAbierta(false); }}>
+          <X size={11} />
+        </button>
       </div>
       <div className="rf-nota-texto">{data.text}</div>
+      {data.nombreDelPaso && <div className="rf-nota-pie">en «{data.nombreDelPaso}»</div>}
     </div>
   );
 }

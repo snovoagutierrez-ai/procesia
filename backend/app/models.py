@@ -186,6 +186,12 @@ class ProcessNote(Base):
     author_id = Column(BigInteger, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     kind = Column(String(20), nullable=False, server_default='nota')   # nota | advertencia | importante
     text = Column(Text, nullable=False)
+    # Paso al que acompaña la nota. Se guarda el bpmn_id y no el id numerico
+    # para que el vinculo sobreviva a recrear la tarea (restaurar una version,
+    # aplicar un flujo optimizado). NULL = nota suelta sobre el lienzo.
+    task_bpmn_id = Column(String(60), nullable=True, index=True)
+    # Si la nota esta anclada a un paso, la posicion es RELATIVA a ese paso, de
+    # modo que la nota lo acompaña cuando se mueve. Si esta suelta, es absoluta.
     pos_x = Column(Numeric(10, 2), nullable=False, server_default='0')
     pos_y = Column(Numeric(10, 2), nullable=False, server_default='0')
     created_at = Column(DateTime(timezone=True), server_default=func.now())

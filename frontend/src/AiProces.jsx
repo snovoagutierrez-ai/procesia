@@ -2308,8 +2308,13 @@ export default function App() {
 
   const anadirNota = async (kind = "nota") => {
     if (!proc?.id) return;
-    const texto = await showInput("Nueva nota", {
-      message: "Queda sobre el diagrama como apoyo visual. No forma parte del flujo ni afecta a los tiempos ni a las métricas.",
+    // Si hay un paso abierto, la nota queda ligada a el: es lo habitual —se
+    // anota algo «sobre este paso»— y asi lo acompaña cuando se mueve.
+    const pasoAbierto = tasks.find((t) => t.id === selectedId) || null;
+    const texto = await showInput(pasoAbierto ? `Nueva nota en «${pasoAbierto.name}»` : "Nueva nota suelta", {
+      message: pasoAbierto
+        ? "Acompaña a este paso y se mueve con él. No forma parte del flujo ni afecta a los tiempos ni a las métricas."
+        : "Queda suelta sobre el diagrama. Si quieres ligarla a un paso, ábrelo antes de crear la nota.",
       placeholder: "Ej: este tramo depende de un permiso externo",
       confirmLabel: "Añadir nota", multiline: true,
     });
@@ -2317,9 +2322,14 @@ export default function App() {
     try {
       const res = await apiMutate(`/processes/${proc.id}/notes`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        // Se deja arriba a la izquierda del area util: visible al abrir, sin
-        // taparle un paso a nadie.
-        body: JSON.stringify({ kind, text: texto.trim(), pos_x: 40, pos_y: -120 }),
+        body: JSON.stringify({
+          kind, text: texto.trim(),
+          task_bpmn_id: pasoAbierto?.bpmnId || null,
+          // 0,0 deja que el diagrama la coloque junto a su paso; suelta, arriba
+          // a la izquierda del area util para que se vea al abrir.
+          pos_x: pasoAbierto ? 0 : 40,
+          pos_y: pasoAbierto ? 0 : -120,
+        }),
       });
       const creada = await res.json();
       setNotas((prev) => [...prev, creada]);
@@ -2838,35 +2848,38 @@ export default function App() {
                     <div style={{ flex: 1 }}>
                       <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }} onClick={addGateway}><Plus size={14} /> Compuerta</button>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      {/* La nota no es un paso: queda sobre el lienzo como apoyo
-                          visual y no entra en el flujo ni en las metricas. */}
-                      <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }}
-                        onClick={() => setMenuNotaAbierto(o => !o)}
-                        aria-haspopup="menu" aria-expanded={menuNotaAbierto}
-                        title="Añadir una nota sobre el diagrama">
-                        <StickyNote size={14} /> Nota
-                      </button>
-                      {menuNotaAbierto && (
-                        <>
-                          <div onClick={() => setMenuNotaAbierto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-                          <div role="menu" className="pa-formato-menu" style={{ right: 'auto', left: 0, bottom: 'calc(100% + 6px)', top: 'auto', minWidth: 210 }}>
-                            <div className="pa-formato-titulo">Añadir sobre el diagrama</div>
-                            {[
-                              { valor: 'nota', etiqueta: 'Nota', descripcion: 'Un apunte o recordatorio.' },
-                              { valor: 'advertencia', etiqueta: 'Advertencia', descripcion: 'Algo a tener en cuenta aquí.' },
-                              { valor: 'importante', etiqueta: 'Importante', descripcion: 'Un punto crítico del proceso.' },
-                            ].map(t => (
-                              <button key={t.valor} role="menuitem"
-                                onClick={() => { setMenuNotaAbierto(false); anadirNota(t.valor); }}>
-                                <strong>{t.etiqueta}</strong>
-                                <span>{t.descripcion}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
+                  </div>
+                  {/* En su propia fila: en un sidebar de 280px tres botones no
+                      caben y el texto se salia de su caja. Ademas la nota no es
+                      un elemento del flujo, asi que tampoco pertenecia ahi. */}
+                  <div style={{ position: 'relative' }}>
+                    {/* La nota no es un paso: queda sobre el lienzo como apoyo
+                        visual y no entra en el flujo ni en las metricas. */}
+                    <button className="pa-btn pa-btn-ghost" style={{ width: '100%' }}
+                      onClick={() => setMenuNotaAbierto(o => !o)}
+                      aria-haspopup="menu" aria-expanded={menuNotaAbierto}
+                      title="Añadir una nota sobre el diagrama">
+                      <StickyNote size={14} /> Nota
+                    </button>
+                    {menuNotaAbierto && (
+                      <>
+                        <div onClick={() => setMenuNotaAbierto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                        <div role="menu" className="pa-formato-menu" style={{ right: 'auto', left: 0, bottom: 'calc(100% + 6px)', top: 'auto', minWidth: 210 }}>
+                          <div className="pa-formato-titulo">Añadir sobre el diagrama</div>
+                          {[
+                            { valor: 'nota', etiqueta: 'Nota', descripcion: 'Un apunte o recordatorio.' },
+                            { valor: 'advertencia', etiqueta: 'Advertencia', descripcion: 'Algo a tener en cuenta aquí.' },
+                            { valor: 'importante', etiqueta: 'Importante', descripcion: 'Un punto crítico del proceso.' },
+                          ].map(t => (
+                            <button key={t.valor} role="menuitem"
+                              onClick={() => { setMenuNotaAbierto(false); anadirNota(t.valor); }}>
+                              <strong>{t.etiqueta}</strong>
+                              <span>{t.descripcion}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                   <button className="pa-btn pa-btn-primary full" onClick={() => { setOptimAbierta(true); if(firstStepsActive && guideStep === 5) dismissGuide(); }}>
                     <Sparkles size={16} /> 4. Ir a Optimización IA

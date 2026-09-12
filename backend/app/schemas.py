@@ -148,6 +148,9 @@ class ProcessUpdate(BaseModel):
 class NoteBase(BaseModel):
     kind: str = Field("nota", max_length=20)
     text: str = Field(..., min_length=1, max_length=2000)
+    # Paso al que acompaña. NULL = nota suelta sobre el lienzo.
+    task_bpmn_id: Optional[str] = Field(None, max_length=60)
+    # Relativa al paso si esta anclada; absoluta si esta suelta.
     pos_x: float = 0
     pos_y: float = 0
 
@@ -159,6 +162,7 @@ class NoteCreate(NoteBase):
 class NoteUpdate(BaseModel):
     kind: Optional[str] = Field(None, max_length=20)
     text: Optional[str] = Field(None, min_length=1, max_length=2000)
+    task_bpmn_id: Optional[str] = Field(None, max_length=60)
     pos_x: Optional[float] = None
     pos_y: Optional[float] = None
 

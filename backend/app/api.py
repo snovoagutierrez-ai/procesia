@@ -223,6 +223,18 @@ def update_process(request: Request, id: int, process: schemas.ProcessUpdate, db
 TIPOS_DE_NOTA = {"nota", "advertencia", "importante"}
 
 
+def _nota_en_respuesta(fila) -> "schemas.NoteResponse":
+    """Una sola forma de serializar la nota: antes estaba repetida tres veces y
+    añadir un campo obligaba a acordarse de los tres sitios."""
+    return schemas.NoteResponse(
+        id=fila.id, kind=fila.kind, text=fila.text,
+        task_bpmn_id=fila.task_bpmn_id,
+        pos_x=float(fila.pos_x), pos_y=float(fila.pos_y),
+        author_email=fila.author.email if fila.author else None,
+        created_at=fila.created_at,
+    )
+
+
 def _valida_tipo_de_nota(kind: str | None):
     if kind is not None and kind not in TIPOS_DE_NOTA:
         raise HTTPException(status_code=422,
@@ -236,10 +248,7 @@ def read_notes(id: int, db: Session = Depends(get_db),
     filas = (db.query(models.ProcessNote)
                .filter(models.ProcessNote.process_id == id)
                .order_by(models.ProcessNote.id).all())
-    return [schemas.NoteResponse(
-        id=f.id, kind=f.kind, text=f.text, pos_x=float(f.pos_x), pos_y=float(f.pos_y),
-        author_email=f.author.email if f.author else None, created_at=f.created_at,
-    ) for f in filas]
+    return [_nota_en_respuesta(f) for f in filas]
 
 
 @router.post("/processes/{id}/notes", response_model=schemas.NoteResponse,
@@ -249,13 +258,12 @@ def create_note(id: int, nota: schemas.NoteCreate, db: Session = Depends(get_db)
     verify_process_access(db, id, current_user)
     _valida_tipo_de_nota(nota.kind)
     fila = models.ProcessNote(process_id=id, author_id=current_user.id, kind=nota.kind,
-                              text=nota.text, pos_x=nota.pos_x, pos_y=nota.pos_y)
+                              text=nota.text, task_bpmn_id=nota.task_bpmn_id,
+                              pos_x=nota.pos_x, pos_y=nota.pos_y)
     db.add(fila)
     db.commit()
     db.refresh(fila)
-    return schemas.NoteResponse(id=fila.id, kind=fila.kind, text=fila.text,
-                                pos_x=float(fila.pos_x), pos_y=float(fila.pos_y),
-                                author_email=current_user.email, created_at=fila.created_at)
+    return _nota_en_respuesta(fila)
 
 
 @router.put("/processes/{id}/notes/{note_id}", response_model=schemas.NoteResponse)
@@ -271,10 +279,7 @@ def update_note(id: int, note_id: int, nota: schemas.NoteUpdate, db: Session = D
         setattr(fila, campo, valor)
     db.commit()
     db.refresh(fila)
-    return schemas.NoteResponse(id=fila.id, kind=fila.kind, text=fila.text,
-                                pos_x=float(fila.pos_x), pos_y=float(fila.pos_y),
-                                author_email=fila.author.email if fila.author else None,
-                                created_at=fila.created_at)
+    return _nota_en_respuesta(fila)
 
 
 @router.delete("/processes/{id}/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)

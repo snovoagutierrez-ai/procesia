@@ -35,6 +35,52 @@ def test_las_notas_no_forman_parte_del_flujo(auth_client, process):
     assert grafo["sequence_flows"] == []
 
 
+def test_una_nota_puede_acompanar_a_un_paso(auth_client, process):
+    """Se guarda el bpmn_id del paso: es lo que permite que la nota lo siga
+    cuando se mueve, y lo que sobrevive a recrear la tarea."""
+    t = make_task(auth_client, process["id"], "T1", "Consultar buró")
+    res = auth_client.post(f"/processes/{process['id']}/notes", json={
+        "kind": "advertencia", "text": "El buró tarda hasta 48 h.",
+        "task_bpmn_id": t["bpmn_id"], "pos_x": 210, "pos_y": -70,
+    })
+    assert res.status_code == 201, res.text
+    assert res.json()["task_bpmn_id"] == t["bpmn_id"]
+    assert auth_client.get(f"/processes/{process['id']}/notes").json()[0]["task_bpmn_id"] == t["bpmn_id"]
+
+
+def test_una_nota_suelta_no_apunta_a_ningun_paso(auth_client, process):
+    nota = auth_client.post(f"/processes/{process['id']}/notes",
+                            json={"text": "Apunte general"}).json()
+    assert nota["task_bpmn_id"] is None
+
+
+def test_la_nota_sobrevive_a_que_se_recree_la_tarea(auth_client, process):
+    """No hay clave foranea a proposito: restaurar una version o aplicar un
+    flujo optimizado borra y recrea las tareas. Con FK, la nota se iria con
+    ellas; con el bpmn_id, el vinculo se reencuentra."""
+    t = make_task(auth_client, process["id"], "T1", "Revisar")
+    auth_client.post(f"/processes/{process['id']}/notes",
+                     json={"text": "Sigue aquí", "task_bpmn_id": "T1"})
+
+    auth_client.delete(f"/processes/{process['id']}/tasks/{t['id']}")
+    notas = auth_client.get(f"/processes/{process['id']}/notes").json()
+    assert len(notas) == 1, "la nota no debe irse con la tarea"
+
+    # Y al volver la tarea con el mismo bpmn_id, el vinculo sigue en pie.
+    make_task(auth_client, process["id"], "T1", "Revisar (recreada)")
+    assert auth_client.get(f"/processes/{process['id']}/notes").json()[0]["task_bpmn_id"] == "T1"
+
+
+def test_una_nota_puede_soltarse_de_su_paso(auth_client, process):
+    make_task(auth_client, process["id"], "T1", "Revisar")
+    nota = auth_client.post(f"/processes/{process['id']}/notes",
+                            json={"text": "Anclada", "task_bpmn_id": "T1"}).json()
+    res = auth_client.put(f"/processes/{process['id']}/notes/{nota['id']}",
+                          json={"task_bpmn_id": None})
+    assert res.status_code == 200, res.text
+    assert res.json()["task_bpmn_id"] is None
+
+
 def test_mover_y_editar_una_nota(auth_client, process):
     nota = auth_client.post(f"/processes/{process['id']}/notes",
                             json={"text": "Borrador"}).json()
