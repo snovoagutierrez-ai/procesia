@@ -151,6 +151,10 @@ function buildGraph(processes, sequenceFlows = [], onViewFlow, onViewSummary, on
       id: String(p.id),
       type: "processNode",
       data: { process: p, isConnected, onViewFlow, onViewSummary, onOrganizar },
+      // Tamaño de partida: sin el, React Flow deja el nodo en `visibility:
+      // hidden` hasta medirlo, y si esa medicion no llega el lienzo se ve vacio.
+      initialWidth: ANCHO_TARJETA,
+      initialHeight: ALTO_TARJETA,
       position: { x: 0, y: 0 }
     });
   });

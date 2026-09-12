@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Handle, Position, ReactFlow, Controls, Background, useNodesState, useEdgesState, MarkerType, addEdge, BaseEdge, getSmoothStepPath, EdgeLabelRenderer } from '@xyflow/react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Handle, Position, ReactFlow, Controls, Background, useNodesState, useEdgesState, MarkerType, addEdge, BaseEdge, getSmoothStepPath, EdgeLabelRenderer, useReactFlow, useNodesInitialized } from '@xyflow/react';
 import dagre from 'dagre';
 import { connectionError } from '../../utils/flowGraph.js';
 import { User, PenLine, Wrench, Clock, Info, ChevronUp, ChevronDown, Trash2, Rows3, Flame,
@@ -259,6 +259,32 @@ function DeletableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
   );
 }
 
+/**
+ * Medidas de partida de cada nodo, antes de que el navegador lo mida.
+ *
+ * React Flow pinta cada nodo con `visibility: hidden` hasta conocer su tamaño
+ * (`nodeHasDimensions`). Normalmente lo mide al instante, pero si esa medicion
+ * no llega —la pestaña no esta pintando, el contenedor aun se esta
+ * dimensionando, el modal acaba de abrirse— los nodos se quedan ocultos para
+ * siempre: el lienzo aparece vacio aunque los pasos existan y esten bien
+ * colocados. Dar un tamaño inicial elimina esa dependencia; en cuanto el
+ * navegador mide de verdad, se sustituye por el real.
+ */
+const MEDIDA_INICIAL = {
+  taskNode:    { initialWidth: 240, initialHeight: 120 },
+  gatewayNode: { initialWidth: 60,  initialHeight: 60 },
+  startNode:   { initialWidth: 40,  initialHeight: 40 },
+  endNode:     { initialWidth: 40,  initialHeight: 40 },
+  notaNode:    { initialWidth: 34,  initialHeight: 34 },
+};
+
+function conMedidaInicial(node) {
+  if (node.type === "laneNode") {
+    return { ...node, initialWidth: node.data?.width || 600, initialHeight: node.data?.height || 90 };
+  }
+  return { ...node, ...(MEDIDA_INICIAL[node.type] || { initialWidth: 60, initialHeight: 60 }) };
+}
+
 function getLayoutedElements(rfNodes, rfEdges, direction = "LR", savedPositions = null) {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
@@ -295,12 +321,12 @@ function getLayoutedElements(rfNodes, rfEdges, direction = "LR", savedPositions 
       ? { x: saved.x, y: saved.y }
       : { x: finalX - w / 2, y: finalY - h / 2 };
 
-    return {
+    return conMedidaInicial({
       ...node,
       position,
       targetPosition: Position.Left,
       sourcePosition: Position.Right
-    };
+    });
   });
   return { nodes: layouted, edges: rfEdges };
 }
@@ -362,7 +388,7 @@ function getSwimlaneLayout(rfNodes, rfEdges) {
     return { ...n, position: { x: p.x - w / 2, y: yCenter - h / 2 }, targetPosition: Position.Left, sourcePosition: Position.Right };
   });
 
-  return { nodes: [...laneNodes, ...content], edges: rfEdges };
+  return { nodes: [...laneNodes, ...content].map(conMedidaInicial), edges: rfEdges };
 }
 
 function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions = null, laneMode = false, constraintBpmnId = null, selectedRef = null, notas = [], accionesDeNota = {}) {
@@ -528,6 +554,7 @@ function conNotas({ nodes, edges }, tasks, notas, acciones) {
       selectable: false,
       connectable: false,
       zIndex: 5,
+      ...MEDIDA_INICIAL.notaNode,
       data: {
         nota: n, kind: n.kind, text: n.text, author_email: n.author_email,
         nombreDelPaso: tarea?.name || null,
@@ -556,9 +583,44 @@ function conNotas({ nodes, edges }, tasks, notas, acciones) {
   return { nodes: nodos, edges: [...edges, ...hilos] };
 }
 
+/**
+ * Reencuadra el diagrama cuando el contenedor cambia de tamaño.
+ *
+ * `fitView` como propiedad solo actua al montar. Si en ese instante el
+ * contenedor todavia no tiene su tamaño definitivo —el caso del modal «Ver
+ * flujo», que se monta dentro de una caja que aun se esta dimensionando— el
+ * encuadre se calcula contra una superficie equivocada y los nodos quedan
+ * fuera de la vista: el lienzo se ve vacio aunque los pasos existan. Nada
+ * volvia a corregirlo.
+ */
+function ReencuadrarAlRedimensionar({ contenedorRef, dependencia }) {
+  const { fitView } = useReactFlow();
+  // React Flow no puede calcular el encuadre hasta que ha MEDIDO los nodos.
+  // Pedirselo antes no hace nada y deja la vista sin ajustar.
+  const nodosMedidos = useNodesInitialized();
+
+  useEffect(() => {
+    if (!nodosMedidos) return;
+    fitView({ padding: 0.2, duration: 0 });
+  }, [nodosMedidos, dependencia, fitView]);
+
+  useEffect(() => {
+    const caja = contenedorRef.current;
+    if (!caja || typeof ResizeObserver === "undefined") return;
+    const observador = new ResizeObserver(() => {
+      if (caja.clientWidth > 40 && caja.clientHeight > 40) fitView({ padding: 0.2, duration: 0 });
+    });
+    observador.observe(caja);
+    return () => observador.disconnect();
+  }, [contenedorRef, fitView]);
+
+  return null;
+}
+
 function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected, issueNodeIds, constraintBpmnId, height = 280, notas = [], onNotaMover, onNotaEditar, onNotaBorrar }) {
   const savedPositions = proc?.layout_json || null;
   const [laneMode, setLaneMode] = useState(false);
+  const contenedorRef = useRef(null);
   const onEdgesDelete = useCallback(
     (deletedEdges) => {
       // Los ids de React Flow son siempre string (ver buildFlowData: String(sf.id ?? ...)),
@@ -694,7 +756,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   return (
     // `height` por defecto 280 para el editor; quien lo muestre a pantalla
     // completa (el modal "Ver flujo") pasa "100%" y el diagrama se ajusta solo.
-    <div className="pa-flow-canvas" style={{ height, width: "100%", position: 'relative' }}>
+    <div ref={contenedorRef} className="pa-flow-canvas" style={{ height, width: "100%", position: 'relative' }}>
       <button
         type="button"
         onClick={() => setLaneMode(m => !m)}
@@ -721,7 +783,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         connectionMode="loose"
         panOnDrag
         zoomOnScroll
-        minZoom={0.3}
+        minZoom={0.05}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
       >
@@ -734,6 +796,7 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
             </marker>
           </defs>
         </svg>
+        <ReencuadrarAlRedimensionar contenedorRef={contenedorRef} dependencia={`${proc?.id}|${nodes.length}|${laneMode}`} />
         <Background color="#E7ECE8" gap={22} size={1} />
         <Controls showInteractive={false} />
       </ReactFlow>
