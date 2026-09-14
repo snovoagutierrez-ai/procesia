@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Handle, Position, ReactFlow, Controls, Background, useNodesState, useEdgesState, MarkerType, addEdge, BaseEdge, getSmoothStepPath, EdgeLabelRenderer, useReactFlow, useNodesInitialized } from '@xyflow/react';
 import dagre from 'dagre';
 import { connectionError } from '../../utils/flowGraph.js';
+import { conservarMedidas } from '../../utils/reactFlowNodos.js';
 import { User, PenLine, Wrench, Clock, Info, ChevronUp, ChevronDown, Trash2, Rows3, Flame,
          Table2, Database, Globe, Mail, Folder, FileText, StickyNote, Cpu,
          AlertTriangle, AlertCircle, X } from 'lucide-react';
@@ -617,7 +618,12 @@ function ReencuadrarAlRedimensionar({ contenedorRef, dependencia }) {
   return null;
 }
 
-function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected, issueNodeIds, constraintBpmnId, height = 280, notas = [], onNotaMover, onNotaEditar, onNotaBorrar }) {
+// Lista vacia compartida. Un `notas = []` en la firma crea un array NUEVO en cada
+// render: el useMemo de los nodos lo veia como un cambio, rehacia el diagrama en
+// cada render y, con ello, React Flow perdia los puntos de enganche de las flechas.
+const SIN_NOTAS = [];
+
+function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected, issueNodeIds, constraintBpmnId, height = 280, notas = SIN_NOTAS, onNotaMover, onNotaEditar, onNotaBorrar }) {
   const savedPositions = proc?.layout_json || null;
   const [laneMode, setLaneMode] = useState(false);
   const contenedorRef = useRef(null);
@@ -664,7 +670,9 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutedEdges);
 
   useEffect(() => {
-    setNodes(nodesWithSelection);
+    // Se conserva la medicion de cada nodo: sin ella React Flow descarta los
+    // puntos de enganche y las conexiones dejan de dibujarse (ver reactFlowNodos.js).
+    setNodes((previos) => conservarMedidas(nodesWithSelection, previos));
     setEdges(layoutedEdges);
   }, [nodesWithSelection, layoutedEdges, setNodes, setEdges]);
 

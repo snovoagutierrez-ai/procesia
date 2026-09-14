@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Sparkles, Trash2, Plus, PenLine, ChevronUp, ChevronDown, ChevronRight, Loader2, FileText, FolderOpen, AlertTriangle, X } from 'lucide-react';
 import MacroprocessDiagram from '../diagram/MacroprocessDiagram.jsx';
 import OrganizarProcesoModal from './OrganizarProcesoModal.jsx';
@@ -32,7 +32,10 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
     await onRenameMacro?.(m.id, nombre);
   };
 
-  const handleViewSummary = async (process) => {
+  // useCallback: estas funciones llegan al diagrama del macroproceso como
+  // dependencias de su efecto. Recreadas en cada render, obligaban a rehacer los
+  // nodos una y otra vez; solo usan setters y apiFetch, que son estables.
+  const handleViewSummary = useCallback(async (process) => {
     setSummaryProcess(process);
     setSummaryData({ tasks: [], gateways: [] });
     setSummaryMetrics(null);
@@ -49,9 +52,9 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
     } catch (err) {
       console.error("Failed to load process summary", err);
     }
-  };
+  }, []);
 
-  const handleViewFlow = async (process) => {
+  const handleViewFlow = useCallback(async (process) => {
     setPreviewProcess(process);
     setPreviewData({ tasks: [], gateways: [], sequenceFlows: [] });
     try {
@@ -71,7 +74,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
     } catch (err) {
       console.error("Failed to load flow preview", err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);

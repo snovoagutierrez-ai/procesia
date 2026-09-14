@@ -13,6 +13,7 @@ import {
 } from "@xyflow/react";
 import dagre from "dagre";
 import { apiFetch } from "../../api.js";
+import { conservarMedidas } from "../../utils/reactFlowNodos.js";
 import { AlertCircle, Network, Eye, FileText, FolderInput } from 'lucide-react';
 import "@xyflow/react/dist/style.css";
 
@@ -207,7 +208,9 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
   // Update layout when processes or sequenceFlows change
   useEffect(() => {
     const { nodes: newNodes, edges: newEdges } = buildGraph(processes, sequenceFlows, onViewFlow, onViewSummary, onOrganizar);
-    setNodes(newNodes);
+    // Conservar la medicion: sin ella se pierden los puntos de enganche y las
+    // conexiones entre procesos dejan de dibujarse.
+    setNodes((previos) => conservarMedidas(newNodes, previos));
     setEdges(newEdges);
   }, [processes, sequenceFlows, setNodes, setEdges, onViewFlow, onViewSummary, onOrganizar]);
 
@@ -313,7 +316,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
         className="pa-btn"
         onClick={() => {
           const { nodes: newNodes, edges: newEdges } = buildGraph(processes, sequenceFlows, onViewFlow, onViewSummary, onOrganizar);
-          setNodes([...newNodes]);
+          setNodes((previos) => conservarMedidas([...newNodes], previos));
         }}
         style={{ position: 'absolute', bottom: 20, right: 20, zIndex: 10, display: 'flex', gap: '6px', alignItems: 'center', background: '#fff', color: '#13202B', border: '1px solid #E2E7E3' }}
       >
