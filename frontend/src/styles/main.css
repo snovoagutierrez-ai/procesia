@@ -807,3 +807,22 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
 .pa-glosario-tabla button{background:none;border:none;cursor:pointer;color:var(--muted);display:flex;padding:2px}
 .pa-glosario-tabla button:hover{color:var(--danger)}
 @media (max-width:620px){.pa-glosario-alta{grid-template-columns:1fr}}
+
+/* ---- fundamentos (metodologias) ----------------------------------------- */
+.pa-fund-modal{max-width:1040px;max-height:90vh}
+.pa-fund-modal .pa-tabs{flex-shrink:0;padding:0 8px}
+.pa-fund-intro{margin:0 0 14px;font-size:12.5px;color:var(--muted);line-height:1.55;max-width:760px}
+.pa-fund-capitulo{margin-bottom:26px}
+.pa-fund-capitulo h3{margin:0 0 6px;font-size:15px;color:var(--teal-deep)}
+.pa-fund-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.pa-fund-card{display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:14px}
+.pa-fund-card h4{margin:0;font-size:13.5px;color:var(--text)}
+.pa-fund-card p{margin:0;font-size:12.5px;line-height:1.55;color:var(--text)}
+.pa-fund-dibujo{background:#F7FAFA;border-radius:8px;padding:6px}
+.pa-fund-formula{align-self:flex-start;font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--teal-deep);
+  background:#E8F5F5;border-radius:6px;padding:4px 8px;line-height:1.45}
+.pa-fund-fuente{margin-top:auto;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.pa-fund-tradiciones{border:1px solid var(--teal);border-radius:12px;padding:16px;background:#F4FAFA}
+.pa-fund-tradiciones h3{margin:0 0 8px;font-size:15px;color:var(--teal-deep)}
+.pa-fund-tradiciones p{margin:0;font-size:13px;line-height:1.7}

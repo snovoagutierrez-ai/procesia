@@ -10,7 +10,7 @@ import { mapBackendTaskToFrontend } from "./utils/processMapping.js";
 import { restoreProcessVersion, optimizedFlowSnapshot } from "./utils/processRestoration.js";
 import OptimizationModal from "./components/editor/OptimizationModal.jsx";
 import HistorialModal from "./components/editor/HistorialModal.jsx";
-import GlosarioModal from "./components/editor/GlosarioModal.jsx";
+import FundamentosModal from "./components/editor/FundamentosModal.jsx";
 import { descargarJpg, descargarPdf, FORMATOS } from "./utils/flowExport.js";
 import { descargarRespaldo, leerRespaldo } from "./utils/respaldo.js";
 import { VALUE, ACTION, ACTION_STEPS } from "./constants.js";
@@ -21,7 +21,7 @@ import {
   Plus, Trash2, ChevronRight, ChevronLeft, Download, Sparkles, Loader2,
   AlertTriangle, Gauge, X, ArrowRight, Lightbulb,
   ArrowLeft, FileText, Clock, LogOut, Info, Check,
-  MessageSquare, MoreVertical, History, StickyNote, BookMarked
+  MessageSquare, MoreVertical, History, StickyNote, GraduationCap
 } from "lucide-react";
 import { useAuth } from './components/auth/AuthContext.jsx';
 import { useConfirm, useInputDialog } from './components/shared/ConfirmDialog.jsx';
@@ -1021,8 +1021,9 @@ export default function App() {
   // Notas sueltas sobre el lienzo: apoyo visual, por fuera del flujo.
   const [notas, setNotas] = useState([]);
   const [menuNotaAbierto, setMenuNotaAbierto] = useState(false);
-  // Nomenclaturas del proceso: viajan tambien al informe.
-  const [glosarioAbierto, setGlosarioAbierto] = useState(false);
+  // Fundamentos: metodologias + nomenclaturas del proceso (estas viajan
+  // tambien al informe).
+  const [fundamentosAbierto, setFundamentosAbierto] = useState(false);
   const [glosario, setGlosario] = useState([]);
   const [opt, setOpt] = useState({ status: "idle" });
   const [macroOpts, setMacroOpts] = useState({});
@@ -2323,11 +2324,11 @@ export default function App() {
           {consultAssistantOpen ? <X size={24} /> : <MessageSquare size={24} />}
         </button>
       )}
-      <GlosarioModal
-        isOpen={glosarioAbierto}
-        onClose={() => setGlosarioAbierto(false)}
+      <FundamentosModal
+        isOpen={fundamentosAbierto}
+        onClose={() => setFundamentosAbierto(false)}
         processId={proc?.id}
-        onCambio={setGlosario}
+        onCambioGlosario={setGlosario}
       />
       <HistorialModal
         isOpen={historialAbierto}
@@ -2460,9 +2461,9 @@ export default function App() {
                     title="Quién entró, quién cambió qué y cuándo" aria-label="Historial del flujo">
                     <History size={16} /><span className="pa-editor-action-label"> Historial</span>
                   </button>
-                  <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => setGlosarioAbierto(true)}
-                    title="Siglas y términos que usa este proceso" aria-label="Nomenclaturas">
-                    <BookMarked size={16} /><span className="pa-editor-action-label"> Nomenclaturas</span>
+                  <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => setFundamentosAbierto(true)}
+                    title="Las metodologías que usa AiProces y las nomenclaturas de este proceso" aria-label="Fundamentos">
+                    <GraduationCap size={16} /><span className="pa-editor-action-label"> Fundamentos</span>
                   </button>
                   <div style={{ position: 'relative' }}>
                     <button className="pa-btn pa-btn-ghost pa-btn-sm" aria-label="Descargar diagrama"
