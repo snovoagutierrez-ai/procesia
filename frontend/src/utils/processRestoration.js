@@ -36,10 +36,40 @@ export function restorationPayload(snapshot) {
   };
 }
 
-export async function restoreProcessVersion(processId, snapshot) {
+export function optimizedFlowSnapshot(optimizedFlow, createBpmnId) {
+  const steps = optimizedFlow.nodes || optimizedFlow.steps || [];
+  const refs = new Map();
+  const tasks = steps.map((step, index) => {
+    const bpmnId = createBpmnId();
+    for (const ref of [step.bpmn_id, step.bpmnId, step.id]) {
+      if (ref != null) refs.set(String(ref), bpmnId);
+    }
+    const valueClass = step.value_classification || step.valueClass || 'VA';
+    return {
+      bpmnId, name: step.name || step.node_name || 'Paso', description: step.description || '',
+      position_order: index + 1, type: step.type || step.task_type || 'user', valueClass,
+      wasteType: valueClass === 'NVA' ? (step.waste_type || step.wasteType || 'waiting') : null,
+      cycleTime: Number(step.cycle_time_sec ?? step.cycleTime ?? 60),
+      waitTime: Number(step.wait_time_sec ?? step.waitTime ?? 0),
+    };
+  });
+  return {
+    tasks, gateways: [], layout: {},
+    sequence_flows: (optimizedFlow.flows || []).map((flow) => ({
+      bpmn_id: `Flow_AI_${crypto.randomUUID()}`,
+      source_ref: refs.get(String(flow.source_ref)) || flow.source_ref,
+      target_ref: refs.get(String(flow.target_ref)) || flow.target_ref,
+      name: flow.name || '',
+      // La optimización actual entrega pasos, no compuertas de decisión.
+      condition_expression: null,
+    })),
+  };
+}
+
+export async function restoreProcessVersion(processId, snapshot, reason = 'restaurar') {
   const response = await apiMutate(`/processes/${processId}/restore`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(restorationPayload(snapshot)),
+    body: JSON.stringify({ ...restorationPayload(snapshot), reason }),
   });
   return response.json();
 }

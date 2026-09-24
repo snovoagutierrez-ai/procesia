@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { restorationPayload, restoreProcessVersion } from './processRestoration.js';
+import { restorationPayload, restoreProcessVersion, optimizedFlowSnapshot } from './processRestoration.js';
 import { apiMutate } from '../api.js';
 
 vi.mock('../api.js', () => ({ apiMutate: vi.fn() }));
@@ -35,5 +35,22 @@ describe('Restauración transaccional', () => {
     expect(apiMutate).toHaveBeenCalledTimes(1);
     apiMutate.mockRejectedValueOnce(new Error('No autorizado'));
     await expect(restoreProcessVersion(7, { tasks: [] })).rejects.toThrow('No autorizado');
+  });
+
+  it('convierte una propuesta IA en un flujo nuevo y conserva todas sus conexiones', () => {
+    let next = 0;
+    const snapshot = optimizedFlowSnapshot({
+      nodes: [{ bpmn_id: 'AI1', name: 'Revisar', value_classification: 'NVA', waste_type: 'waiting' },
+        { bpmn_id: 'AI2', name: 'Aprobar', cycle_time_sec: 90 }],
+      flows: [{ source_ref: 'start', target_ref: 'AI1' },
+        { source_ref: 'AI1', target_ref: 'AI2', condition: 'Sí' },
+        { source_ref: 'AI2', target_ref: 'end' }],
+    }, () => `Task_new_${++next}`);
+    expect(snapshot.tasks.map(task => task.bpmnId)).toEqual(['Task_new_1', 'Task_new_2']);
+    expect(snapshot.sequence_flows.map(flow => [flow.source_ref, flow.target_ref])).toEqual([
+      ['start', 'Task_new_1'], ['Task_new_1', 'Task_new_2'], ['Task_new_2', 'end'],
+    ]);
+    expect(snapshot.sequence_flows[1].condition_expression).toBeNull();
+    expect(restorationPayload(snapshot).tasks[0].waste_type).toBe('waiting');
   });
 });

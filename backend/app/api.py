@@ -134,7 +134,14 @@ def update_macroprocess(id: int, macroprocess: schemas.MacroprocessUpdate, db: S
 
 @router.delete("/macroprocesses/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_macroprocess(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    verify_macroprocess_access(db, id, current_user)
+    # Bloquear la carpeta y sus procesos antes de comprobar versiones. Una
+    # creación simultánea de versión bloquea la misma fila de proceso.
+    macro = db.query(models.Macroprocess).filter(models.Macroprocess.id == id).with_for_update().first()
+    if not macro:
+        raise HTTPException(status_code=404, detail="Macroprocess not found")
+    if macro.owner_id != current_user.id and current_user.role != models.UserRole.admin:
+        raise HTTPException(status_code=403, detail="Not authorized to access this macroprocess")
+    db.query(models.Process.id).filter(models.Process.macroprocess_id == id).order_by(models.Process.id).with_for_update().all()
     if current_user.role != models.UserRole.admin:
         protected = db.query(models.ProcessSnapshot.id).join(models.Process).filter(
             models.Process.macroprocess_id == id
@@ -429,7 +436,11 @@ def duplicate_process(id: int, datos: schemas.ProcessDuplicate,
 
 @router.delete("/processes/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_process(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    verify_process_access(db, id, current_user)
+    process = db.query(models.Process).filter(models.Process.id == id).with_for_update().first()
+    if not process:
+        raise HTTPException(status_code=404, detail="Process not found")
+    if process.owner_id != current_user.id and current_user.role != models.UserRole.admin:
+        raise HTTPException(status_code=403, detail="Not authorized to access this process")
     if current_user.role != models.UserRole.admin:
         protected = db.query(models.ProcessSnapshot.id).filter(
             models.ProcessSnapshot.process_id == id
@@ -767,6 +778,35 @@ def create_process_task(request: Request, process_id: int, task: schemas.TaskCre
                              creada.bpmn_id, f"Creó el paso «{creada.name}»", request)
     return creada
 
+@router.put("/processes/{process_id}/tasks/order", response_model=List[schemas.TaskResponse])
+def reorder_process_tasks(request: Request, process_id: int, order: schemas.TaskOrderInput,
+                          db: Session = Depends(get_db),
+                          current_user: models.User = Depends(auth.get_current_user)):
+    process = db.query(models.Process).filter(models.Process.id == process_id).with_for_update().first()
+    if not process:
+        raise HTTPException(status_code=404, detail="Process not found")
+    if process.owner_id != current_user.id and current_user.role != models.UserRole.admin:
+        raise HTTPException(status_code=403, detail="Not authorized to access this process")
+    activity = db.query(models.Activity).filter_by(process_id=process_id, name="General").first()
+    tasks = (db.query(models.Task).filter_by(activity_id=activity.id).with_for_update().all()
+             if activity else [])
+    by_id = {task.id: task for task in tasks}
+    if set(order.task_ids) != set(by_id):
+        raise HTTPException(status_code=422, detail="El orden debe contener exactamente todas las tareas del proceso")
+    try:
+        for position, task_id in enumerate(order.task_ids, start=1):
+            by_id[task_id].position_order = position
+        db.add(models.ProcessAudit(
+            process_id=process_id, user_id=current_user.id, action="editar",
+            target_type="proceso", summary="Reordenó las tareas",
+            ip_address=crud.direccion_del_cliente(request),
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return [by_id[task_id] for task_id in order.task_ids]
+
 @router.put("/processes/{process_id}/tasks/{task_id}", response_model=schemas.TaskResponse)
 def update_process_task(request: Request, process_id: int, task_id: int, task: schemas.TaskUpdateDirect, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     verify_process_access(db, process_id, current_user)
@@ -995,7 +1035,7 @@ def delete_node_comment(id: int, comment_id: int, db: Session = Depends(get_db),
 
 @router.post("/processes/{id}/snapshots", response_model=schemas.ProcessSnapshotOut, status_code=status.HTTP_201_CREATED)
 def create_process_snapshot(id: int, snapshot_data: schemas.ProcessSnapshotCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    process = db.query(models.Process).filter(models.Process.id == id).first()
+    process = db.query(models.Process).filter(models.Process.id == id).with_for_update().first()
     if not process:
         raise HTTPException(status_code=404, detail="Process not found")
     if current_user.role != models.UserRole.admin and process.owner_id != current_user.id:

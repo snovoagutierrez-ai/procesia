@@ -301,6 +301,15 @@ class TaskCreateDirect(BaseModel):
             raise ValueError("waste_type is required when value_classification is NVA")
         return self
 
+class TaskOrderInput(BaseModel):
+    task_ids: List[int]
+
+    @model_validator(mode='after')
+    def validate_unique_ids(self):
+        if len(self.task_ids) != len(set(self.task_ids)):
+            raise ValueError("La lista de tareas contiene identificadores duplicados")
+        return self
+
 class TaskUpdate(BaseModel):
     activity_id: Optional[int] = None
     bpmn_id: Optional[str] = Field(None, max_length=60)

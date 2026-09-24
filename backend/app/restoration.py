@@ -1,6 +1,7 @@
 """Restauración del flujo, respaldo y auditoría en una sola transacción."""
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, model_validator
+from typing import Literal
 from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
@@ -12,6 +13,7 @@ class Position(BaseModel):
 
 
 class RestoreInput(BaseModel):
+    reason: Literal["restaurar", "optimizar"] = "restaurar"
     tasks: list[schemas.TaskCreateDirect]
     gateways: list[schemas.FlowNodeSync]
     sequence_flows: list[schemas.SequenceFlowSync]
@@ -64,7 +66,7 @@ def restore_process(db: Session, process_id: int, data: RestoreInput, user, requ
         flows = db.query(models.SequenceFlow).filter_by(process_id=process_id).all()
         old_ids = {f"task-{task.id}": f"task:{task.bpmn_id}" for task in existing}
         backup = {
-            "label": "Antes de restaurar versión",
+            "label": "Antes de aplicar flujo optimizado IA" if data.reason == "optimizar" else "Antes de restaurar versión",
             "tasks": [schemas.TaskResponse.model_validate(task).model_dump(mode="json") for task in existing],
             "gateways": [schemas.FlowNodeResponse.model_validate(gw).model_dump(mode="json") for gw in gateways],
             "sequence_flows": [schemas.SequenceFlowResponse.model_validate(flow).model_dump(mode="json") for flow in flows],
@@ -109,8 +111,9 @@ def restore_process(db: Session, process_id: int, data: RestoreInput, user, requ
             if not key.startswith("task:") or key in new_ids
         }
         db.add(models.ProcessAudit(
-            process_id=process_id, user_id=user.id, action="restaurar", target_type="proceso",
-            summary="Restauró una versión del proceso", ip_address=crud.direccion_del_cliente(request),
+            process_id=process_id, user_id=user.id, action=data.reason, target_type="proceso",
+            summary="Aplicó un flujo optimizado por IA" if data.reason == "optimizar" else "Restauró una versión del proceso",
+            ip_address=crud.direccion_del_cliente(request),
         ))
         db.flush()
         # Validar la respuesta antes del único commit evita confirmar un resultado inválido.

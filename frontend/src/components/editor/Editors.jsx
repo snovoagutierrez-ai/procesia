@@ -703,7 +703,7 @@ function MeasurementsPanel({ processId, taskId, stdCycle }) {
   );
 }
 
-function Editor({ task, onChange, onDelete, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone, onForceSave, firstStepsActive, guideStep, onGuideComplete, processId }) {
+function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone, onForceSave, firstStepsActive, guideStep, onGuideComplete, processId }) {
   const [showSaved, setShowSaved] = useState(false);
   const handleSave = async () => {
     if (onForceSave) await onForceSave();
@@ -727,6 +727,8 @@ function Editor({ task, onChange, onDelete, saveState = { status: 'idle' }, expe
           {saveState.status === 'error' && <span style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={14} /> Error</span>}
         </div>
         <div className="pa-editor-actions">
+          <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => onMove(task.id, -1)} disabled={isFirst || saveState.status === 'saving'} aria-label="Subir tarea" title="Mover tarea hacia arriba"><ChevronUp size={16} /></button>
+          <button className="pa-btn pa-btn-ghost pa-btn-sm" onClick={() => onMove(task.id, 1)} disabled={isLast || saveState.status === 'saving'} aria-label="Bajar tarea" title="Mover tarea hacia abajo"><ChevronDown size={16} /></button>
           <button className="pa-btn pa-btn-primary pa-btn-sm" onClick={handleSave}>Guardar</button>
           <button className="pa-icon danger" style={{ marginLeft: 8 }} onClick={() => onDelete(task.id)} title="Eliminar"><Trash2 size={16} /></button>
         </div>

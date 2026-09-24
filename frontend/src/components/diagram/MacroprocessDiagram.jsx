@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ReactFlow,
   Controls,
@@ -12,7 +12,7 @@ import {
   addEdge
 } from "@xyflow/react";
 import dagre from "dagre";
-import { apiFetch } from "../../api.js";
+import { apiFetch, apiMutate } from "../../api.js";
 import { conservarMedidas } from "../../utils/reactFlowNodos.js";
 import { AlertCircle, Network, Eye, FileText, FolderInput } from 'lucide-react';
 import "@xyflow/react/dist/style.css";
@@ -186,6 +186,10 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [sequenceFlows, setSequenceFlows] = useState([]);
+  const [graphError, setGraphError] = useState(null);
+  const persistedFlowsRef = useRef([]);
+  const saveQueueRef = useRef(Promise.resolve());
+  const latestSaveRef = useRef(0);
 
   // Fetch macro graph
   const fetchGraph = useCallback(async () => {
@@ -194,10 +198,15 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
       const res = await apiFetch(`/macroprocesses/${macroprocessId}/graph`);
       if (res.ok) {
         const data = await res.json();
-        setSequenceFlows(data.sequence_flows || []);
+        persistedFlowsRef.current = data.sequence_flows || [];
+        setSequenceFlows([...persistedFlowsRef.current]);
+        setGraphError(null);
+      } else {
+        throw new Error('No se pudo cargar el flujo del macroproceso.');
       }
     } catch (err) {
       console.error("Failed to fetch macro graph", err);
+      setGraphError(err.message);
     }
   }, [macroprocessId]);
 
@@ -217,7 +226,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
   // Save changes to backend
   const saveGraph = useCallback(async (updatedEdges) => {
     if (!macroprocessId) return;
-    
+    const attempt = ++latestSaveRef.current;
     const payload = {
       sequence_flows: updatedEdges.map(e => ({
         id: String(e.id),
@@ -227,19 +236,29 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
       }))
     };
     
-    try {
-      const res = await apiFetch(`/macroprocesses/${macroprocessId}/graph`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
+    const save = async () => {
+      try {
+        const res = await apiMutate(`/macroprocesses/${macroprocessId}/graph`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
         const data = await res.json();
-        setSequenceFlows(data.sequence_flows || []);
+        persistedFlowsRef.current = data.sequence_flows || [];
+        if (attempt === latestSaveRef.current) {
+          setSequenceFlows([...persistedFlowsRef.current]);
+          setGraphError(null);
+        }
+      } catch (err) {
+        console.error("Failed to save macro graph", err);
+        if (attempt === latestSaveRef.current) {
+          setSequenceFlows([...persistedFlowsRef.current]);
+          setGraphError('No se guardaron las conexiones. El diagrama volvió al último estado guardado.');
+        }
       }
-    } catch (err) {
-      console.error("Failed to save macro graph", err);
-    }
+    };
+    saveQueueRef.current = saveQueueRef.current.then(save, save);
+    return saveQueueRef.current;
   }, [macroprocessId]);
 
   const onConnect = useCallback((params) => {
@@ -290,6 +309,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", background: "#F6F8FA", borderRadius: "8px", overflow: "hidden", border: "1px solid #E2E7E3", display: "flex", flexDirection: "column" }}>
+      {graphError && <div role="alert" style={{ flexShrink: 0, padding: '8px 16px', color: '#A4271A', background: '#FCEDEA' }}>{graphError}</div>}
       {needsHelp && !hideBanner && (
         <div style={{ flexShrink: 0, margin: '12px 16px 0', background: '#FFF8E1', border: '1px solid #F5DEB3', color: '#C98A12', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <AlertCircle size={18} style={{ flexShrink: 0 }} />

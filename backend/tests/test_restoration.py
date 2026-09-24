@@ -72,6 +72,30 @@ def test_restore_existing_task_retains_measurements(auth_client, process):
     assert len(auth_client.get(f"/processes/{pid}/tasks/{task['id']}/measurements").json()) == 1
 
 
+def test_optimized_flow_is_atomic_and_recorded_as_optimization(auth_client, process, db_session, monkeypatch):
+    pid = process["id"]
+    make_task(auth_client, pid, "old", "Proceso anterior")
+    data = payload()
+    data["reason"] = "optimizar"
+    result = auth_client.post(f"/processes/{pid}/restore", json=data)
+    assert result.status_code == 200, result.text
+    assert auth_client.get(f"/processes/{pid}/tasks").json()[0]["bpmn_id"] == "restored"
+    assert db_session.query(models.ProcessAudit).filter_by(process_id=pid, action="optimizar").count() == 1
+    assert "optimizado" in auth_client.get(f"/processes/{pid}/snapshots").json()[0]["snapshot_json"]["label"]
+
+    from app import crud
+    from fastapi import HTTPException
+    def fail(*args, **kwargs):
+        raise HTTPException(status_code=503, detail="Fallo durante optimización")
+    monkeypatch.setattr(crud, "sync_graph", fail)
+    failed = auth_client.post(f"/processes/{pid}/restore", json={**data, "tasks": [
+        {"bpmn_id": "another", "name": "Intermedio", "position_order": 1, "value_classification": "VA"}
+    ], "sequence_flows": [], "gateways": []})
+    assert failed.status_code == 503
+    assert auth_client.get(f"/processes/{pid}/tasks").json()[0]["bpmn_id"] == "restored"
+    assert db_session.query(models.ProcessAudit).filter_by(process_id=pid, action="optimizar").count() == 1
+
+
 def test_failure_after_graph_changes_rolls_back(auth_client, process, monkeypatch):
     from app import restoration
     from fastapi import HTTPException

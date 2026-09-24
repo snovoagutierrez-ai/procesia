@@ -7,13 +7,13 @@ import { apiFetch, apiMutate } from "./api.js";
 import { canonicalizeFlows, detectFlowIssues } from "./utils/flowGraph.js";
 import { layoutPortable } from "./utils/layoutSnapshot.js";
 import { mapBackendTaskToFrontend } from "./utils/processMapping.js";
-import { restoreProcessVersion } from "./utils/processRestoration.js";
+import { restoreProcessVersion, optimizedFlowSnapshot } from "./utils/processRestoration.js";
 import OptimizationModal from "./components/editor/OptimizationModal.jsx";
 import HistorialModal from "./components/editor/HistorialModal.jsx";
 import GlosarioModal from "./components/editor/GlosarioModal.jsx";
 import { descargarJpg, descargarPdf, FORMATOS } from "./utils/flowExport.js";
 import { descargarRespaldo, leerRespaldo } from "./utils/respaldo.js";
-import { VALUE, TYPES, ACTION, ACTION_STEPS } from "./constants.js";
+import { VALUE, ACTION, ACTION_STEPS } from "./constants.js";
 // Los componentes de React Flow y dagre viven en FlowDiagrams.jsx; aquí solo se
 // usa el CSS de la librería, por eso no se importan sus símbolos.
 import "@xyflow/react/dist/style.css";
@@ -1787,33 +1787,26 @@ export default function App() {
 
   const moveTask = async (id, dir) => {
     if (!proc) return;
-    const i = tasks.findIndex((t) => t.id === id);
-    const j = i + dir;
-    if (j < 0 || j >= tasks.length) return;
+    const from = tasks.findIndex((task) => task.id === id);
+    const to = from + dir;
+    if (from < 0 || to < 0 || to >= tasks.length) return;
+    const reordered = [...tasks];
+    [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
+    const ids = reordered.map((task) => task.id);
     setSaveState({ status: 'saving' });
-    const updatedTasks = [...tasks];
-    [updatedTasks[i], updatedTasks[j]] = [updatedTasks[j], updatedTasks[i]];
-    updatedTasks.forEach((t, idx) => { t.position_order = idx + 1; });
-    setTasks(updatedTasks);
     try {
-      await Promise.all(
-        [updatedTasks[i], updatedTasks[j]].map((task) =>
-          apiFetch(`/processes/${proc.id}/tasks/${task.id}`, {
-            method: "PUT", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              position_order: task.position_order, bpmn_id: task.bpmnId, name: task.name,
-              task_type: task.type, value_classification: task.valueClass,
-              waste_type: task.wasteType || null, std_cycle_time_sec: Number(task.cycleTime) || 0,
-              std_wait_time_sec: Number(task.waitTime) || 0, responsible: task.responsible,
-              accountable: task.accountable, consulted: task.consulted, informed: task.informed,
-              systems: task.systems,
-            }),
-          })
-        )
-      );
+      await apiMutate(`/processes/${proc.id}/tasks/order`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_ids: ids }),
+      });
+      const position = new Map(ids.map((taskId, index) => [taskId, index]));
+      setTasks((current) => [...current].sort((left, right) =>
+        position.get(left.id) - position.get(right.id)).map((task, index) =>
+        ({ ...task, position_order: index + 1 })));
       setSaveState({ status: 'saved' });
-      setTimeout(() => setSaveState({ status: 'idle' }), 2000);
-    } catch (e) {
+      setTimeout(() => setSaveState((state) => state.status === 'saved' ? { status: 'idle' } : state), 2000);
+    } catch (error) {
+      showToast(error.message || 'No se pudo cambiar el orden de las tareas.');
       setSaveState({ status: 'error' });
     }
   };
@@ -1869,78 +1862,36 @@ export default function App() {
   const applyOptimized = async (optimizedFlow) => {
     if (!proc) return;
     const steps = optimizedFlow.nodes || optimizedFlow.steps || [];
-    const aiFlows = optimizedFlow.flows || [];
     if (!steps.length) return;
 
     const ok = await confirm(
       "Aplicar flujo optimizado",
-      `Esta acción eliminará las ${tasks.length} tarea(s) actuales y las reemplazará con las ${steps.length} propuestas por la IA. Los datos de RACI y sistemas deberán reasignarse. Se guardará una versión de respaldo.`,
+      `Esta acción reemplazará las ${tasks.length} tarea(s) actuales por las ${steps.length} propuestas por la IA. Los datos de RACI y sistemas deberán reasignarse. Se guardará una versión de respaldo.`,
       { confirmLabel: "Aplicar igual", danger: true }
     );
     if (!ok) return;
 
-    setLoading(true);
-    const saved = await saveAutoSnapshot("Antes de aplicar flujo optimizado IA");
-    if (!saved) { setLoading(false); return; }
-
     const processId = procRef.current?.id;
-    if (!processId) { setLoading(false); return; }
-
+    if (!processId) return;
+    setLoading(true);
     try {
-      // Eliminar tareas secuencialmente para evitar conflictos de FK
-      for (const t of tasks) {
-        await apiMutate(`/processes/${processId}/tasks/${t.id}`, { method: "DELETE" });
-      }
-
-      // Crear tareas del flujo optimizado
-      const mapped = [];
-      const bpmnIdMap = {}; // old bpmn_id → new task bpmn_id (por si Gemini reutiliza IDs)
-      for (let idx = 0; idx < steps.length; idx++) {
-        const s = steps[idx];
-        const valClass = s.value_classification || s.valueClass || "VA";
-        const wType = valClass === "NVA" ? s.waste_type || "waiting" : null;
-        const newBpmn = s.bpmn_id || s.bpmnId || newBpmnId();
-        bpmnIdMap[s.bpmn_id || s.bpmnId] = newBpmn;
-        const res = await apiFetch(`/processes/${processId}/tasks`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            bpmn_id: newBpmn,
-            name: s.name || s.node_name || "Paso",
-            description: s.description || "",
-            position_order: idx + 1,
-            task_type: s.type && TYPES[s.type] ? s.type : "user",
-            value_classification: valClass,
-            waste_type: wType,
-            std_cycle_time_sec: Number(s.cycle_time_sec) || Number(s.cycleTime) || 60,
-            std_wait_time_sec: Number(s.wait_time_sec) || Number(s.waitTime) || 0,
-          }),
-        });
-        const data = await res.json();
-        mapped.push(mapBackendTaskToFrontend(data));
-      }
-
-      // Aplicar las conexiones del flujo optimizado (antes se descartaban)
-      const mappedFlows = aiFlows.map((f, i) => ({
-        bpmn_id: f.bpmn_id || `Flow_AI_${i}_${Date.now()}`,
-        source_ref: bpmnIdMap[f.source_ref] || f.source_ref,
-        target_ref: bpmnIdMap[f.target_ref] || f.target_ref,
-        name: f.name || "",
-        condition_expression: f.condition || null,
-      }));
-
+      const snapshot = optimizedFlowSnapshot(optimizedFlow, newBpmnId);
+      // Guardar también las ediciones que aún no alcanzaron el autoguardado.
+      if (!await saveAutoSnapshot("Antes de aplicar flujo optimizado IA — cambios en pantalla")) return;
+      cancelPendingSaves();
+      const result = await restoreProcessVersion(processId, snapshot, 'optimizar');
+      const mapped = result.tasks.map(mapBackendTaskToFrontend);
       setTasks(mapped);
-      setSequenceFlows(mappedFlows);
-      setGateways([]); // gateways del flujo original ya no aplican
-
-      await apiMutate(`/processes/${processId}/graph`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gateways: [], sequence_flows: mappedFlows }),
-      });
-
+      setGateways(result.graph.gateways);
+      setSequenceFlows(result.graph.sequence_flows);
+      setProc((current) => current?.id === processId
+        ? { ...current, layout_json: result.layout_json } : current);
       setSelectedId(mapped[0]?.id || null);
       setShowUndoBanner(true);
-    } catch (e) {
-      setSaveState({ status: "error", message: "No se pudo aplicar el flujo optimizado por completo." });
+      setSaveState({ status: 'saved' });
+    } catch (error) {
+      showToast(error.message || "No se pudo aplicar el flujo optimizado. El flujo anterior se conserva.");
+      setSaveState({ status: 'error' });
     } finally {
       setLoading(false);
     }
