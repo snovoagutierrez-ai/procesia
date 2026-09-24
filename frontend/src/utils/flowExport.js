@@ -17,7 +17,7 @@ const ESCALA_JPG = 2; // el doble de resolucion: legible al ampliar o al imprimi
 
 function nombreArchivo(proc, extension) {
   const base = (proc?.code || proc?.name || "proceso")
-    .toString().trim().replace(/[^\w\-]+/g, "_").slice(0, 60) || "proceso";
+    .toString().trim().replace(/[^\w-]+/g, "_").slice(0, 60) || "proceso";
   return `${base}.${extension}`;
 }
 

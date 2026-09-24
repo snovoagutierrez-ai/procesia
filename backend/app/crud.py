@@ -661,7 +661,7 @@ def delete_task_system(db: Session, task_id: int, system_id: int):
 # 9. CRUD Direct Tasks (Helpers for Frontend flat structure)
 # ==========================================
 
-def create_task_direct(db: Session, activity_id: int, task_in: schemas.TaskCreateDirect):
+def create_task_direct(db: Session, activity_id: int, task_in: schemas.TaskCreateDirect, *, commit: bool = True):
     # Enforce CHECK constraint
     if task_in.value_classification == models.ValueClass.NVA and task_in.waste_type is None:
         raise HTTPException(
@@ -690,11 +690,14 @@ def create_task_direct(db: Session, activity_id: int, task_in: schemas.TaskCreat
     # Update Systems
     _update_task_systems_direct(db, db_task.id, task_in.systems)
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(db_task)
     return db_task
 
-def update_task_direct(db: Session, db_task: models.Task, task_in: schemas.TaskUpdateDirect):
+def update_task_direct(db: Session, db_task: models.Task, task_in: schemas.TaskUpdateDirect, *, commit: bool = True):
     # Only pure waste (NVA) tasks require a waste_type classification
     val_class = task_in.value_classification if task_in.value_classification is not None else db_task.value_classification
     w_type = task_in.waste_type if task_in.waste_type is not None else db_task.waste_type
@@ -731,7 +734,10 @@ def update_task_direct(db: Session, db_task: models.Task, task_in: schemas.TaskU
     if 'systems' in sent_fields:
         _update_task_systems_direct(db, db_task.id, task_in.systems)
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(db_task)
     return db_task
 
@@ -877,7 +883,7 @@ def repair_stored_flows(db: Session, process_id: int, gateways, sequence_flows) 
     return changed
 
 
-def get_graph(db: Session, process_id: int) -> schemas.GraphResponse:
+def get_graph(db: Session, process_id: int, *, repair: bool = True) -> schemas.GraphResponse:
     gateways = db.query(models.FlowNode).filter(
         models.FlowNode.process_id == process_id,
         models.FlowNode.node_type.in_([models.BpmnNodeType.exclusiveGateway, models.BpmnNodeType.parallelGateway, models.BpmnNodeType.inclusiveGateway])
@@ -887,7 +893,8 @@ def get_graph(db: Session, process_id: int) -> schemas.GraphResponse:
         models.SequenceFlow.process_id == process_id
     ).all()
     
-    repair_stored_flows(db, process_id, gateways, sequence_flows)
+    if repair:
+        repair_stored_flows(db, process_id, gateways, sequence_flows)
 
     return schemas.GraphResponse(
         gateways=gateways,
@@ -993,7 +1000,7 @@ def normalize_sequence_flows(db: Session, process_id: int, gateways, flows):
     return result, discarded
 
 
-def sync_graph(db: Session, process_id: int, graph_data: schemas.GraphSync) -> schemas.GraphResponse:
+def sync_graph(db: Session, process_id: int, graph_data: schemas.GraphSync, *, commit: bool = True) -> schemas.GraphResponse:
     # 1. Upsert Gateways
     existing_gateways = db.query(models.FlowNode).filter(
         models.FlowNode.process_id == process_id,
@@ -1063,8 +1070,11 @@ def sync_graph(db: Session, process_id: int, graph_data: schemas.GraphSync) -> s
         if bpmn_id not in incoming_sf_ids:
             db.delete(sf)
 
-    db.commit()
-    response = get_graph(db, process_id)
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    response = get_graph(db, process_id, repair=commit)
     response.discarded = discarded
     return response
 

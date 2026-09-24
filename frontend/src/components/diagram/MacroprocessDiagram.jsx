@@ -25,7 +25,7 @@ const ALTO_TARJETA = 150;
 
 /* ---------- Custom Node: Process ---------- */
 function ProcessNode({ data }) {
-  const { process, isConnected } = data;
+  const { isConnected } = data;
   return (
     <div style={{
       position: 'relative',
@@ -269,7 +269,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
         });
       }, 0);
     }
-  }, [onEdgesChange, setEdges, macroprocessId]);
+  }, [onEdgesChange, setEdges, saveGraph]);
 
   const onNodeDoubleClick = useCallback(
     (_event, node) => {
@@ -315,7 +315,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
       <button 
         className="pa-btn"
         onClick={() => {
-          const { nodes: newNodes, edges: newEdges } = buildGraph(processes, sequenceFlows, onViewFlow, onViewSummary, onOrganizar);
+          const { nodes: newNodes } = buildGraph(processes, sequenceFlows, onViewFlow, onViewSummary, onOrganizar);
           setNodes((previos) => conservarMedidas([...newNodes], previos));
         }}
         style={{ position: 'absolute', bottom: 20, right: 20, zIndex: 10, display: 'flex', gap: '6px', alignItems: 'center', background: '#fff', color: '#13202B', border: '1px solid #E2E7E3' }}

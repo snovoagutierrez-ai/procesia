@@ -10,6 +10,8 @@ from jose import jwt
 from app import crud, schemas, models, gemini, bpmn, mermaid_export, auth
 from app.database import get_db
 from app.limiter import limiter
+from app.environment import is_production as production_environment
+from app.restoration import RestoreInput, RestoreOutput, restore_process
 from fastapi import Request
 
 router = APIRouter()
@@ -61,7 +63,7 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
         data={"sub": user.email}, expires_delta=access_token_expires
     )
 
-    is_production = os.environ.get("ENV", "development").lower() == "production" or os.environ.get("RENDER") == "true"
+    is_production = production_environment()
     
     response.set_cookie(
         key="access_token",
@@ -76,7 +78,7 @@ def login(request: Request, response: Response, form_data: OAuth2PasswordRequest
 
 @router.post("/auth/logout")
 def logout(response: Response):
-    is_production = os.environ.get("ENV", "development").lower() == "production" or os.environ.get("RENDER") == "true"
+    is_production = production_environment()
     response.delete_cookie(key="access_token", httponly=True, secure=is_production, samesite="lax")
     return {"message": "Logged out successfully"}
 
@@ -97,7 +99,7 @@ def get_me(request: Request, response: Response, current_user: models.User = Dep
                         data={"sub": current_user.email},
                         expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES),
                     )
-                    is_production = os.environ.get("ENV", "development").lower() == "production" or os.environ.get("RENDER") == "true"
+                    is_production = production_environment()
                     response.set_cookie(
                         key="access_token", value=new_token, httponly=True,
                         secure=is_production, samesite="lax",
@@ -133,6 +135,12 @@ def update_macroprocess(id: int, macroprocess: schemas.MacroprocessUpdate, db: S
 @router.delete("/macroprocesses/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_macroprocess(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     verify_macroprocess_access(db, id, current_user)
+    if current_user.role != models.UserRole.admin:
+        protected = db.query(models.ProcessSnapshot.id).join(models.Process).filter(
+            models.Process.macroprocess_id == id
+        ).first()
+        if protected:
+            raise HTTPException(status_code=403, detail="Esta carpeta contiene procesos con versiones guardadas. Solo una cuenta administradora puede eliminarla. Contacta al administrador.")
     crud.delete_macroprocess(db, id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -422,6 +430,12 @@ def duplicate_process(id: int, datos: schemas.ProcessDuplicate,
 @router.delete("/processes/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_process(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     verify_process_access(db, id, current_user)
+    if current_user.role != models.UserRole.admin:
+        protected = db.query(models.ProcessSnapshot.id).filter(
+            models.ProcessSnapshot.process_id == id
+        ).first()
+        if protected:
+            raise HTTPException(status_code=403, detail="Este proceso tiene versiones guardadas. Solo una cuenta administradora puede eliminarlo. Contacta al administrador.")
     crud.delete_process(db, id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -1008,8 +1022,8 @@ def get_process_snapshots(id: int, db: Session = Depends(get_db), current_user: 
                  models.ProcessSnapshot.id.desc()).all()
     return snapshots
 
-# NOTA: La restauración de snapshots se orquesta desde el frontend (AiProces.restoreSnapshot):
-# el snapshot_json se guarda en formato frontend (bpmnId, valueClass, ...), por lo que el
-# cliente recrea tareas + grafo vía los endpoints existentes POST /tasks y PUT /graph.
-# El antiguo endpoint /restore referenciaba schemas.ProcessOptimizationApply y
-# crud.apply_optimization (inexistentes) y crasheaba con 500 — fue removido.
+@router.post("/processes/{id}/restore", response_model=RestoreOutput)
+def restore_process_version(id: int, data: RestoreInput, request: Request,
+                            db: Session = Depends(get_db),
+                            current_user: models.User = Depends(auth.get_current_user)):
+    return restore_process(db, id, data, current_user, request)

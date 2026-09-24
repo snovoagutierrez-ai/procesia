@@ -251,9 +251,9 @@ function DeletableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
           {label && (
             <span className="edge-branch-label">{label}</span>
           )}
-          <button className="edge-delete-btn" onClick={(e) => { e.stopPropagation(); if(data?.onDelete) data.onDelete(id); }}>
+          {data?.onDelete && <button className="edge-delete-btn" onClick={(e) => { e.stopPropagation(); data.onDelete(id); }}>
             <Trash2 size={12} color="#D9503C" />
-          </button>
+          </button>}
         </div>
       </EdgeLabelRenderer>
     </>
@@ -496,7 +496,7 @@ function buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDe
         sourceHandle,
         targetHandle,
         type: "deletable",
-        data: { onDelete: (edgeId) => { if(onEdgesDelete) onEdgesDelete([{ id: edgeId }]); } },
+        data: { onDelete: onEdgesDelete ? (edgeId) => onEdgesDelete([{ id: edgeId }]) : undefined },
         label: edgeLabel,
         animated: true,
         // Salida del paso seleccionado: se pinta en teal para responder de un
@@ -623,7 +623,7 @@ function ReencuadrarAlRedimensionar({ contenedorRef, dependencia }) {
 // cada render y, con ello, React Flow perdia los puntos de enganche de las flechas.
 const SIN_NOTAS = [];
 
-function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected, issueNodeIds, constraintBpmnId, height = 280, notas = SIN_NOTAS, onNotaMover, onNotaEditar, onNotaBorrar }) {
+function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelect, onGraphChange, onLayoutChange, onConnectionRejected, issueNodeIds, constraintBpmnId, height = 280, notas = SIN_NOTAS, onNotaMover, onNotaEditar, onNotaBorrar, readOnly = false }) {
   const savedPositions = proc?.layout_json || null;
   const [laneMode, setLaneMode] = useState(false);
   const contenedorRef = useRef(null);
@@ -647,23 +647,24 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
     () => {
       // Referencia canonica del nodo abierto, para resaltar su salida.
       const sel = tasks.find((t) => t.id === selectedId)?.bpmnId || selectedId || null;
-      return buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete,
+      return buildFlowData(proc, tasks, gateways, sequenceFlows, onSelect, readOnly ? undefined : onEdgesDelete,
                            savedPositions, laneMode, constraintBpmnId, sel, notas,
                            { onEditar: onNotaEditar, onBorrar: onNotaBorrar });
     },
     [proc, tasks, gateways, sequenceFlows, onSelect, onEdgesDelete, savedPositions, laneMode,
-     constraintBpmnId, selectedId, notas, onNotaEditar, onNotaBorrar]
+     constraintBpmnId, selectedId, notas, onNotaEditar, onNotaBorrar, readOnly]
   );
 
   const nodesWithSelection = useMemo(
     () => layoutedNodes.map(n => ({
       ...n,
+      ...(readOnly ? { draggable: false, connectable: false, deletable: false } : {}),
       selected: n.id === selectedId || n.data?.bpmnId === selectedId,
       // El aviso de problemas solo se leia como lista al pie del canvas: habia
       // que buscar el nodo a ojo. Marcado aqui, se ve de inmediato cual es.
       data: { ...n.data, hasIssue: !!issueNodeIds && issueNodeIds.has(n.id) },
     })),
-    [layoutedNodes, selectedId, issueNodeIds]
+    [layoutedNodes, selectedId, issueNodeIds, readOnly]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(nodesWithSelection);
@@ -786,8 +787,9 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
         edgeTypes={edgeTypes}
         fitView
         fitViewOptions={{ padding: 0.2 }}
-        nodesDraggable={!laneMode}
-        nodesConnectable={true}
+        nodesDraggable={!readOnly && !laneMode}
+        nodesConnectable={!readOnly}
+        deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']}
         connectionMode="loose"
         panOnDrag
         zoomOnScroll
@@ -810,10 +812,10 @@ function FlowDiagram({ proc, tasks, gateways, sequenceFlows, selectedId, onSelec
       </ReactFlow>
       {/* Sin esta leyenda los dos tipos de conector se veian identicos y no
           habia forma de saber por donde se empieza a arrastrar. */}
-      <div className="rf-legend">
+      {!readOnly && <div className="rf-legend">
         <span><i className="out" /> Salida (arrastra desde aqui)</span>
         <span><i className="in" /> Entrada (suelta aqui)</span>
-      </div>
+      </div>}
     </div>
   );
 }

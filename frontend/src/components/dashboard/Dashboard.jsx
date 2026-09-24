@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Sparkles, Trash2, Plus, PenLine, ChevronUp, ChevronDown, ChevronRight, Loader2, FileText, FolderOpen, AlertTriangle, X } from 'lucide-react';
+import { Sparkles, Trash2, Plus, PenLine, ChevronUp, ChevronDown, ChevronRight, Loader2, FileText, FolderOpen, AlertTriangle } from 'lucide-react';
 import MacroprocessDiagram from '../diagram/MacroprocessDiagram.jsx';
 import OrganizarProcesoModal from './OrganizarProcesoModal.jsx';
-import { FlowDiagram } from '../diagram/FlowDiagrams.jsx';
+import ProcessPreviewModal from './ProcessPreviewModal.jsx';
 import ProcessSummaryModal from '../editor/ProcessSummaryModal.jsx';
 import { apiFetch } from '../../api.js';
 
@@ -18,7 +18,6 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
   const [organizando, setOrganizando] = useState(null);   // proceso a mover/duplicar
 
   const [previewProcess, setPreviewProcess] = useState(null);
-  const [previewData, setPreviewData] = useState({ tasks: [], gateways: [], sequenceFlows: [] });
 
   const [summaryProcess, setSummaryProcess] = useState(null);
   const [summaryData, setSummaryData] = useState({ tasks: [], gateways: [] });
@@ -54,27 +53,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
     }
   }, []);
 
-  const handleViewFlow = useCallback(async (process) => {
-    setPreviewProcess(process);
-    setPreviewData({ tasks: [], gateways: [], sequenceFlows: [] });
-    try {
-      // No existe /details: el flujo se arma con /tasks (mapeado a formato del diagrama) + /graph
-      const [tRes, gRes] = await Promise.all([
-        apiFetch(`/processes/${process.id}/tasks`),
-        apiFetch(`/processes/${process.id}/graph`),
-      ]);
-      const tasks = tRes.ok ? (await tRes.json()).map(t => ({
-        id: t.id, bpmnId: t.bpmn_id, name: t.name, type: t.task_type,
-        valueClass: t.value_classification, wasteType: t.waste_type || "",
-        cycleTime: Number(t.std_cycle_time_sec) || 0, waitTime: Number(t.std_wait_time_sec) || 0,
-        responsible: t.responsible || "", position_order: t.position_order,
-      })) : [];
-      const graph = gRes.ok ? await gRes.json() : {};
-      setPreviewData({ tasks, gateways: graph.gateways || [], sequenceFlows: graph.sequence_flows || [] });
-    } catch (err) {
-      console.error("Failed to load flow preview", err);
-    }
-  }, []);
+  const handleViewFlow = useCallback((process) => setPreviewProcess(process), []);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -427,41 +406,12 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
         metricsData={summaryMetrics}
       />
 
-      {previewProcess && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setPreviewProcess(null)}>
-          <div style={{ background: '#fff', width: '94vw', height: '90vh', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8F9FA' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 18, color: 'var(--ink)' }}>Flujo Interno: {previewProcess.name}</h3>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{previewProcess.code}</span>
-              </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button className="pa-btn pa-btn-primary" onClick={() => { setPreviewProcess(null); onSelect(previewProcess); }}>
-                  <PenLine size={16} /> Editar Proceso
-                </button>
-                <button className="pa-icon" onClick={() => setPreviewProcess(null)}>
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
-            <div style={{ flex: 1, position: 'relative' }}>
-              {previewData.tasks.length === 0 ? (
-                <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
-                  Este proceso no tiene tareas mapeadas aún.
-                </div>
-              ) : (
-                <FlowDiagram 
-                  proc={previewProcess} 
-                  tasks={previewData.tasks} 
-                  gateways={previewData.gateways} 
-                  sequenceFlows={previewData.sequenceFlows} 
-                  height="100%"
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {previewProcess && <ProcessPreviewModal
+        key={previewProcess.id}
+        process={previewProcess}
+        onClose={() => setPreviewProcess(null)}
+        onEdit={(process) => { setPreviewProcess(null); onSelect(process); }}
+      />}
 
       <OrganizarProcesoModal
         isOpen={!!organizando}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Clock, RotateCcw, AlertCircle, Upload } from 'lucide-react';
 import { apiFetch } from '../../api.js';
 
@@ -8,13 +8,7 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestore, 
   const [restoringId, setRestoringId] = useState(null);
   const [restoreError, setRestoreError] = useState(null);
 
-  useEffect(() => {
-    if (isOpen && processId) {
-      loadSnapshots();
-    }
-  }, [isOpen, processId]);
-
-  const loadSnapshots = async () => {
+  const loadSnapshots = useCallback(async () => {
     setLoading(true);
     try {
       const res = await apiFetch(`/processes/${processId}/snapshots`);
@@ -27,7 +21,11 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestore, 
     } finally {
       setLoading(false);
     }
-  };
+  }, [processId]);
+
+  useEffect(() => {
+    if (isOpen && processId) loadSnapshots();
+  }, [isOpen, processId, loadSnapshots]);
 
   const handleRestore = async (snap) => {
     setRestoreError(null);
@@ -73,6 +71,7 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestore, 
               <Clock size={16} style={{ flexShrink: 0, marginTop: 2 }} />
               <div>
                 <strong style={{ display: 'block', marginBottom: 4 }}>¿Cómo se guarda una versión?</strong>
+                <p>Desde la primera versión guardada, solo una cuenta administradora puede eliminar este proceso o la carpeta que lo contiene. Para eliminarlo, contacta al administrador. Puedes seguir editando y restaurando versiones.</p>
                 Cada versión es una copia completa de las tareas, compuertas y conexiones tal como estaban en ese momento. Hay dos formas de crearla:
                 <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                   <li><strong>Tú, cuando quieras</strong>: con el botón <strong>Guardar versión</strong> de la barra superior del editor. Úsalo al terminar una sesión de trabajo.</li>
@@ -114,7 +113,7 @@ export default function SnapshotsModal({ isOpen, onClose, processId, onRestore, 
                     <button 
                       className="pa-btn pa-btn-ghost" 
                       onClick={() => handleRestore(snap)}
-                      disabled={restoringId === snap.id}
+                      disabled={restoringId !== null}
                       style={{ fontSize: 12, padding: '6px 12px', color: '#0B7E7E', border: '1px solid #D7F0F0' }}
                     >
                       {restoringId === snap.id ? 'Restaurando...' : <><RotateCcw size={14} style={{ marginRight: 6 }} /> Restaurar</>}

@@ -5,13 +5,15 @@ import { apiFetch, apiMutate } from "./api.js";
 // referencia es valida evita que se dibuje una flecha que luego el aviso de
 // problemas no reconoce.
 import { canonicalizeFlows, detectFlowIssues } from "./utils/flowGraph.js";
-import { layoutPortable, layoutParaLienzo } from "./utils/layoutSnapshot.js";
+import { layoutPortable } from "./utils/layoutSnapshot.js";
+import { mapBackendTaskToFrontend } from "./utils/processMapping.js";
+import { restoreProcessVersion } from "./utils/processRestoration.js";
 import OptimizationModal from "./components/editor/OptimizationModal.jsx";
 import HistorialModal from "./components/editor/HistorialModal.jsx";
 import GlosarioModal from "./components/editor/GlosarioModal.jsx";
 import { descargarJpg, descargarPdf, FORMATOS } from "./utils/flowExport.js";
 import { descargarRespaldo, leerRespaldo } from "./utils/respaldo.js";
-import { VALUE, WASTE, TYPES, ACTION, ACTION_STEPS, SEVERITY, WASTE_QUESTIONS } from "./constants.js";
+import { VALUE, TYPES, ACTION, ACTION_STEPS } from "./constants.js";
 // Los componentes de React Flow y dagre viven en FlowDiagrams.jsx; aquí solo se
 // usa el CSS de la librería, por eso no se importan sus símbolos.
 import "@xyflow/react/dist/style.css";
@@ -413,18 +415,6 @@ function GuideTicket({ step, onStep, onDismiss }) {
       </div>
     </div>
   );
-}
-
-function mapBackendTaskToFrontend(t) {
-  return {
-    id: t.id, bpmnId: t.bpmn_id, name: t.name, type: t.task_type,
-    cycleTime: Number(t.std_cycle_time_sec) || 0,
-    waitTime: Number(t.std_wait_time_sec) || 0,
-    valueClass: t.value_classification, wasteType: t.waste_type || "",
-    responsible: t.responsible || "", accountable: t.accountable || "",
-    consulted: t.consulted || "", informed: t.informed || "",
-    systems: t.systems || "", position_order: t.position_order,
-  };
 }
 
 function mapBackendProcessToFrontend(p) {
@@ -1465,7 +1455,7 @@ export default function App() {
       setMacroprocesses((prev) => prev.filter((m) => m.id !== id));
       setAllProcesses((prev) => prev.filter((p) => p.macroprocess_id !== id));
     } catch (e) {
-      setError("Error al eliminar el macroproceso.");
+      showToast(e.message || "Error al eliminar el macroproceso.");
     }
   };
 
@@ -1525,7 +1515,7 @@ export default function App() {
       setAllProcesses((prev) => prev.filter((p) => p.id !== id));
       if (proc?.id === id) { setProc(null); setView("dashboard"); }
     } catch (e) {
-      setError("Error al eliminar el proceso.");
+      showToast(e.message || "Error al eliminar el proceso.");
     }
   };
 
@@ -1869,7 +1859,7 @@ export default function App() {
       if (!ok) return;
       const stamp = new Date().toLocaleString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
       if (await saveAutoSnapshot(`Versión guardada manualmente — ${stamp}`)) {
-        showToast("Versión guardada. Puedes volver a este punto desde Versiones.", 'success');
+        showToast("Versión guardada. Puedes restaurarla desde Versiones. Solo una cuenta administradora puede eliminar este proceso.", 'success');
       }
     } finally {
       setSavingVersion(false);
@@ -1956,111 +1946,27 @@ export default function App() {
     }
   };
 
-  // Restaura una versión guardada: recrea tareas + grafo desde el snapshot frontend.
-  // El restore en sí es undoable (guarda un snapshot previo). Devuelve true/false.
+  // El servidor respalda y restaura el flujo en una sola transacción.
   const restoreSnapshot = async (snapshotJson) => {
     const processId = procRef.current?.id;
     if (!processId || !snapshotJson) return false;
-
-    const snapTasks = Array.isArray(snapshotJson.tasks) ? snapshotJson.tasks : [];
-    const snapGateways = Array.isArray(snapshotJson.gateways) ? snapshotJson.gateways : [];
-    const snapFlows = Array.isArray(snapshotJson.sequence_flows) ? snapshotJson.sequence_flows : [];
-
     setLoading(true);
-    const saved = await saveAutoSnapshot("Antes de restaurar versión");
-    if (!saved) { setLoading(false); return false; }
-
     try {
-      // Eliminar tareas actuales secuencialmente (evita conflictos de FK)
-      for (const t of tasks) {
-        await apiMutate(`/processes/${processId}/tasks/${t.id}`, { method: "DELETE" });
-      }
-
-      // Recrear tareas desde el snapshot (formato frontend → backend)
-      const mapped = [];
-      for (let idx = 0; idx < snapTasks.length; idx++) {
-        const s = snapTasks[idx];
-        const valClass = s.valueClass || s.value_classification || "VA";
-        const res = await apiFetch(`/processes/${processId}/tasks`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            bpmn_id: s.bpmnId || s.bpmn_id || newBpmnId(),
-            name: s.name || "Paso",
-            description: s.description || "",
-            position_order: s.position_order || idx + 1,
-            task_type: (s.type || s.task_type) && TYPES[s.type || s.task_type] ? (s.type || s.task_type) : "user",
-            value_classification: valClass,
-            waste_type: valClass === "NVA" ? (s.wasteType || s.waste_type || "waiting") : null,
-            std_cycle_time_sec: Number(s.cycleTime ?? s.std_cycle_time_sec) || 0,
-            std_wait_time_sec: Number(s.waitTime ?? s.std_wait_time_sec) || 0,
-            responsible: s.responsible || "", accountable: s.accountable || "",
-            consulted: s.consulted || "", informed: s.informed || "", systems: s.systems || "",
-          }),
-        });
-        const data = await res.json();
-
-        // create_task (POST) ignora los campos planos de RACI/sistemas — solo los
-        // persiste update_task (PUT). Si el snapshot trae RACI/sistemas, los reponemos
-        // con un PUT reusando la traducción plano→relacional del backend.
-        const hasRaci = s.responsible || s.accountable || s.consulted || s.informed;
-        const hasSystems = s.systems;
-        if (data?.id && (hasRaci || hasSystems)) {
-          await apiMutate(`/processes/${processId}/tasks/${data.id}`, {
-            method: "PUT", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              responsible: s.responsible || "", accountable: s.accountable || "",
-              consulted: s.consulted || "", informed: s.informed || "",
-              systems: s.systems || "",
-            }),
-          });
-          data.responsible = s.responsible || ""; data.accountable = s.accountable || "";
-          data.consulted = s.consulted || ""; data.informed = s.informed || "";
-          data.systems = s.systems || "";
-        }
-        mapped.push(mapBackendTaskToFrontend(data));
-      }
-
-      // Restaurar grafo (gateways + flows del snapshot)
-      const cleanFlows = snapFlows.map((f, i) => ({
-        bpmn_id: f.bpmn_id || `Flow_R_${i}_${Date.now()}`,
-        source_ref: f.source_ref,
-        target_ref: f.target_ref,
-        name: f.name || "",
-        condition_expression: f.condition_expression || f.condition || null,
-        // Preservar las ramas Sí/No y los puntos de conexión del rombo: sin esto,
-        // restaurar una versión borraba las probabilidades y reubicaba las flechas.
-        branch_probability: f.branch_probability ?? null,
-        source_handle: f.source_handle ?? null,
-        target_handle: f.target_handle ?? null,
-      }));
-
+      // Conservar también las ediciones que aún no alcanzaron el autoguardado.
+      if (!await saveAutoSnapshot("Antes de restaurar — cambios en pantalla")) return false;
+      cancelPendingSaves();
+      const restored = await restoreProcessVersion(processId, snapshotJson);
+      const mapped = restored.tasks.map(mapBackendTaskToFrontend);
       setTasks(mapped);
-      setGateways(snapGateways);
-      setSequenceFlows(cleanFlows);
-      await apiMutate(`/processes/${processId}/graph`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gateways: snapGateways, sequence_flows: cleanFlows }),
-      });
-
-      // Devolver el diagrama a como estaba: sin esto se restauraban los datos
-      // pero la colocacion se perdia y dagre reordenaba el flujo entero.
-      const layoutRestaurado = layoutParaLienzo(snapshotJson.layout, mapped);
-      try {
-        await apiMutate(`/processes/${processId}`, {
-          method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ layout_json: layoutRestaurado || {} }),
-        });
-        setProc((p) => (p ? { ...p, layout_json: layoutRestaurado || {} } : p));
-      } catch {
-        // La colocacion es lo accesorio: si falla, el resto de la restauracion
-        // ya esta hecha y el diagrama simplemente se autocoloca.
-        showToast("La versión se restauró, pero no se pudo recuperar la disposición del diagrama.");
-      }
-
+      setGateways(restored.graph.gateways);
+      setSequenceFlows(restored.graph.sequence_flows);
+      setProc((p) => (p?.id === processId ? { ...p, layout_json: restored.layout_json } : p));
       setSelectedId(mapped[0]?.id || null);
+      setSaveState({ status: "saved" });
       return true;
     } catch (e) {
-      setSaveState({ status: "error", message: "No se pudo restaurar la versión por completo." });
+      showToast(e.message || "No se pudo restaurar la versión. El flujo anterior se conserva si la operación falla.");
+      setSaveState({ status: "error", message: "No se pudo confirmar la restauración." });
       return false;
     } finally {
       setLoading(false);
@@ -3198,4 +3104,3 @@ export default function App() {
 /* ============================================================================
    Styles
    ============================================================================ */
-

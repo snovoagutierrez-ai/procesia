@@ -5,7 +5,7 @@
  * vistazo: quien entro, quien cambio que, y poder saltar al objeto tocado.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 import HistorialModal, { haceCuanto } from "./HistorialModal.jsx";
 import { apiFetch } from "../../api.js";

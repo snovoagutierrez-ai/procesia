@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
 import { ArrowLeft, Clock, Trash2, PenLine, Check, ChevronUp, ChevronDown, Sparkles, Loader2, ArrowRight, AlertTriangle, X, Lightbulb, Info, Send } from 'lucide-react';
 import { VALUE, WASTE, TYPES, ACTION, SEVERITY, WASTE_QUESTIONS } from '../../constants.js';
 import { apiFetch } from '../../api.js';
@@ -630,14 +630,14 @@ function MeasurementsPanel({ processId, taskId, stdCycle }) {
   const [uCiclo, setUCiclo] = useState(60);
   const [uEspera, setUEspera] = useState(60);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!processId || !taskId) return;
     try {
       const res = await apiFetch(`/processes/${processId}/tasks/${taskId}/measurements`);
       if (res.ok) setItems(await res.json());
     } catch { /* silent */ }
-  };
-  useEffect(() => { if (open) load(); /* eslint-disable-next-line */ }, [open, processId, taskId]);
+  }, [processId, taskId]);
+  useEffect(() => { if (open) load(); }, [open, load]);
 
   const add = async () => {
     const c = Number(cycle) * uCiclo;
@@ -703,7 +703,7 @@ function MeasurementsPanel({ processId, taskId, stdCycle }) {
   );
 }
 
-function Editor({ task, onChange, onMove, onDelete, isFirst, isLast, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone, sequenceFlows = [], gateways = [], tasks = [], onFlowsChange, onForceSave, firstStepsActive, guideStep, onGuideComplete, processId }) {
+function Editor({ task, onChange, onDelete, saveState = { status: 'idle' }, expertMode, setExpertMode, onDone, onForceSave, firstStepsActive, guideStep, onGuideComplete, processId }) {
   const [showSaved, setShowSaved] = useState(false);
   const handleSave = async () => {
     if (onForceSave) await onForceSave();
@@ -827,7 +827,7 @@ function BranchRow({ flow, targetName, isExclusive, onCommit, onRemove }) {
   useEffect(() => {
     setLabel(flow.condition_expression || flow.condition || "");
     setProb(flow.branch_probability != null ? String(flow.branch_probability) : "");
-  }, [flow.bpmn_id, flow.condition_expression, flow.branch_probability]);
+  }, [flow.bpmn_id, flow.condition_expression, flow.condition, flow.branch_probability]);
 
   const commit = (nextLabel = label, nextProb = prob) => {
     const p = nextProb === "" ? null : Math.max(0, Math.min(100, Number(nextProb)));

@@ -42,7 +42,7 @@ export function construirRespaldo({ proc, tasks = [], gateways = [], sequenceFlo
 
 function nombreArchivo(proc) {
   const base = (proc?.code || proc?.name || "proceso")
-    .toString().trim().replace(/[^\w\-]+/g, "_").slice(0, 60) || "proceso";
+    .toString().trim().replace(/[^\w-]+/g, "_").slice(0, 60) || "proceso";
   const dia = new Date().toISOString().slice(0, 10);
   return `respaldo_${base}_${dia}.json`;
 }

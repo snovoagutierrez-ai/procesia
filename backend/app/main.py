@@ -7,6 +7,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 import logging
 import os
+from app.environment import is_production as production_environment
 
 from sqlalchemy.exc import IntegrityError
 
@@ -19,7 +20,7 @@ logger = logging.getLogger("uvicorn.error")
 app = FastAPI(
     title="AiProces Backend API",
     description="Backend para optimización de procesos Lean/BPMN con integración a Gemini API",
-    version="1.5.0"
+    version="1.6.0"
 )
 
 # Register Limiter
@@ -31,7 +32,7 @@ app.add_middleware(SlowAPIMiddleware)
 cors_regex = r"^https://aiproces(-[a-z0-9]+)?\.vercel\.app$|^http://(localhost|127\.0\.0\.1)(:\d+)?$"
 
 # Expandir para redes locales solo en desarrollo
-is_production = os.environ.get("ENV", "development").lower() == "production" or os.environ.get("RENDER") == "true"
+is_production = production_environment()
 if not is_production:
     cors_regex = r"^https://aiproces(-[a-z0-9]+)?\.vercel\.app$|^http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$"
 
@@ -94,5 +95,6 @@ def health_check():
     return {
         "status": "healthy",
         "app": "AiProces Backend",
-        "version": "1.5.0"
+        "version": app.version,
+        "revision": os.environ.get("RENDER_GIT_COMMIT"),
     }

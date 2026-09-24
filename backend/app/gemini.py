@@ -12,7 +12,7 @@ from sqlalchemy import func
 from app import models, schemas
 from app.config import settings
 from app.metrics import calculate_process_metrics
-import os
+from app.environment import is_production
 
 SYSTEM_PROMPT = """Eres un motor experto en optimización de procesos bajo metodologías Lean, Six Sigma y
 BPMN 2.0. Recibirás un objeto JSON que representa el levantamiento transaccional de un
@@ -475,7 +475,7 @@ def build_process_snapshot(db: Session, process_id: int) -> Dict[str, Any]:
 def ask_task_assistant(text: str, context: dict) -> dict:
     import httpx
     http_opts = None
-    if not settings.gemini_ssl_verify and os.environ.get("ENVIRONMENT", "development") != "production":
+    if not settings.gemini_ssl_verify and not is_production():
         import urllib3
         # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # Removido: suprimía warnings globalmente
         http_opts = types.HttpOptions(httpx_client=httpx.Client(verify=False))
@@ -557,7 +557,7 @@ def run_optimization(db: Session, process_id: int) -> models.OptimizationRun:
     
     http_opts = None
     # Only allow bypassing SSL in non-production environments
-    if not settings.gemini_ssl_verify and os.environ.get("ENVIRONMENT", "development") != "production":
+    if not settings.gemini_ssl_verify and not is_production():
         import urllib3
         # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # Removido: suprimía warnings globalmente
 
@@ -836,7 +836,7 @@ def run_macro_optimization(db: Session, macroprocess_id: int) -> models.MacroOpt
     import httpx
     
     http_opts = None
-    if not settings.gemini_ssl_verify and os.environ.get("ENVIRONMENT", "development") != "production":
+    if not settings.gemini_ssl_verify and not is_production():
         import urllib3
         # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # Removido: suprimía warnings globalmente
         h_client = httpx.Client(verify=False)
@@ -920,7 +920,7 @@ def tutorial_chat(message: str, history: list | None = None, process_context: di
     """
     import httpx
     http_opts = None
-    if not settings.gemini_ssl_verify and os.environ.get("ENVIRONMENT", "development") != "production":
+    if not settings.gemini_ssl_verify and not is_production():
         import urllib3
         # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # Removido: suprimía warnings globalmente
         h_client = httpx.Client(verify=False)
