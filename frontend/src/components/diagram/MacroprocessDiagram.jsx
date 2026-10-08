@@ -9,12 +9,14 @@ import {
   MarkerType,
   Handle,
   Position,
-  addEdge
+  addEdge,
+  applyEdgeChanges
 } from "@xyflow/react";
 import dagre from "dagre";
 import { apiFetch, apiMutate } from "../../api.js";
 import { conservarMedidas } from "../../utils/reactFlowNodos.js";
-import { AlertCircle, Network, Eye, FileText, FolderInput } from 'lucide-react';
+import { edgeTypes } from './FlowDiagrams.jsx';
+import { AlertCircle, Network, Eye, FileText, FolderInput, Trash2 } from 'lucide-react';
 import "@xyflow/react/dist/style.css";
 
 /* Medidas de la tarjeta. Viven aqui y no repartidas: el calculo de posiciones
@@ -69,6 +71,12 @@ function ProcessNode({ data }) {
             <FolderInput size={13} />
           </button>
         )}
+        {data.onDeleteProcess && <button type="button" className="pa-btn pa-btn-ghost nodrag nopan"
+          style={{ padding: 3, color: 'var(--danger)', flexShrink: 0 }}
+          aria-label={`Solicitar eliminación de ${data.process.name}`} title="Solicitar eliminación al administrador"
+          onClick={e => { e.stopPropagation(); data.onDeleteProcess(data.process.id); }}>
+          <Trash2 size={14} />
+        </button>}
       </div>
       
       <div style={{ fontSize: '11px', color: '#5C6B6B', display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
@@ -141,9 +149,11 @@ const getLayoutedElements = (nodes, edges) => {
 };
 
 /* ---------- Build nodes & edges ---------- */
-function buildGraph(processes, sequenceFlows = [], onViewFlow, onViewSummary, onOrganizar) {
+function buildGraph(processes, sequenceFlows = [], onViewFlow, onViewSummary, onOrganizar, onDeleteProcess, onDeleteEdge) {
   const nodes = [];
   const edges = [];
+  const processIds = new Set(processes.map(p => String(p.id)));
+  sequenceFlows = sequenceFlows.filter(sf => processIds.has(sf.source_ref) && processIds.has(sf.target_ref));
 
   // Create nodes
   processes.forEach((p) => {
@@ -151,7 +161,8 @@ function buildGraph(processes, sequenceFlows = [], onViewFlow, onViewSummary, on
     nodes.push({
       id: String(p.id),
       type: "processNode",
-      data: { process: p, isConnected, onViewFlow, onViewSummary, onOrganizar },
+      data: { process: p, isConnected, onViewFlow, onViewSummary, onOrganizar, onDeleteProcess },
+      deletable: false,
       // Tamaño de partida: sin el, React Flow deja el nodo en `visibility:
       // hidden` hasta medirlo, y si esa medicion no llega el lienzo se ve vacio.
       initialWidth: ANCHO_TARJETA,
@@ -163,10 +174,11 @@ function buildGraph(processes, sequenceFlows = [], onViewFlow, onViewSummary, on
   // Create edges from sequenceFlows
   sequenceFlows.forEach(sf => {
     edges.push({
-      id: sf.id || `e-${sf.source_ref}-${sf.target_ref}`,
+      id: String(sf.id || `e-${sf.source_ref}-${sf.target_ref}`),
       source: sf.source_ref,
       target: sf.target_ref,
-      type: "smoothstep",
+      type: "deletable",
+      data: { onDelete: onDeleteEdge, condition: sf.condition },
       style: { stroke: "#0E9F9F", strokeWidth: 2 },
       markerEnd: {
         type: MarkerType.ArrowClosed,
@@ -182,11 +194,13 @@ function buildGraph(processes, sequenceFlows = [], onViewFlow, onViewSummary, on
 }
 
 /* ---------- Main Component ---------- */
-export default function MacroprocessDiagram({ macroprocessId, processes, onProcessDoubleClick, onViewFlow, onViewSummary, onOrganizar }) {
+export default function MacroprocessDiagram({ macroprocessId, processes, onProcessDoubleClick, onViewFlow, onViewSummary, onOrganizar, onDeleteProcess }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [edges, setEdges] = useEdgesState([]);
+  const edgesRef = useRef([]);
   const [sequenceFlows, setSequenceFlows] = useState([]);
   const [graphError, setGraphError] = useState(null);
+  const [graphLoaded, setGraphLoaded] = useState(false);
   const persistedFlowsRef = useRef([]);
   const saveQueueRef = useRef(Promise.resolve());
   const latestSaveRef = useRef(0);
@@ -194,6 +208,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
   // Fetch macro graph
   const fetchGraph = useCallback(async () => {
     if (!macroprocessId) return;
+    setGraphLoaded(false);
     try {
       const res = await apiFetch(`/macroprocesses/${macroprocessId}/graph`);
       if (res.ok) {
@@ -201,6 +216,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
         persistedFlowsRef.current = data.sequence_flows || [];
         setSequenceFlows([...persistedFlowsRef.current]);
         setGraphError(null);
+        setGraphLoaded(true);
       } else {
         throw new Error('No se pudo cargar el flujo del macroproceso.');
       }
@@ -214,15 +230,6 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
     fetchGraph();
   }, [fetchGraph]);
 
-  // Update layout when processes or sequenceFlows change
-  useEffect(() => {
-    const { nodes: newNodes, edges: newEdges } = buildGraph(processes, sequenceFlows, onViewFlow, onViewSummary, onOrganizar);
-    // Conservar la medicion: sin ella se pierden los puntos de enganche y las
-    // conexiones entre procesos dejan de dibujarse.
-    setNodes((previos) => conservarMedidas(newNodes, previos));
-    setEdges(newEdges);
-  }, [processes, sequenceFlows, setNodes, setEdges, onViewFlow, onViewSummary, onOrganizar]);
-
   // Save changes to backend
   const saveGraph = useCallback(async (updatedEdges) => {
     if (!macroprocessId) return;
@@ -232,7 +239,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
         id: String(e.id),
         source_ref: e.source,
         target_ref: e.target,
-        condition: null
+        condition: e.data?.condition ?? null
       }))
     };
     
@@ -261,34 +268,42 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
     return saveQueueRef.current;
   }, [macroprocessId]);
 
-  const onConnect = useCallback((params) => {
-    setEdges((eds) => {
-      const newEdge = {
-        ...params,
-        type: "smoothstep",
-        style: { stroke: "#0E9F9F", strokeWidth: 2 },
-        markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: "#0E9F9F" },
-        animated: true
-      };
-      const updatedEdges = addEdge(newEdge, eds);
-      // Ejecutar el guardado fuera del callback de React para evitar problemas de sincronía
-      setTimeout(() => saveGraph(updatedEdges), 0);
-      return updatedEdges;
-    });
-  }, [setEdges, saveGraph]);
-
   const handleEdgesChange = useCallback((changes) => {
-    onEdgesChange(changes);
-    const hasDeletes = changes.some(c => c.type === 'remove');
-    if (hasDeletes) {
-      setTimeout(() => {
-        setEdges((currentEdges) => {
-          saveGraph(currentEdges);
-          return currentEdges;
-        });
-      }, 0);
+    if (!graphLoaded) return;
+    const updated = applyEdgeChanges(changes, edgesRef.current);
+    edgesRef.current = updated;
+    setEdges(updated);
+    if (changes.some(c => c.type === 'remove')) {
+      setSequenceFlows(updated.map(e => ({ id: e.id, source_ref: e.source, target_ref: e.target, condition: e.data?.condition ?? null })));
+      saveGraph(updated);
     }
-  }, [onEdgesChange, setEdges, saveGraph]);
+  }, [setEdges, saveGraph, graphLoaded]);
+
+  const deleteEdge = useCallback(id => handleEdgesChange([{ id, type: 'remove' }]), [handleEdgesChange]);
+
+  const onConnect = useCallback((params) => {
+    if (!graphLoaded || params.source === params.target) return;
+    const newEdge = {
+      ...params, type: 'deletable', data: { onDelete: deleteEdge },
+      style: { stroke: '#0E9F9F', strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: '#0E9F9F' },
+      animated: true,
+    };
+    const updated = addEdge(newEdge, edgesRef.current);
+    edgesRef.current = updated;
+    setEdges(updated);
+    setSequenceFlows(updated.map(e => ({ id: e.id, source_ref: e.source, target_ref: e.target, condition: e.data?.condition ?? null })));
+    saveGraph(updated);
+  }, [graphLoaded, deleteEdge, setEdges, saveGraph]);
+
+  useEffect(() => {
+    const { nodes: newNodes, edges: newEdges } = buildGraph(processes, sequenceFlows, onViewFlow,
+      onViewSummary, onOrganizar, onDeleteProcess, deleteEdge);
+    setNodes(previos => conservarMedidas(newNodes.map(node => ({ ...node,
+      position: previos.find(p => p.id === node.id)?.position || node.position })), previos));
+    edgesRef.current = newEdges;
+    setEdges(newEdges);
+  }, [processes, sequenceFlows, setNodes, setEdges, onViewFlow, onViewSummary, onOrganizar, onDeleteProcess, deleteEdge]);
 
   const onNodeDoubleClick = useCallback(
     (_event, node) => {
@@ -309,7 +324,9 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", background: "#F6F8FA", borderRadius: "8px", overflow: "hidden", border: "1px solid #E2E7E3", display: "flex", flexDirection: "column" }}>
-      {graphError && <div role="alert" style={{ flexShrink: 0, padding: '8px 16px', color: '#A4271A', background: '#FCEDEA' }}>{graphError}</div>}
+      {graphError && <div role="alert" style={{ flexShrink: 0, padding: '8px 16px', color: '#A4271A', background: '#FCEDEA' }}>{graphError}
+        {!graphLoaded && <button className="pa-btn pa-btn-ghost" onClick={fetchGraph}>Reintentar carga</button>}
+      </div>}
       {needsHelp && !hideBanner && (
         <div style={{ flexShrink: 0, margin: '12px 16px 0', background: '#FFF8E1', border: '1px solid #F5DEB3', color: '#C98A12', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <AlertCircle size={18} style={{ flexShrink: 0 }} />
@@ -335,7 +352,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
       <button 
         className="pa-btn"
         onClick={() => {
-          const { nodes: newNodes } = buildGraph(processes, sequenceFlows, onViewFlow, onViewSummary, onOrganizar);
+          const { nodes: newNodes } = buildGraph(processes, sequenceFlows, onViewFlow, onViewSummary, onOrganizar, onDeleteProcess, deleteEdge);
           setNodes((previos) => conservarMedidas([...newNodes], previos));
         }}
         style={{ position: 'absolute', bottom: 20, right: 20, zIndex: 10, display: 'flex', gap: '6px', alignItems: 'center', background: '#fff', color: '#13202B', border: '1px solid #E2E7E3' }}
@@ -347,6 +364,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
@@ -356,7 +374,7 @@ export default function MacroprocessDiagram({ macroprocessId, processes, onProce
         minZoom={0.2}
         maxZoom={2}
         nodesDraggable={true}
-        nodesConnectable={true}
+        nodesConnectable={graphLoaded}
         elementsSelectable={true}
       >
         <Background color="#ccc" gap={16} />

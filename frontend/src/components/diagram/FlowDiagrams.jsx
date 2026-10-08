@@ -251,7 +251,7 @@ function DeletableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
           {label && (
             <span className="edge-branch-label">{label}</span>
           )}
-          {data?.onDelete && <button className="edge-delete-btn" onClick={(e) => { e.stopPropagation(); data.onDelete(id); }}>
+          {data?.onDelete && <button type="button" aria-label="Eliminar conexión" title="Eliminar conexión" className="edge-delete-btn" onClick={(e) => { e.stopPropagation(); data.onDelete(id); }}>
             <Trash2 size={12} color="#D9503C" />
           </button>}
         </div>
@@ -891,6 +891,28 @@ function NotaNode({ data }) {
   const tipo = TIPOS_DE_NOTA[data.kind] || TIPOS_DE_NOTA.nota;
   const Icono = tipo.icono;
   const [abierta, setAbierta] = useState(false);
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState(data.text);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+
+  const guardarYCerrar = async () => {
+    if (guardando) return;
+    if (editando) {
+      if (!texto.trim()) { setError('Escribe el texto de la nota.'); return; }
+      setGuardando(true);
+      setError('');
+      try {
+        await data.onEditar(data.nota, texto.trim());
+        setEditando(false);
+      } catch (err) {
+        setError(err.message || 'No se pudo guardar la nota. Inténtalo de nuevo.');
+        return;
+      } finally { setGuardando(false); }
+    }
+    setAbierta(false);
+  };
+  const editar = () => { setTexto(data.text); setError(''); setEditando(true); };
 
   const autoria = [tipo.etiqueta, data.author_email].filter(Boolean).join(" · ");
 
@@ -916,26 +938,36 @@ ${data.text}`}>
     <div className={`rf-nota ${tipo.clase}`} title={autoria}>
       <Handle type="target" position={Position.Left} id="ancla" className="rf-nota-ancla" isConnectable={false} />
       <div className="rf-nota-cabecera">
-        <Icono size={12} />
-        <span>{tipo.etiqueta}</span>
+        <button type="button" className="rf-nota-titulo nodrag nopan" onClick={guardarYCerrar}
+          disabled={guardando} aria-label={editando ? 'Guardar y cerrar nota' : 'Cerrar nota desde la barra'}
+          title={editando ? 'Guardar y cerrar la nota' : 'Cerrar nota'}>
+          <Icono size={12} /> {guardando ? 'Guardando…' : editando ? 'Guardar nota' : tipo.etiqueta}
+        </button>
         {data.onEditar && (
-          <button type="button" aria-label="Editar nota" title="Editar nota"
-            onClick={(e) => { e.stopPropagation(); data.onEditar(data.nota); }}>
+          <button type="button" className="nodrag nopan" aria-label="Editar nota" title="Editar nota" disabled={guardando}
+            onClick={(e) => { e.stopPropagation(); editar(); }}>
             <PenLine size={11} />
           </button>
         )}
         {data.onBorrar && (
-          <button type="button" aria-label="Borrar nota" title="Borrar nota"
+          <button type="button" className="nodrag nopan" aria-label="Borrar nota" title="Borrar nota" disabled={guardando}
             onClick={(e) => { e.stopPropagation(); data.onBorrar(data.nota); }}>
             <Trash2 size={11} />
           </button>
         )}
-        <button type="button" aria-label="Cerrar nota" title="Cerrar nota"
-          onClick={(e) => { e.stopPropagation(); setAbierta(false); }}>
+        <button type="button" className="nodrag nopan" aria-label="Cerrar nota" title="Guardar y cerrar nota" disabled={guardando}
+          onClick={(e) => { e.stopPropagation(); guardarYCerrar(); }}>
           <X size={11} />
         </button>
       </div>
-      <div className="rf-nota-texto">{data.text}</div>
+      {editando ? <textarea className="rf-nota-edicion nodrag nopan nowheel" aria-label="Texto de la nota"
+        autoFocus maxLength={2000} value={texto} disabled={guardando} onChange={e => setTexto(e.target.value)}
+        onKeyDown={e => {
+          e.stopPropagation();
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); guardarYCerrar(); }
+          if (e.key === 'Escape') { setEditando(false); setError(''); }
+        }} /> : <div className="rf-nota-texto">{data.text}</div>}
+      {error && <div className="rf-nota-error" role="alert">{error}</div>}
       {data.nombreDelPaso && <div className="rf-nota-pie">en «{data.nombreDelPaso}»</div>}
     </div>
   );

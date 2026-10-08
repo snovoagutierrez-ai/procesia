@@ -153,22 +153,22 @@ button{font-family:inherit}
 .pa-rail-right .pa-rail-label{color:var(--muted)}
 /* Desktop wide (>=1024px): 3 fixed-flex columns using the full viewport width */
 @media (min-width:1024px){
-  .pa-shell{grid-template-columns:280px 1fr 320px;max-width:100%;gap:16px;padding:16px 20px;align-items:stretch}
+  .pa-shell{grid-template-columns:280px minmax(0,1fr) 320px;max-width:100%;gap:16px;padding:16px 20px;align-items:stretch}
   /* Una sola fila que NO puede crecer mas que el hueco disponible. Sin esto, la
      fila se estira con la columna mas alta y cualquier `max-height:100%` de las
      columnas se vuelve inutil: el panel se salia por abajo y su final quedaba
      inalcanzable. */
   .pa-editor-layout > .pa-shell{grid-template-rows:minmax(0, 1fr)}
   .pa-editor-layout > .pa-shell > *{min-height:0}
-  .pa-shell.pa-left-collapsed{grid-template-columns:46px 1fr 320px}
-  .pa-shell.pa-right-collapsed{grid-template-columns:280px 1fr 46px}
-  .pa-shell.pa-left-collapsed.pa-right-collapsed{grid-template-columns:46px 1fr 46px}
+  .pa-shell.pa-left-collapsed{grid-template-columns:46px minmax(0,1fr) 320px}
+  .pa-shell.pa-right-collapsed{grid-template-columns:280px minmax(0,1fr) 46px}
+  .pa-shell.pa-left-collapsed.pa-right-collapsed{grid-template-columns:46px minmax(0,1fr) 46px}
   .pa-side{max-height:calc(100vh - 92px)}
   .pa-detail{align-self:start;position:sticky;top:76px;max-height:calc(100vh - 92px);overflow-y:auto;min-width:0}
   /* 100% = altura real de la celda; con calc(100dvh - 56px) el panel se
      salia por abajo si la barra superior no medía exactamente 56 px. */
   .pa-editor-layout .pa-detail{position:static;height:100%;max-height:100%;overflow:hidden;display:flex}
-  .pa-editor-layout .pa-detail > .pa-panel{flex:1;min-height:0;display:flex;flex-direction:column}
+  .pa-editor-layout .pa-detail > .pa-panel{flex:1;min-width:0;width:100%;min-height:0;display:flex;flex-direction:column}
   .pa-editor-layout .pa-detail > .pa-panel > .pa-detail-tabbar{flex-shrink:0}
   /* padding-bottom:0 a proposito: asi el final del contenido coincide con el
      borde inferior del area visible y el pie puede quedarse pegado a el. Con
@@ -178,7 +178,7 @@ button{font-family:inherit}
   /* El pie con «Guardar» se fija al fondo de la tarjeta, igual que la botonera
      del sidebar: deja de depender del scroll y ya no puede quedar cortado. */
   .pa-editor-layout .pa-detail .pa-editor-footer{position:sticky;bottom:0;z-index:2;
-    margin:24px -18px 0;padding:12px 18px;background:var(--card);border-top:1px solid var(--line);
+    margin:24px 0 0;padding:12px 0;background:var(--card);border-top:1px solid var(--line);
     /* El panel mide ~300px: en fila los dos botones y el aviso se apilaban en
        tres lineas y el pie se comia 140 de los 509px de la tarjeta. En rejilla
        el aviso ocupa su linea y los botones comparten la siguiente. */
@@ -713,6 +713,12 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
    espacios, una URL o un nombre de sistema largo para sacar el contenido por la
    derecha. Se acota aqui, en la raiz, en vez de ir persiguiendo cada caso. */
 .pa-detail .pa-panel-body{overflow-wrap:anywhere}
+.pa-detail{container-type:inline-size}
+.pa-detail .pa-editor{min-width:0;max-width:100%}
+.pa-detail .pa-panel-body{overflow-x:hidden;scrollbar-gutter:stable}
+@container (max-width:340px){
+  .pa-detail .pa-row.two{grid-template-columns:minmax(0,1fr)}
+}
 .pa-detail .pa-panel-body input,
 .pa-detail .pa-panel-body select,
 .pa-detail .pa-panel-body textarea{max-width:100%;min-width:0}
@@ -783,6 +789,23 @@ button:disabled,.pa-icon:disabled{opacity:0.6;cursor:not-allowed;filter:none;tra
 .rf-nota-cabecera button{display:flex;background:none;border:none;padding:1px;cursor:pointer;
   color:inherit;opacity:.55;border-radius:3px}
 .rf-nota-cabecera button:hover{opacity:1;background:rgba(0,0,0,.08)}
+.rf-nota-cabecera .rf-nota-titulo{flex:1;min-width:0;gap:5px;text-align:left;font:inherit;color:inherit;opacity:1;padding:3px 0}
+.rf-nota-edicion{box-sizing:border-box;display:block;width:calc(100% - 18px);margin:7px 9px;min-height:100px;
+  resize:vertical;border:1px solid rgba(0,0,0,.2);border-radius:3px;background:rgba(255,255,255,.55);
+  font:inherit;font-size:11.5px;line-height:1.45;padding:6px;color:#3A3320}
+.rf-nota-error{padding:4px 9px 9px;font-size:11px;color:var(--danger)}
+.pa-deletion-overlay{position:fixed;inset:0;z-index:400;background:rgba(19,32,43,.6);display:flex;align-items:center;justify-content:center;padding:16px}
+.pa-deletion-modal{box-sizing:border-box;width:720px;max-width:100%;max-height:85dvh;overflow-y:auto;background:var(--card);border-radius:14px;padding:24px}
+.pa-deletion-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pa-deletion-header h2{font-size:19px;margin:0}
+.pa-deletion-list{list-style:none;padding:0;margin:16px 0 0}
+.pa-deletion-list li{border-top:1px solid var(--line);padding:16px 0;overflow-wrap:anywhere}
+.pa-deletion-list .pa-tag{margin-left:8px}
+.pa-deletion-list p{white-space:pre-wrap;font-size:13px}
+.pa-deletion-list small{color:var(--muted)}
+.pa-deletion-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.pa-deletion-actions label{width:100%;font-size:12px}
+.pa-deletion-actions textarea{display:block;margin-top:6px}
 .rf-nota-texto{padding:7px 9px 9px;font-size:11.5px;line-height:1.45;color:#3A3320;
   white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow-y:auto}
 .rf-nota-cerrada.es-nota{background:#FBE98C;color:#7A6410}

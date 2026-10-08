@@ -303,11 +303,17 @@ def _layout_copiado(layout, tarea_nueva: dict, ref_nueva: dict):
     return copiado or None
 
 
-def delete_process(db: Session, process_id: int):
+def delete_process(db: Session, process_id: int, *, commit: bool = True):
     db_process = get_process(db, process_id)
     if db_process:
+        # Las referencias del grafo macro son texto, sin FK al proceso.
+        db.query(models.MacroSequenceFlow).filter(
+            (models.MacroSequenceFlow.source_ref == str(process_id)) |
+            (models.MacroSequenceFlow.target_ref == str(process_id))
+        ).delete(synchronize_session=False)
         db.delete(db_process)
-        db.commit()
+        if commit:
+            db.commit()
         return True
     return False
 

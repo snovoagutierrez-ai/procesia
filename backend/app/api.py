@@ -13,8 +13,10 @@ from app.limiter import limiter
 from app.environment import is_production as production_environment
 from app.restoration import RestoreInput, RestoreOutput, restore_process
 from fastapi import Request
+from app.deletion_requests import router as deletion_requests_router
 
 router = APIRouter()
+router.include_router(deletion_requests_router)
 
 def verify_process_access(db: Session, process_id: int, current_user: models.User):
     process = crud.get_process(db, process_id)
@@ -148,6 +150,17 @@ def delete_macroprocess(id: int, db: Session = Depends(get_db), current_user: mo
         ).first()
         if protected:
             raise HTTPException(status_code=403, detail="Esta carpeta contiene procesos con versiones guardadas. Solo una cuenta administradora puede eliminarla. Contacta al administrador.")
+    pending_requests = db.query(models.ProcessDeletionRequest).join(
+        models.Process, models.Process.id == models.ProcessDeletionRequest.process_id
+    ).filter(models.Process.macroprocess_id == id, models.ProcessDeletionRequest.status == 'pending').all()
+    if pending_requests and current_user.role != models.UserRole.admin:
+        raise HTTPException(status_code=403, detail="Esta carpeta contiene solicitudes de eliminación pendientes. Espera la decisión del administrador.")
+    for solicitud in pending_requests:
+        solicitud.status = 'approved'
+        solicitud.reviewer_id = current_user.id
+        solicitud.review_note = 'Eliminado por el administrador junto con su carpeta.'
+        solicitud.reviewed_at = datetime.now(timezone.utc)
+    db.flush()
     crud.delete_macroprocess(db, id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -447,6 +460,15 @@ def delete_process(id: int, db: Session = Depends(get_db), current_user: models.
         ).first()
         if protected:
             raise HTTPException(status_code=403, detail="Este proceso tiene versiones guardadas. Solo una cuenta administradora puede eliminarlo. Contacta al administrador.")
+        if db.query(models.ProcessDeletionRequest.id).filter_by(process_id=id, status='pending').first():
+            raise HTTPException(status_code=403, detail="Este proceso tiene una solicitud de eliminación pendiente. Espera la decisión del administrador.")
+    pendientes = db.query(models.ProcessDeletionRequest).filter_by(process_id=id, status='pending').all()
+    for solicitud in pendientes:
+        solicitud.status = 'approved'
+        solicitud.reviewer_id = current_user.id
+        solicitud.review_note = 'Eliminado directamente por el administrador.'
+        solicitud.reviewed_at = datetime.now(timezone.utc)
+    db.flush()
     crud.delete_process(db, id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

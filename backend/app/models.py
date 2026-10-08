@@ -1,7 +1,7 @@
 import enum
 from sqlalchemy import (
     Column, BigInteger, String, Text, Integer, Numeric, DateTime, ForeignKey, Boolean,
-    CheckConstraint, UniqueConstraint, func
+    CheckConstraint, UniqueConstraint, Index, func, text
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import ENUM, JSONB
@@ -115,6 +115,31 @@ class Process(Base):
     optimization_runs = relationship("OptimizationRun", back_populates="process", cascade="all, delete-orphan", passive_deletes=True)
     bpmn_artifacts = relationship("BpmnArtifact", back_populates="process", cascade="all, delete-orphan", passive_deletes=True)
     snapshots = relationship("ProcessSnapshot", back_populates="process", cascade="all, delete-orphan", passive_deletes=True)
+
+
+class ProcessDeletionRequest(Base):
+    """La solicitud y su resolución sobreviven a la eliminación del proceso."""
+    __tablename__ = 'process_deletion_requests'
+
+    id = Column(BigInteger, primary_key=True)
+    process_id = Column(BigInteger, ForeignKey('processes.id', ondelete='SET NULL'), index=True)
+    process_code = Column(String(40), nullable=False)
+    process_name = Column(String(200), nullable=False)
+    requester_id = Column(BigInteger, ForeignKey('users.id', ondelete='SET NULL'), index=True)
+    reason = Column(String(1000), nullable=False)
+    status = Column(String(20), nullable=False, server_default='pending', index=True)
+    reviewer_id = Column(BigInteger, ForeignKey('users.id', ondelete='SET NULL'), index=True)
+    review_note = Column(String(1000))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    reviewed_at = Column(DateTime(timezone=True))
+
+    requester = relationship('User', foreign_keys=[requester_id])
+    reviewer = relationship('User', foreign_keys=[reviewer_id])
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'approved', 'rejected')", name='chk_deletion_request_status'),
+        Index('uq_pending_process_deletion', 'process_id', unique=True,
+              postgresql_where=text("status = 'pending'"), sqlite_where=text("status = 'pending'")),
+    )
 
 
 class NodeComment(Base):

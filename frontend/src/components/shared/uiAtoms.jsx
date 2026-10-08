@@ -66,7 +66,7 @@ export function Field({ label, tooltip, children }) {
         <div ref={popoverRef} style={{
           position: 'absolute', top: 24, left: 0, zIndex: 100,
           background: '#13202B', color: '#fff', padding: '10px 14px',
-          borderRadius: 8, fontSize: 13, fontWeight: 400, width: 'max-content', maxWidth: 300,
+          borderRadius: 8, fontSize: 13, fontWeight: 400, width: 'max-content', maxWidth: '100%', boxSizing: 'border-box',
           boxShadow: '0 8px 24px rgba(0,0,0,0.15)', lineHeight: 1.5,
           whiteSpace: 'normal', pointerEvents: 'auto'
         }}>

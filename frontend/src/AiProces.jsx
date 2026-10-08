@@ -27,6 +27,7 @@ import { useAuth } from './components/auth/AuthContext.jsx';
 import { useConfirm, useInputDialog } from './components/shared/ConfirmDialog.jsx';
 import Logo from "./components/shared/Logo.jsx";
 import Dashboard from "./components/dashboard/Dashboard.jsx";
+import DeletionRequestsModal from "./components/dashboard/DeletionRequestsModal.jsx";
 import './styles/main.css';
 import { Editor, GatewayEditor, fmtShort, fmtLong } from "./components/editor/Editors.jsx";
 import { VSMLadder, FlowDiagram } from "./components/diagram/FlowDiagrams.jsx";
@@ -1021,6 +1022,7 @@ export default function App() {
   // Notas sueltas sobre el lienzo: apoyo visual, por fuera del flujo.
   const [notas, setNotas] = useState([]);
   const [menuNotaAbierto, setMenuNotaAbierto] = useState(false);
+  const [solicitudesAbiertas, setSolicitudesAbiertas] = useState(false);
   // Fundamentos: metodologias + nomenclaturas del proceso (estas viajan
   // tambien al informe).
   const [fundamentosAbierto, setFundamentosAbierto] = useState(false);
@@ -1518,6 +1520,22 @@ export default function App() {
     } catch (e) {
       showToast(e.message || "Error al eliminar el proceso.");
     }
+  };
+
+  const solicitarEliminacion = async (id) => {
+    const proceso = allProcesses.find(p => p.id === id);
+    const reason = await showInput('Solicitar eliminación de proceso', {
+      message: `Indica por qué quieres eliminar «${proceso?.name || 'este proceso'}». Seguirá disponible hasta la aprobación del administrador.`,
+      placeholder: 'Motivo de la eliminación', confirmLabel: 'Enviar solicitud', multiline: true,
+    });
+    if (!reason) return;
+    if (reason.length > 1000) { showToast('El motivo admite hasta 1.000 caracteres.'); return; }
+    try {
+      await apiMutate(`/processes/${id}/deletion-requests`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }),
+      });
+      showToast('Solicitud pendiente de aprobación del administrador.', 'success');
+    } catch (err) { showToast(err.message || 'No se pudo enviar la solicitud.'); }
   };
 
 
@@ -2196,8 +2214,8 @@ export default function App() {
     }
   };
 
-  const editarNota = async (nota) => {
-    const texto = await showInput("Editar nota", {
+  const editarNota = async (nota, textoInline) => {
+    const texto = textoInline ?? await showInput("Editar nota", {
       defaultValue: nota.text, confirmLabel: "Guardar", multiline: true });
     if (texto === null || !texto.trim()) return;
     try {
@@ -2207,7 +2225,8 @@ export default function App() {
       });
       const actualizada = await res.json();
       setNotas((prev) => prev.map((n) => (n.id === nota.id ? actualizada : n)));
-    } catch {
+    } catch (e) {
+      if (textoInline !== undefined) throw e;
       showToast("No se pudo guardar la nota.");
     }
   };
@@ -2375,6 +2394,7 @@ export default function App() {
               <button className="pa-btn pa-btn-ghost" onClick={() => setShowTutorial(true)} title="Ver Tutorial">
                 <Info size={16} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>Tutorial</span>
               </button>
+              <button className="pa-btn pa-btn-ghost" onClick={() => setSolicitudesAbiertas(true)}>Solicitudes de eliminación</button>
               <button className="pa-btn pa-btn-ghost" onClick={logout} title="Cerrar sesion">
                 <LogOut size={16} />
               </button>
@@ -2390,6 +2410,12 @@ export default function App() {
         </div>
       )}
 
+      {solicitudesAbiertas && <DeletionRequestsModal isAdmin={user?.role === 'admin'}
+        onClose={() => setSolicitudesAbiertas(false)} onDeleted={id => {
+          setAllProcesses(prev => prev.filter(p => p.id !== id));
+          if (proc?.id === id) { setProc(null); setView('dashboard'); }
+        }} />}
+
       {view === "dashboard" ? (
         <Dashboard
           macroprocesses={macroprocesses}
@@ -2398,6 +2424,7 @@ export default function App() {
           onCreateProcess={createNewProcess}
           onCreateMacro={createNewMacroprocess}
           onDeleteProcess={deleteProcess}
+          onRequestDeleteProcess={solicitarEliminacion}
           onDeleteMacro={deleteMacroprocess}
           onRenameMacro={renameMacroprocess}
           onMoverProceso={moverProceso}

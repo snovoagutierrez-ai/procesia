@@ -6,7 +6,7 @@ import ProcessPreviewModal from './ProcessPreviewModal.jsx';
 import ProcessSummaryModal from '../editor/ProcessSummaryModal.jsx';
 import { apiFetch } from '../../api.js';
 
-function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCreateMacro, onDeleteProcess, onDeleteMacro, onRenameMacro, onMoverProceso, onDuplicarProceso, macroOpts, runOptimizeMacro, onLoadDemo, openOpts, setOpenOpts, macroLongLoading }) {
+function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCreateMacro, onDeleteProcess, onRequestDeleteProcess, onDeleteMacro, onRenameMacro, onMoverProceso, onDuplicarProceso, macroOpts, runOptimizeMacro, onLoadDemo, openOpts, setOpenOpts, macroLongLoading }) {
   const [dashTab, setDashTab] = useState("jerarquia");
   const [expandedMacros, setExpandedMacros] = useState({});
   const [search, setSearch] = useState("");
@@ -321,7 +321,7 @@ function Dashboard({ macroprocesses, processes, onSelect, onCreateProcess, onCre
                       </div>
                     ) : (
                       <div style={{ width: '100%', height: '400px', marginTop: '16px' }}>
-                        <MacroprocessDiagram macroprocessId={m.id} processes={mProcs} onProcessDoubleClick={onSelect} onViewFlow={handleViewFlow} onViewSummary={handleViewSummary} onOrganizar={onMoverProceso ? setOrganizando : undefined} />
+                        <MacroprocessDiagram macroprocessId={m.id} processes={mProcs} onProcessDoubleClick={onSelect} onViewFlow={handleViewFlow} onViewSummary={handleViewSummary} onOrganizar={onMoverProceso ? setOrganizando : undefined} onDeleteProcess={onRequestDeleteProcess} />
                       </div>
                     )}
                       </>
